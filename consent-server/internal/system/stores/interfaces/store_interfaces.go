@@ -91,7 +91,6 @@ type ConsentElementStore interface {
 type ConsentPurposeStore interface {
 	CreatePurpose(tx dbmodel.TxInterface, purpose *consentConsentPurposeModel.ConsentPurpose) error
 	GetPurposeByID(ctx context.Context, purposeID, orgID string) (*consentConsentPurposeModel.ConsentPurpose, error)
-	GetPurposeByName(ctx context.Context, name, orgID string) (*consentConsentPurposeModel.ConsentPurpose, error)
 	ListPurposes(ctx context.Context, orgID, name string, clientIDs []string, purposeNames []string, offset, limit int) ([]consentConsentPurposeModel.ConsentPurpose, int, error)
 	UpdatePurpose(tx dbmodel.TxInterface, purpose *consentConsentPurposeModel.ConsentPurpose) error
 	DeletePurpose(tx dbmodel.TxInterface, purposeID, orgID string) error
@@ -99,7 +98,5 @@ type ConsentPurposeStore interface {
 	LinkElementToPurpose(tx dbmodel.TxInterface, purposeID, elementID, orgID string, isMandatory bool) error
 	GetPurposeElements(ctx context.Context, purposeID, orgID string) ([]consentConsentPurposeModel.PurposeElement, error)
 	DeletePurposeElements(tx dbmodel.TxInterface, purposeID, orgID string) error
-	GetPurposeIDByName(ctx context.Context, purposeName, orgID string) (string, error)
-	ValidatePurposeNames(ctx context.Context, purposeNames []string, orgID string) (map[string]string, error)
 	IsElementUsedInPurposes(ctx context.Context, elementID, orgID string) (bool, error)
 }

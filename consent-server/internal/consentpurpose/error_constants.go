@@ -51,12 +51,12 @@ var (
 		Message:     "Purpose name already exists",
 		Description: "A purpose with the same name already exists for this organization",
 	}
-	// ErrorPurposeInUse is the error returned when attempting to delete a purpose that is in use.
+	// ErrorPurposeInUse is the error returned when attempting to change a purpose that is in use.
 	ErrorPurposeInUse = serviceerror.ServiceError{
 		Type:        serviceerror.ClientErrorType,
 		Code:        "CS-4090",
 		Message:     "Purpose in use",
-		Description: "Cannot delete purpose as it is being used in one or more consents",
+		Description: "Cannot change purpose as it is being used in one or more consents",
 	}
 	// ErrorInvalidPurposeElements is the error returned when purpose elements are invalid.
 	ErrorInvalidPurposeElements = serviceerror.ServiceError{
@@ -78,6 +78,13 @@ var (
 		Code:        "CP-4005",
 		Message:     "Purpose ID required",
 		Description: "Purpose ID is required",
+	}
+	// ErrorClientIDRequired is the error returned when client ID is missing.
+	ErrorClientIDRequired = serviceerror.ServiceError{
+		Type:        serviceerror.ClientErrorType,
+		Code:        "CP-4006",
+		Message:     "Client ID required",
+		Description: "Client ID is required",
 	}
 )
 

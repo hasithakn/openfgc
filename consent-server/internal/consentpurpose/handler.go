@@ -50,11 +50,11 @@ func (h *consentPurposeHandler) createPurpose(w http.ResponseWriter, r *http.Req
 
 	// Validate required headers
 	if orgID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "org-id header is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorOrgIDRequired, "org-id header is required"))
 		return
 	}
 	if clientID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "TPP-client-id header is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorClientIDRequired, "TPP-client-id header is required"))
 		return
 	}
 
@@ -87,12 +87,12 @@ func (h *consentPurposeHandler) getPurpose(w http.ResponseWriter, r *http.Reques
 
 	// Validate required headers
 	if orgID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "org-id header is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorOrgIDRequired, "org-id header is required"))
 		return
 	}
 
 	if purposeID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "purposeId is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorPurposeIDRequired, "purposeId is required"))
 		return
 	}
 
@@ -117,7 +117,7 @@ func (h *consentPurposeHandler) listPurposes(w http.ResponseWriter, r *http.Requ
 
 	// Validate required headers
 	if orgID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "org-id header is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorOrgIDRequired, "org-id header is required"))
 		return
 	}
 
@@ -200,15 +200,15 @@ func (h *consentPurposeHandler) updatePurpose(w http.ResponseWriter, r *http.Req
 
 	// Validate required headers and parameters
 	if orgID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "org-id header is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorOrgIDRequired, "org-id header is required"))
 		return
 	}
 	if clientID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "TPP-client-id header is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorClientIDRequired, "TPP-client-id header is required"))
 		return
 	}
 	if purposeID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "purposeId is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorPurposeIDRequired, "purposeId is required"))
 		return
 	}
 
@@ -241,11 +241,11 @@ func (h *consentPurposeHandler) deletePurpose(w http.ResponseWriter, r *http.Req
 
 	// Validate required headers and parameters
 	if orgID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "org-id header is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorOrgIDRequired, "org-id header is required"))
 		return
 	}
 	if purposeID == "" {
-		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, "purposeId is required"))
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorPurposeIDRequired, "purposeId is required"))
 		return
 	}
 

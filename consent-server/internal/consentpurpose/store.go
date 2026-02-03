@@ -41,21 +41,6 @@ var (
 		Query: "SELECT ID, NAME, DESCRIPTION, CLIENT_ID, CREATED_TIME, UPDATED_TIME, ORG_ID FROM CONSENT_PURPOSE WHERE ID = ? AND ORG_ID = ?",
 	}
 
-	QueryGetPurposeByName = dbmodel.DBQuery{
-		ID:    "GET_PURPOSE_BY_NAME",
-		Query: "SELECT ID, NAME, DESCRIPTION, CLIENT_ID, CREATED_TIME, UPDATED_TIME, ORG_ID FROM CONSENT_PURPOSE WHERE NAME = ? AND ORG_ID = ?",
-	}
-
-	QueryListPurposes = dbmodel.DBQuery{
-		ID:    "LIST_PURPOSES",
-		Query: "SELECT ID, NAME, DESCRIPTION, CLIENT_ID, CREATED_TIME, UPDATED_TIME, ORG_ID FROM CONSENT_PURPOSE WHERE ORG_ID = ? ORDER BY CREATED_TIME DESC LIMIT ? OFFSET ?",
-	}
-
-	QueryCountPurposes = dbmodel.DBQuery{
-		ID:    "COUNT_PURPOSES",
-		Query: "SELECT COUNT(*) as count FROM CONSENT_PURPOSE WHERE ORG_ID = ?",
-	}
-
 	QueryUpdatePurpose = dbmodel.DBQuery{
 		ID:    "UPDATE_PURPOSE",
 		Query: "UPDATE CONSENT_PURPOSE SET NAME = ?, DESCRIPTION = ?, UPDATED_TIME = ? WHERE ID = ? AND ORG_ID = ?",
@@ -94,15 +79,17 @@ var (
 		Query: "DELETE FROM PURPOSE_ELEMENT_MAPPING WHERE PURPOSE_ID = ? AND ORG_ID = ?",
 	}
 
-	QueryGetElementIDByName = dbmodel.DBQuery{
-		ID:    "GET_ELEMENT_ID_BY_NAME",
-		Query: "SELECT ID FROM CONSENT_ELEMENT WHERE NAME = ? AND ORG_ID = ?",
-	}
-
 	queryCheckElementInPurposes = dbmodel.DBQuery{
 		ID:    "CHECK_ELEMENT_IN_PURPOSES",
 		Query: "SELECT COUNT(*) as count FROM PURPOSE_ELEMENT_MAPPING WHERE ELEMENT_ID = ? AND ORG_ID = ?",
 	}
+
+	// Base queries for list purposes (used for dynamic query building)
+	BaseListPurposesQuery = `SELECT ID, NAME, DESCRIPTION, CLIENT_ID, CREATED_TIME, UPDATED_TIME, ORG_ID 
+			  FROM CONSENT_PURPOSE 
+			  WHERE ORG_ID = ?`
+
+	BaseCountPurposesQuery = `SELECT COUNT(*) as count FROM CONSENT_PURPOSE WHERE ORG_ID = ?`
 )
 
 // store implements the ConsentPurposeStore interface
@@ -117,6 +104,86 @@ func NewPurposeStore() interfaces.ConsentPurposeStore {
 // getDBClient retrieves the database client from the provider
 func (s *store) getDBClient() (provider.DBClientInterface, error) {
 	return provider.GetDBProvider().GetConsentDBClient()
+}
+
+// mapRowToPurpose maps a database row to a ConsentPurpose model
+func (s *store) mapRowToPurpose(row map[string]interface{}) model.ConsentPurpose {
+	var purpose model.ConsentPurpose
+
+	if id, ok := row["id"].([]uint8); ok {
+		purpose.ID = string(id)
+	}
+	if name, ok := row["name"].([]uint8); ok {
+		purpose.Name = string(name)
+	}
+	if desc, ok := row["description"]; ok && desc != nil {
+		if descBytes, ok := desc.([]uint8); ok {
+			descStr := string(descBytes)
+			purpose.Description = &descStr
+		}
+	}
+	if clientID, ok := row["client_id"].([]uint8); ok {
+		purpose.ClientID = string(clientID)
+	}
+	if createdTime, ok := row["created_time"].(int64); ok {
+		purpose.CreatedTime = createdTime
+	}
+	if updatedTime, ok := row["updated_time"].(int64); ok {
+		purpose.UpdatedTime = updatedTime
+	}
+	if orgID, ok := row["org_id"].([]uint8); ok {
+		purpose.OrgID = string(orgID)
+	}
+
+	return purpose
+}
+
+// buildListPurposesQuery builds dynamic query with filters for listing purposes
+func (s *store) buildListPurposesQuery(orgID, name string, clientIDs []string, purposeNames []string) (string, string, []interface{}, []interface{}) {
+	baseQuery := BaseListPurposesQuery
+	countQuery := BaseCountPurposesQuery
+
+	args := []interface{}{orgID}
+	countArgs := []interface{}{orgID}
+
+	// Filter by name (exact match)
+	if name != "" {
+		baseQuery += ` AND NAME = ?`
+		countQuery += ` AND NAME = ?`
+		args = append(args, name)
+		countArgs = append(countArgs, name)
+	}
+
+	// Filter by clientIDs
+	if len(clientIDs) > 0 {
+		placeholders := strings.Repeat("?,", len(clientIDs))
+		placeholders = placeholders[:len(placeholders)-1]
+		baseQuery += ` AND CLIENT_ID IN (` + placeholders + `)`
+		countQuery += ` AND CLIENT_ID IN (` + placeholders + `)`
+		for _, clientID := range clientIDs {
+			args = append(args, clientID)
+			countArgs = append(countArgs, clientID)
+		}
+	}
+
+	// Filter by purposeNames - AND logic: purpose must contain ALL specified purposes
+	if len(purposeNames) > 0 {
+		for _, purposeName := range purposeNames {
+			subQuery := ` AND EXISTS (
+				SELECT 1 FROM PURPOSE_ELEMENT_MAPPING m
+				JOIN CONSENT_ELEMENT p ON m.ELEMENT_ID = p.ID AND m.ORG_ID = p.ORG_ID
+				WHERE m.PURPOSE_ID = CONSENT_PURPOSE.ID 
+				  AND m.ORG_ID = CONSENT_PURPOSE.ORG_ID
+				  AND p.NAME = ?
+			)`
+			baseQuery += subQuery
+			countQuery += subQuery
+			args = append(args, purposeName)
+			countArgs = append(countArgs, purposeName)
+		}
+	}
+
+	return baseQuery, countQuery, args, countArgs
 }
 
 // CreatePurpose creates a new purpose
@@ -150,89 +217,11 @@ func (s *store) GetPurposeByID(ctx context.Context, purposeID, orgID string) (*m
 		return nil, fmt.Errorf("purpose not found")
 	}
 
-	// Extract values from the first row
-	row := rows[0]
-	if id, ok := row["id"].([]uint8); ok {
-		purpose.ID = string(id)
-	}
-	if name, ok := row["name"].([]uint8); ok {
-		purpose.Name = string(name)
-	}
-	if desc, ok := row["description"]; ok && desc != nil {
-		if descBytes, ok := desc.([]uint8); ok {
-			descStr := string(descBytes)
-			purpose.Description = &descStr
-		}
-	}
-	if clientID, ok := row["client_id"].([]uint8); ok {
-		purpose.ClientID = string(clientID)
-	}
-	if createdTime, ok := row["created_time"].(int64); ok {
-		purpose.CreatedTime = createdTime
-	}
-	if updatedTime, ok := row["updated_time"].(int64); ok {
-		purpose.UpdatedTime = updatedTime
-	}
-	if orgID, ok := row["org_id"].([]uint8); ok {
-		purpose.OrgID = string(orgID)
-	}
+	// Map database row to purpose model
+	purpose = s.mapRowToPurpose(rows[0])
 
 	// Load elements for the purpose
-	elements, err := s.GetPurposeElements(ctx, purposeID, orgID)
-	if err != nil {
-		return nil, err
-	}
-	purpose.Elements = elements
-
-	return &purpose, nil
-}
-
-// GetPurposeByName retrieves a purpose by name
-func (s *store) GetPurposeByName(ctx context.Context, name, orgID string) (*model.ConsentPurpose, error) {
-	dbClient, err := s.getDBClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get database client: %w", err)
-	}
-
-	var purpose model.ConsentPurpose
-	rows, err := dbClient.Query(QueryGetPurposeByName, name, orgID)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rows) == 0 {
-		return nil, fmt.Errorf("purpose not found")
-	}
-
-	// Extract values from the first row
-	row := rows[0]
-	if id, ok := row["id"].([]uint8); ok {
-		purpose.ID = string(id)
-	}
-	if name, ok := row["name"].([]uint8); ok {
-		purpose.Name = string(name)
-	}
-	if desc, ok := row["description"]; ok && desc != nil {
-		if descBytes, ok := desc.([]uint8); ok {
-			descStr := string(descBytes)
-			purpose.Description = &descStr
-		}
-	}
-	if clientID, ok := row["client_id"].([]uint8); ok {
-		purpose.ClientID = string(clientID)
-	}
-	if createdTime, ok := row["created_time"].(int64); ok {
-		purpose.CreatedTime = createdTime
-	}
-	if updatedTime, ok := row["updated_time"].(int64); ok {
-		purpose.UpdatedTime = updatedTime
-	}
-	if orgIDVal, ok := row["org_id"].([]uint8); ok {
-		purpose.OrgID = string(orgIDVal)
-	}
-
-	// Load elements for the purpose
-	elements, err := s.GetPurposeElements(ctx, purpose.ID, orgID)
+	elements, err := s.GetPurposeElements(ctx, purposeID, purpose.OrgID)
 	if err != nil {
 		return nil, err
 	}
@@ -248,52 +237,8 @@ func (s *store) ListPurposes(ctx context.Context, orgID, name string, clientIDs 
 		return nil, 0, fmt.Errorf("failed to get database client: %w", err)
 	}
 
-	// Build dynamic query based on filters
-	query := `SELECT ID, NAME, DESCRIPTION, CLIENT_ID, CREATED_TIME, UPDATED_TIME, ORG_ID 
-			  FROM CONSENT_PURPOSE 
-			  WHERE ORG_ID = ?`
-	countQuery := `SELECT COUNT(*) as count FROM CONSENT_PURPOSE WHERE ORG_ID = ?`
-
-	args := []interface{}{orgID}
-	countArgs := []interface{}{orgID}
-
-	// Filter by name (exact match or partial match with LIKE)
-	if name != "" {
-		query += ` AND NAME = ?`
-		countQuery += ` AND NAME = ?`
-		args = append(args, name)
-		countArgs = append(countArgs, name)
-	}
-
-	// Filter by clientIDs
-	if len(clientIDs) > 0 {
-		placeholders := strings.Repeat("?,", len(clientIDs))
-		placeholders = placeholders[:len(placeholders)-1]
-		query += ` AND CLIENT_ID IN (` + placeholders + `)`
-		countQuery += ` AND CLIENT_ID IN (` + placeholders + `)`
-		for _, clientID := range clientIDs {
-			args = append(args, clientID)
-			countArgs = append(countArgs, clientID)
-		}
-	}
-
-	// Filter by purposeNames - AND logic: purpose must contain ALL specified purposes
-	if len(purposeNames) > 0 {
-		// For each purpose name, ensure the purpose contains it
-		for _, purposeName := range purposeNames {
-			subQuery := ` AND EXISTS (
-				SELECT 1 FROM PURPOSE_ELEMENT_MAPPING m
-				JOIN CONSENT_ELEMENT p ON m.ELEMENT_ID = p.ID AND m.ORG_ID = p.ORG_ID
-				WHERE m.PURPOSE_ID = CONSENT_PURPOSE.ID 
-				  AND m.ORG_ID = CONSENT_PURPOSE.ORG_ID
-				  AND p.NAME = ?
-			)`
-			query += subQuery
-			countQuery += subQuery
-			args = append(args, purposeName)
-			countArgs = append(countArgs, purposeName)
-		}
-	}
+	// Build dynamic query with filters
+	query, countQuery, args, countArgs := s.buildListPurposesQuery(orgID, name, clientIDs, purposeNames)
 
 	// Get total count
 	var total int
@@ -328,31 +273,7 @@ func (s *store) ListPurposes(ctx context.Context, orgID, name string, clientIDs 
 	}
 
 	for _, row := range rows {
-		var purpose model.ConsentPurpose
-		if id, ok := row["id"].([]uint8); ok {
-			purpose.ID = string(id)
-		}
-		if name, ok := row["name"].([]uint8); ok {
-			purpose.Name = string(name)
-		}
-		if desc, ok := row["description"]; ok && desc != nil {
-			if descBytes, ok := desc.([]uint8); ok {
-				descStr := string(descBytes)
-				purpose.Description = &descStr
-			}
-		}
-		if clientID, ok := row["client_id"].([]uint8); ok {
-			purpose.ClientID = string(clientID)
-		}
-		if createdTime, ok := row["created_time"].(int64); ok {
-			purpose.CreatedTime = createdTime
-		}
-		if updatedTime, ok := row["updated_time"].(int64); ok {
-			purpose.UpdatedTime = updatedTime
-		}
-		if orgID, ok := row["org_id"].([]uint8); ok {
-			purpose.OrgID = string(orgID)
-		}
+		purpose := s.mapRowToPurpose(row)
 		purposes = append(purposes, purpose)
 	}
 
@@ -461,83 +382,14 @@ func (s *store) DeletePurposeElements(tx dbmodel.TxInterface, purposeID, orgID s
 	return err
 }
 
-// GetPurposeIDByName retrieves a purpose ID by name
-func (s *store) GetPurposeIDByName(ctx context.Context, purposeName, orgID string) (string, error) {
-	dbClient, err := s.getDBClient()
-	if err != nil {
-		return "", fmt.Errorf("failed to get database client: %w", err)
-	}
-
-	var purposeID string
-	rows, err := dbClient.Query(QueryGetElementIDByName, purposeName, orgID)
-	if err != nil {
-		return "", err
-	}
-
-	if len(rows) == 0 {
-		return "", fmt.Errorf("purpose '%s' not found", purposeName)
-	}
-
-	if id, ok := rows[0]["id"].([]uint8); ok {
-		purposeID = string(id)
-	}
-	return purposeID, nil
-}
-
-// ValidatePurposeNames validates that all purpose names exist and returns a map of name -> ID
-func (s *store) ValidatePurposeNames(ctx context.Context, purposeNames []string, orgID string) (map[string]string, error) {
-	if len(purposeNames) == 0 {
-		return map[string]string{}, nil
-	}
-
-	placeholders := strings.Repeat("?,", len(purposeNames))
-	placeholders = placeholders[:len(placeholders)-1]
-
-	query := fmt.Sprintf("SELECT NAME, ID FROM CONSENT_PURPOSE WHERE ORG_ID = ? AND NAME IN (%s)", placeholders)
-
-	args := []interface{}{orgID}
-	for _, name := range purposeNames {
-		args = append(args, name)
-	}
-
-	validateQueryDB := dbmodel.DBQuery{
-		ID:    "VALIDATE_PURPOSE_NAMES",
-		Query: query,
-	}
-
-	dbClient, err := s.getDBClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get database client: %w", err)
-	}
-
-	rows, err := dbClient.Query(validateQueryDB, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]string)
-	for _, row := range rows {
-		var name, id string
-		if nameBytes, ok := row["name"].([]uint8); ok {
-			name = string(nameBytes)
-		}
-		if idBytes, ok := row["id"].([]uint8); ok {
-			id = string(idBytes)
-		}
-		result[name] = id
-	}
-
-	return result, nil
-}
-
-// IsElementUsedInPurposes checks if a purpose is used in any purpose
-func (s *store) IsElementUsedInPurposes(ctx context.Context, purposeID, orgID string) (bool, error) {
+// IsElementUsedInPurposes checks if a element is used in any purpose
+func (s *store) IsElementUsedInPurposes(ctx context.Context, elementID, orgID string) (bool, error) {
 	dbClient, err := s.getDBClient()
 	if err != nil {
 		return false, fmt.Errorf("failed to get database client: %w", err)
 	}
 
-	rows, err := dbClient.Query(queryCheckElementInPurposes, purposeID, orgID)
+	rows, err := dbClient.Query(queryCheckElementInPurposes, elementID, orgID)
 	if err != nil {
 		return false, err
 	}
