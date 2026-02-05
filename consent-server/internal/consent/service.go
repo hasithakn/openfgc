@@ -143,13 +143,13 @@ func (consentService *consentService) CreateConsent(ctx context.Context, req mod
 		logger.Debug("Adding consent attributes", log.Int("attribute_count", len(createReq.Attributes)))
 		attributes := make([]model.ConsentAttribute, 0, len(createReq.Attributes))
 		for key, value := range createReq.Attributes {
-			attr := model.ConsentAttribute{
+			attribute := model.ConsentAttribute{
 				ConsentID: consentID,
 				AttKey:    key,
 				AttValue:  value,
 				OrgID:     orgID,
 			}
-			attributes = append(attributes, attr)
+			attributes = append(attributes, attribute)
 		}
 		queries = append(queries, func(tx dbmodel.TxInterface) error {
 			return consentStore.CreateAttributes(tx, attributes)
@@ -354,8 +354,8 @@ func (consentService *consentService) GetConsent(ctx context.Context, consentID,
 
 	// Convert attributes slice to map
 	attributesMap := make(map[string]string)
-	for _, a := range attributes {
-		attributesMap[a.AttKey] = a.AttValue
+	for _, attribute := range attributes {
+		attributesMap[attribute.AttKey] = attribute.AttValue
 	}
 
 	// Resolve purposes with all purposes
@@ -675,13 +675,13 @@ func (consentService *consentService) UpdateConsent(ctx context.Context, req mod
 		if len(updateReq.Attributes) > 0 {
 			attributes := make([]model.ConsentAttribute, 0, len(updateReq.Attributes))
 			for key, value := range updateReq.Attributes {
-				attr := model.ConsentAttribute{
+				attribute := model.ConsentAttribute{
 					ConsentID: consentID,
 					AttKey:    key,
 					AttValue:  value,
 					OrgID:     orgID,
 				}
-				attributes = append(attributes, attr)
+				attributes = append(attributes, attribute)
 			}
 
 			queries = append(queries, func(tx dbmodel.TxInterface) error {
@@ -754,15 +754,15 @@ func (consentService *consentService) UpdateConsent(ctx context.Context, req mod
 		})
 
 		// Add new purpose and approval records
-		for _, pg := range resolvedPurposes {
+		for _, purpose := range resolvedPurposes {
 			// Link consent to purpose
-			purposeID := pg.PurposeID
+			purposeID := purpose.PurposeID
 			queries = append(queries, func(tx dbmodel.TxInterface) error {
 				return consentStore.CreateConsentPurposeMapping(tx, consentID, purposeID, orgID)
 			})
 
 			// Create approval records for each purpose in the purpose
-			for _, element := range pg.Elements {
+			for _, element := range purpose.Elements {
 				approval := &model.ConsentElementApprovalRecord{
 					ConsentID:      consentID,
 					PurposeID:      purposeID,
@@ -1059,8 +1059,8 @@ func (consentService *consentService) ValidateConsent(ctx context.Context, req m
 
 		// Convert attributes slice to map
 		attributesMap := make(map[string]string)
-		for _, a := range attributes {
-			attributesMap[a.AttKey] = a.AttValue
+		for _, attribute := range attributes {
+			attributesMap[attribute.AttKey] = attribute.AttValue
 		}
 
 		// Resolve purposes with all purposes
@@ -1243,17 +1243,17 @@ func (consentService *consentService) EnrichedValidateConsentAPIResponse(ctx con
 				Elements:    make([]model.ConsentElementApprovalItemValidate, 0, len(purposeItem.Elements)),
 			}
 
-			for _, p := range purposeItem.Elements {
+			for _, elementItem := range purposeItem.Elements {
 				enrichedElement := model.ConsentElementApprovalItemValidate{
-					ElementName:    p.ElementName,
-					IsUserApproved: p.IsUserApproved,
-					Value:          p.Value,
-					IsMandatory:    p.IsMandatory,
+					ElementName:    elementItem.ElementName,
+					IsUserApproved: elementItem.IsUserApproved,
+					Value:          elementItem.Value,
+					IsMandatory:    elementItem.IsMandatory,
 				}
 
 				// Fetch full element details from consent element service
-				if p.ElementName != "" {
-					element, err := consentElementStore.GetByName(ctx, p.ElementName, orgID)
+				if elementItem.ElementName != "" {
+					element, err := consentElementStore.GetByName(ctx, elementItem.ElementName, orgID)
 					if err == nil && element != nil {
 						// Enrich with element details
 						enrichedElement.Type = element.Type
@@ -1273,18 +1273,18 @@ func (consentService *consentService) EnrichedValidateConsentAPIResponse(ctx con
 						}
 
 						logger.Debug("Element details enriched for validate",
-							log.String("element", p.ElementName),
+							log.String("element", elementItem.ElementName),
 							log.String("type", element.Type),
 							log.String("description", enrichedElement.Description),
 							log.Bool("isMandatory", enrichedElement.IsMandatory),
 							log.Int("properties_count", len(enrichedElement.Properties)))
 					} else if err != nil {
 						logger.Warn("Failed to fetch element details",
-							log.String("element", p.ElementName),
+							log.String("element", elementItem.ElementName),
 							log.Error(err))
 					} else {
 						logger.Warn("Element not found in database",
-							log.String("element", p.ElementName),
+							log.String("element", elementItem.ElementName),
 							log.String("org_id", orgID))
 					}
 				}
@@ -1495,8 +1495,8 @@ func (s *consentService) getResolvedConsentPurposes(
 
 	// Step 5: Convert map to slice for response
 	purposes := make([]model.ConsentPurposeItem, 0, len(purposesMap))
-	for _, pg := range purposesMap {
-		purposes = append(purposes, *pg)
+	for _, purpose := range purposesMap {
+		purposes = append(purposes, *purpose)
 	}
 
 	logger.Debug("Resolved consent purposes",

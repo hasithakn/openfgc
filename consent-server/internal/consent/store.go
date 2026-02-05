@@ -341,9 +341,9 @@ func (s *store) UpdateStatus(tx dbmodel.TxInterface, consentID, orgID, status st
 
 // CreateAttributes creates multiple consent attributes within a transaction
 func (s *store) CreateAttributes(tx dbmodel.TxInterface, attributes []model.ConsentAttribute) error {
-	for _, attr := range attributes {
+	for _, attribute := range attributes {
 		_, err := tx.Exec(QueryCreateAttribute,
-			attr.ConsentID, attr.AttKey, attr.AttValue, attr.OrgID)
+			attribute.ConsentID, attribute.AttKey, attribute.AttValue, attribute.OrgID)
 		if err != nil {
 			return err
 		}
@@ -365,9 +365,9 @@ func (s *store) GetAttributesByConsentID(ctx context.Context, consentID, orgID s
 
 	attributes := make([]model.ConsentAttribute, 0, len(rows))
 	for _, row := range rows {
-		attr := mapToConsentAttribute(row)
-		if attr != nil {
-			attributes = append(attributes, *attr)
+		attribute := mapToConsentAttribute(row)
+		if attribute != nil {
+			attributes = append(attributes, *attribute)
 		}
 	}
 
@@ -411,12 +411,12 @@ func (s *store) GetAttributesByConsentIDs(ctx context.Context, consentIDs []stri
 	// Group attributes by consent ID
 	result := make(map[string]map[string]string)
 	for _, row := range rows {
-		attr := mapToConsentAttribute(row)
-		if attr != nil {
-			if result[attr.ConsentID] == nil {
-				result[attr.ConsentID] = make(map[string]string)
+		attribute := mapToConsentAttribute(row)
+		if attribute != nil {
+			if result[attribute.ConsentID] == nil {
+				result[attribute.ConsentID] = make(map[string]string)
 			}
-			result[attr.ConsentID][attr.AttKey] = attr.AttValue
+			result[attribute.ConsentID][attribute.AttKey] = attribute.AttValue
 		}
 	}
 

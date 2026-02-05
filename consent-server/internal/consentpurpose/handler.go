@@ -171,8 +171,8 @@ func (h *consentPurposeHandler) listPurposes(w http.ResponseWriter, r *http.Requ
 
 	// Convert to response format
 	responses := make([]model.Response, 0, len(purposes))
-	for _, p := range purposes {
-		responses = append(responses, p.ToResponse())
+	for _, purpose := range purposes {
+		responses = append(responses, purpose.ToResponse())
 	}
 
 	// Build response with pagination metadata

@@ -389,8 +389,8 @@ func (s *consentPurposeService) validateUpdateRequest(req model.UpdateRequest) *
 // validateElementNamesExist validates that all element names exist and returns a map of name -> ID
 func (s *consentPurposeService) validateElementNamesExist(ctx context.Context, elements []model.ElementInput, orgID string) (map[string]string, *serviceerror.ServiceError) {
 	elementNames := make([]string, len(elements))
-	for i, e := range elements {
-		elementNames[i] = e.ElementName
+	for i, elementInput := range elements {
+		elementNames[i] = elementInput.ElementName
 	}
 
 	elementNameToID, err := s.stores.ConsentElement.GetIDsByNames(ctx, elementNames, orgID)

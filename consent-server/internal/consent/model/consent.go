@@ -417,12 +417,12 @@ func (req *ConsentAPIRequest) ToConsentCreateRequest() (*ConsentCreateRequest, e
 
 	// Structure purposes data (validation happens in service layer)
 	purposes := make([]ConsentPurposeCreateRequest, len(req.Purposes))
-	for i, pg := range req.Purposes {
-		elements := make([]ConsentElementApprovalCreateRequest, len(pg.Elements))
-		for j, p := range pg.Elements {
+	for i, purposeInput := range req.Purposes {
+		elements := make([]ConsentElementApprovalCreateRequest, len(purposeInput.Elements))
+		for j, elementInput := range purposeInput.Elements {
 			var valueJSON *string
-			if p.Value != nil {
-				valueBytes, err := json.Marshal(p.Value)
+			if elementInput.Value != nil {
+				valueBytes, err := json.Marshal(elementInput.Value)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal purpose value: %v", err)
 				}
@@ -431,14 +431,14 @@ func (req *ConsentAPIRequest) ToConsentCreateRequest() (*ConsentCreateRequest, e
 			}
 
 			elements[j] = ConsentElementApprovalCreateRequest{
-				ElementName:    p.ElementName,
-				IsUserApproved: p.IsUserApproved,
+				ElementName:    elementInput.ElementName,
+				IsUserApproved: elementInput.IsUserApproved,
 				Value:          valueJSON,
 			}
 		}
 
 		purposes[i] = ConsentPurposeCreateRequest{
-			PurposeName: pg.PurposeName,
+			PurposeName: purposeInput.PurposeName,
 			Elements:    elements,
 		}
 	}
@@ -481,31 +481,31 @@ func (req *ConsentAPIUpdateRequest) ToConsentUpdateRequest() (*ConsentUpdateRequ
 	var purposes []ConsentPurposeCreateRequest
 	if req.Purposes != nil {
 		purposes = make([]ConsentPurposeCreateRequest, len(req.Purposes))
-		for i, pg := range req.Purposes {
+		for i, purposeInput := range req.Purposes {
 			// Convert elements within the purpose
-			elements := make([]ConsentElementApprovalCreateRequest, len(pg.Elements))
-			for j, p := range pg.Elements {
+			elements := make([]ConsentElementApprovalCreateRequest, len(purposeInput.Elements))
+			for j, elementInput := range purposeInput.Elements {
 				// Marshal value to JSON if present
 				var valueJSON *string
-				if p.Value != nil {
-					valueBytes, err := json.Marshal(p.Value)
+				if elementInput.Value != nil {
+					valueBytes, err := json.Marshal(elementInput.Value)
 					if err != nil {
-						return nil, fmt.Errorf("failed to marshal purpose value for '%s': %w", p.ElementName, err)
+						return nil, fmt.Errorf("failed to marshal purpose value for '%s': %w", elementInput.ElementName, err)
 					}
 					valueStr := string(valueBytes)
 					valueJSON = &valueStr
 				}
 
 				elements[j] = ConsentElementApprovalCreateRequest{
-					ElementName:    p.ElementName,
-					IsUserApproved: p.IsUserApproved,
+					ElementName:    elementInput.ElementName,
+					IsUserApproved: elementInput.IsUserApproved,
 					Value:          valueJSON,
 					// PurposeID and IsMandatory will be resolved during validation
 				}
 			}
 
 			purposes[i] = ConsentPurposeCreateRequest{
-				PurposeName: pg.PurposeName,
+				PurposeName: purposeInput.PurposeName,
 				Elements:    elements,
 				// PurposeID will be resolved during validation
 			}
