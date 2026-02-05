@@ -58,12 +58,8 @@ type AuthResourceStore interface {
 	GetByID(ctx context.Context, authID, orgID string) (*authResourceModel.AuthResource, error)
 	GetByConsentID(ctx context.Context, consentID, orgID string) ([]authResourceModel.AuthResource, error)
 	GetByConsentIDs(ctx context.Context, consentIDs []string, orgID string) ([]authResourceModel.AuthResource, error)
-	Exists(ctx context.Context, authID, orgID string) (bool, error)
-	GetByUserID(ctx context.Context, userID, orgID string) ([]authResourceModel.AuthResource, error)
 	Create(tx dbmodel.TxInterface, authResource *authResourceModel.AuthResource) error
 	Update(tx dbmodel.TxInterface, authResource *authResourceModel.AuthResource) error
-	UpdateStatus(tx dbmodel.TxInterface, authID, orgID, status string, updatedTime int64) error
-	Delete(tx dbmodel.TxInterface, authID, orgID string) error
 	DeleteByConsentID(tx dbmodel.TxInterface, consentID, orgID string) error
 	UpdateAllStatusByConsentID(tx dbmodel.TxInterface, consentID, orgID, status string, updatedTime int64) error
 }

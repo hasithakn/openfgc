@@ -1,7 +1,22 @@
-package authresource
+/*
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
-// Store Access Pattern:
-// - All stores accessed through StoreRegistry with typed interfaces
+package authresource
 
 import (
 	"context"
@@ -25,10 +40,7 @@ type AuthResourceServiceInterface interface {
 	CreateAuthResource(ctx context.Context, consentID, orgID string, request *model.CreateRequest) (*model.Response, *serviceerror.ServiceError)
 	GetAuthResource(ctx context.Context, authID, consentID, orgID string) (*model.Response, *serviceerror.ServiceError)
 	GetAuthResourcesByConsentID(ctx context.Context, consentID, orgID string) (*model.ListResponse, *serviceerror.ServiceError)
-	GetAuthResourcesByUserID(ctx context.Context, userID, orgID string) (*model.ListResponse, *serviceerror.ServiceError)
 	UpdateAuthResource(ctx context.Context, authID, consentID, orgID string, request *model.UpdateRequest) (*model.Response, *serviceerror.ServiceError)
-	DeleteAuthResource(ctx context.Context, authID, orgID string) *serviceerror.ServiceError
-	DeleteAuthResourcesByConsentID(ctx context.Context, consentID, orgID string) *serviceerror.ServiceError
 	UpdateAllStatusByConsentID(ctx context.Context, consentID, orgID string, status string) *serviceerror.ServiceError
 }
 
@@ -131,7 +143,7 @@ func (s *authResourceService) CreateAuthResource(
 
 			// Check if status actually changed
 			if currentConsent.CurrentStatus == derivedConsentStatus {
-				// Status hasn't changed, skip update and audit
+				// Status hasn't changed, skip update, audit
 				return nil
 			}
 
@@ -286,64 +298,13 @@ func (s *authResourceService) GetAuthResourcesByConsentID(
 	}, nil
 }
 
-// GetAuthResourcesByUserID retrieves all authorization resources for a user
-func (s *authResourceService) GetAuthResourcesByUserID(
-	ctx context.Context,
-	userID, orgID string,
-) (*model.ListResponse, *serviceerror.ServiceError) {
-	logger := log.GetLogger().WithContext(ctx)
-	logger.Debug("Retrieving auth resources by user ID",
-		log.String("user_id", userID),
-		log.String("org_id", orgID),
-	)
-
-	// Validate inputs
-	if userID == "" {
-		logger.Warn("User ID is required")
-		return nil, serviceerror.CustomServiceError(
-			ErrorInvalidRequestBody,
-			"user ID is required",
-		)
-	}
-	if err := s.validateOrgID(orgID); err != nil {
-		logger.Warn("Validation failed for get auth resources by user", log.String("error", err.Error()))
-		return nil, err
-	}
-
-	authResourcesStore := s.stores.AuthResource
-	authResources, err := authResourcesStore.GetByUserID(ctx, userID, orgID)
-	if err != nil {
-		logger.Error("Failed to fetch auth resources by user ID",
-			log.Error(err),
-			log.String("user_id", userID),
-		)
-		return nil, serviceerror.CustomServiceError(
-			ErrorInternalServerError,
-			fmt.Sprintf("failed to fetch auth resources: %v", err),
-		)
-	}
-
-	// Initialize as empty slice to ensure JSON serialization returns [] instead of null
-	responses := make([]model.Response, 0, len(authResources))
-	for _, ar := range authResources {
-		responses = append(responses, *s.buildResponse(&ar))
-	}
-
-	logger.Debug("Auth resources retrieved successfully",
-		log.String("user_id", userID),
-		log.Int("count", len(authResources)),
-	)
-	return &model.ListResponse{
-		Data: responses,
-	}, nil
-}
-
 // UpdateAuthResource updates an existing authorization resource
 func (s *authResourceService) UpdateAuthResource(
 	ctx context.Context,
 	authID, consentID, orgID string,
 	request *model.UpdateRequest,
 ) (*model.Response, *serviceerror.ServiceError) {
+
 	logger := log.GetLogger().WithContext(ctx)
 	logger.Info("Updating auth resource",
 		log.String("auth_id", authID),
@@ -521,7 +482,7 @@ func (s *authResourceService) UpdateAuthResource(
 			log.String("auth_id", authID),
 		)
 		return nil, serviceerror.CustomServiceError(
-			ErrorRetrieveAuthResource,
+			ErrorUpdateAuthResource,
 			fmt.Sprintf("failed to update auth resource: %v", err),
 		)
 	}
@@ -531,162 +492,6 @@ func (s *authResourceService) UpdateAuthResource(
 		log.Bool("status_changed", statusChanged),
 	)
 	return s.buildResponse(&updatedAuthResource), nil
-}
-
-// DeleteAuthResource deletes an authorization resource
-func (s *authResourceService) DeleteAuthResource(
-	ctx context.Context,
-	authID, orgID string,
-) *serviceerror.ServiceError {
-	logger := log.GetLogger().WithContext(ctx)
-	logger.Info("Deleting auth resource",
-		log.String("auth_id", authID),
-		log.String("org_id", orgID),
-	)
-
-	// Validate inputs
-	if err := s.validateAuthIDAndOrgID(authID, orgID); err != nil {
-		logger.Warn("Validation failed for delete auth resource", log.String("error", err.Error()))
-		return err
-	}
-
-	// Get existing auth resource to retrieve consent ID
-	store := s.stores.AuthResource
-	existingAuthResource, err := store.GetByID(ctx, authID, orgID)
-	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			return serviceerror.CustomServiceError(
-				ErrorAuthResourceNotFound,
-				fmt.Sprintf("auth resource not found: %s", authID),
-			)
-		}
-		return serviceerror.CustomServiceError(
-			ErrorRetrieveAuthResource,
-			fmt.Sprintf("failed to retrieve auth resource: %v", err),
-		)
-	}
-
-	// Delete auth resource and update consent status in transaction
-	err = s.stores.ExecuteTransaction([]func(tx dbmodel.TxInterface) error{
-		func(tx dbmodel.TxInterface) error {
-			return store.Delete(tx, authID, orgID)
-		},
-		func(tx dbmodel.TxInterface) error {
-			// Get remaining auth resources for this consent
-			allAuthResources, err := store.GetByConsentID(ctx, existingAuthResource.ConsentID, orgID)
-			if err != nil {
-				return fmt.Errorf("failed to retrieve auth resources: %w", err)
-			}
-
-			// Filter out the deleted auth resource
-			authStatuses := make([]string, 0, len(allAuthResources))
-			for _, ar := range allAuthResources {
-				if ar.AuthID != authID {
-					authStatuses = append(authStatuses, ar.AuthStatus)
-				}
-			}
-
-			// Derive consent status from remaining auth resources
-			derivedConsentStatus := validator.EvaluateConsentStatusFromAuthStatuses(authStatuses)
-			logger.Debug("Derived consent status after deletion",
-				log.String("consent_id", existingAuthResource.ConsentID),
-				log.String("derived_status", derivedConsentStatus),
-				log.Int("remaining_auth_count", len(authStatuses)),
-			)
-
-			// Get current consent to check if status changed
-			currentConsent, err := s.stores.Consent.GetByID(ctx, existingAuthResource.ConsentID, orgID)
-			if err != nil {
-				return fmt.Errorf("failed to retrieve consent: %w", err)
-			}
-
-			// Only update if consent status actually changed
-			if currentConsent.CurrentStatus != derivedConsentStatus {
-				updatedTime := utils.GetCurrentTimeMillis()
-
-				// Update consent status
-				if err := s.stores.Consent.UpdateStatus(tx, existingAuthResource.ConsentID, orgID, derivedConsentStatus, updatedTime); err != nil {
-					return err
-				}
-
-				// Create status audit record
-				auditID := utils.GenerateUUID()
-				reason := fmt.Sprintf("Authorization %s deleted with status %s", authID, existingAuthResource.AuthStatus)
-				audit := &consentModel.ConsentStatusAudit{
-					StatusAuditID:  auditID,
-					ConsentID:      existingAuthResource.ConsentID,
-					CurrentStatus:  derivedConsentStatus,
-					ActionTime:     updatedTime,
-					Reason:         &reason,
-					ActionBy:       nil,
-					PreviousStatus: &currentConsent.CurrentStatus,
-					OrgID:          orgID,
-				}
-				if err := s.stores.Consent.CreateStatusAudit(tx, audit); err != nil {
-					return err
-				}
-				return nil
-			}
-			return nil
-		},
-	})
-	if err != nil {
-		logger.Error("Transaction failed for auth resource deletion",
-			log.Error(err),
-			log.String("auth_id", authID),
-		)
-		return serviceerror.CustomServiceError(
-			ErrorRetrieveAuthResource,
-			fmt.Sprintf("failed to delete auth resource: %v", err),
-		)
-	}
-
-	logger.Info("Auth resource deleted successfully",
-		log.String("auth_id", authID),
-		log.String("consent_id", existingAuthResource.ConsentID),
-	)
-	return nil
-}
-
-// DeleteAuthResourcesByConsentID deletes all authorization resources for a consent
-func (s *authResourceService) DeleteAuthResourcesByConsentID(
-	ctx context.Context,
-	consentID, orgID string,
-) *serviceerror.ServiceError {
-	logger := log.GetLogger().WithContext(ctx)
-	logger.Info("Deleting all auth resources for consent",
-		log.String("consent_id", consentID),
-		log.String("org_id", orgID),
-	)
-
-	// Validate inputs
-	if err := s.validateConsentIDAndOrgID(consentID, orgID); err != nil {
-		logger.Warn("Validation failed for delete auth resources by consent", log.String("error", err.Error()))
-		return err
-	}
-
-	// Delete all auth resources for the consent
-	store := s.stores.AuthResource
-	err := s.stores.ExecuteTransaction([]func(tx dbmodel.TxInterface) error{
-		func(tx dbmodel.TxInterface) error {
-			return store.DeleteByConsentID(tx, consentID, orgID)
-		},
-	})
-	if err != nil {
-		logger.Error("Transaction failed for auth resources deletion",
-			log.Error(err),
-			log.String("consent_id", consentID),
-		)
-		return serviceerror.CustomServiceError(
-			ErrorRetrieveAuthResource,
-			fmt.Sprintf("failed to delete auth resources: %v", err),
-		)
-	}
-
-	logger.Info("Auth resources deleted successfully for consent",
-		log.String("consent_id", consentID),
-	)
-	return nil
 }
 
 // UpdateAllStatusByConsentID updates status for all auth resources of a consent
@@ -729,7 +534,7 @@ func (s *authResourceService) UpdateAllStatusByConsentID(
 			log.String("consent_id", consentID),
 		)
 		return serviceerror.CustomServiceError(
-			ErrorRetrieveAuthResource,
+			ErrorUpdateAuthResource,
 			fmt.Sprintf("failed to update auth resource statuses: %v", err),
 		)
 	}
@@ -778,13 +583,13 @@ func (s *authResourceService) validateCreateRequest(consentID, orgID string, req
 func (s *authResourceService) validateAuthIDAndOrgID(authID, orgID string) *serviceerror.ServiceError {
 	if authID == "" {
 		return serviceerror.CustomServiceError(
-			ErrorInvalidRequestBody,
+			ErrorAuthResourceIDRequired,
 			"auth ID is required",
 		)
 	}
 	if len(authID) > 255 {
 		return serviceerror.CustomServiceError(
-			ErrorInvalidRequestBody,
+			ErrorValidationFailed,
 			"auth ID too long: maximum 255 characters",
 		)
 	}
@@ -794,13 +599,13 @@ func (s *authResourceService) validateAuthIDAndOrgID(authID, orgID string) *serv
 func (s *authResourceService) validateConsentIDAndOrgID(consentID, orgID string) *serviceerror.ServiceError {
 	if consentID == "" {
 		return serviceerror.CustomServiceError(
-			ErrorInvalidRequestBody,
+			ErrorConsentIDRequired,
 			"consent ID is required",
 		)
 	}
 	if len(consentID) > 255 {
 		return serviceerror.CustomServiceError(
-			ErrorInvalidRequestBody,
+			ErrorValidationFailed,
 			"consent ID too long: maximum 255 characters",
 		)
 	}
@@ -810,13 +615,13 @@ func (s *authResourceService) validateConsentIDAndOrgID(consentID, orgID string)
 func (s *authResourceService) validateOrgID(orgID string) *serviceerror.ServiceError {
 	if orgID == "" {
 		return serviceerror.CustomServiceError(
-			ErrorInvalidRequestBody,
+			ErrorOrgIDRequired,
 			"organization ID is required",
 		)
 	}
 	if len(orgID) > 255 {
 		return serviceerror.CustomServiceError(
-			ErrorInvalidRequestBody,
+			ErrorValidationFailed,
 			"organization ID too long: maximum 255 characters",
 		)
 	}

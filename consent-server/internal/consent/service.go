@@ -935,7 +935,7 @@ func (consentService *consentService) RevokeConsent(ctx context.Context, consent
 		logger.Warn("Consent is already revoked",
 			log.String("consent_id", consentID),
 			log.String("status", existing.CurrentStatus))
-		return nil, serviceerror.CustomServiceError(ErrorConsentStatusConflict, fmt.Sprintf("Consent with ID '%s' is already revoked", consentID))
+		return nil, serviceerror.CustomServiceError(ErrorConsentAlreadyRevoked, fmt.Sprintf("Consent with ID '%s' is already revoked", consentID))
 	}
 
 	currentTime := utils.GetCurrentTimeMillis()

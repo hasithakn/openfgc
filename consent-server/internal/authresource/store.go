@@ -50,29 +50,9 @@ var (
 		Query: "UPDATE CONSENT_AUTH_RESOURCE SET AUTH_STATUS = ?, USER_ID = ?, RESOURCES = ?, UPDATED_TIME = ? WHERE AUTH_ID = ? AND ORG_ID = ?",
 	}
 
-	QueryUpdateAuthResourceStatus = dbmodel.DBQuery{
-		ID:    "UPDATE_AUTH_RESOURCE_STATUS",
-		Query: "UPDATE CONSENT_AUTH_RESOURCE SET AUTH_STATUS = ?, UPDATED_TIME = ? WHERE AUTH_ID = ? AND ORG_ID = ?",
-	}
-
-	QueryDeleteAuthResource = dbmodel.DBQuery{
-		ID:    "DELETE_AUTH_RESOURCE",
-		Query: "DELETE FROM CONSENT_AUTH_RESOURCE WHERE AUTH_ID = ? AND ORG_ID = ?",
-	}
-
 	QueryDeleteAuthResourcesByConsentID = dbmodel.DBQuery{
 		ID:    "DELETE_AUTH_RESOURCES_BY_CONSENT_ID",
 		Query: "DELETE FROM CONSENT_AUTH_RESOURCE WHERE CONSENT_ID = ? AND ORG_ID = ?",
-	}
-
-	QueryCheckAuthResourceExists = dbmodel.DBQuery{
-		ID:    "CHECK_AUTH_RESOURCE_EXISTS",
-		Query: "SELECT COUNT(*) as count FROM CONSENT_AUTH_RESOURCE WHERE AUTH_ID = ? AND ORG_ID = ?",
-	}
-
-	QueryGetAuthResourcesByUserID = dbmodel.DBQuery{
-		ID:    "GET_AUTH_RESOURCES_BY_USER_ID",
-		Query: "SELECT AUTH_ID, CONSENT_ID, AUTH_TYPE, USER_ID, AUTH_STATUS, UPDATED_TIME, RESOURCES, ORG_ID FROM CONSENT_AUTH_RESOURCE WHERE USER_ID = ? AND ORG_ID = ?",
 	}
 
 	QueryUpdateAllStatusByConsentID = dbmodel.DBQuery{
@@ -164,62 +144,10 @@ func (s *store) Update(tx dbmodel.TxInterface, authResource *model.AuthResource)
 	return err
 }
 
-// UpdateStatus updates only the status of an auth resource within a transaction
-func (s *store) UpdateStatus(tx dbmodel.TxInterface, authID, orgID, status string, updatedTime int64) error {
-	_, err := tx.Exec(QueryUpdateAuthResourceStatus, status, updatedTime, authID, orgID)
-	return err
-}
-
-// Delete deletes an auth resource within a transaction
-func (s *store) Delete(tx dbmodel.TxInterface, authID, orgID string) error {
-	_, err := tx.Exec(QueryDeleteAuthResource, authID, orgID)
-	return err
-}
-
 // DeleteByConsentID deletes all auth resources for a consent within a transaction
 func (s *store) DeleteByConsentID(tx dbmodel.TxInterface, consentID, orgID string) error {
 	_, err := tx.Exec(QueryDeleteAuthResourcesByConsentID, consentID, orgID)
 	return err
-}
-
-// Exists checks if an auth resource exists
-func (s *store) Exists(ctx context.Context, authID, orgID string) (bool, error) {
-	dbClient, err := s.getDBClient()
-	if err != nil {
-		return false, fmt.Errorf("failed to get database client: %w", err)
-	}
-
-	results, err := dbClient.Query(QueryCheckAuthResourceExists, authID, orgID)
-	if err != nil {
-		return false, err
-	}
-	if len(results) == 0 {
-		return false, nil
-	}
-	count, ok := results[0]["count"].(int64)
-	if !ok {
-		return false, nil
-	}
-	return count > 0, nil
-}
-
-// GetByUserID retrieves all auth resources for a user
-func (s *store) GetByUserID(ctx context.Context, userID, orgID string) ([]model.AuthResource, error) {
-	dbClient, err := s.getDBClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get database client: %w", err)
-	}
-
-	results, err := dbClient.Query(QueryGetAuthResourcesByUserID, userID, orgID)
-	if err != nil {
-		return nil, err
-	}
-
-	authResources := make([]model.AuthResource, 0, len(results))
-	for _, row := range results {
-		authResources = append(authResources, *mapToAuthResource(row))
-	}
-	return authResources, nil
 }
 
 // UpdateAllStatusByConsentID updates status for all auth resources of a consent within a transaction
@@ -269,59 +197,48 @@ func (s *store) GetByConsentIDs(ctx context.Context, consentIDs []string, orgID 
 	return authResources, nil
 }
 
+// getString extracts a string value from a row, handling both string and []byte types
+func getString(row map[string]interface{}, key string) string {
+	if v, ok := row[key].(string); ok {
+		return v
+	}
+	if v, ok := row[key].([]byte); ok {
+		return string(v)
+	}
+	return ""
+}
+
+// getStringPtr extracts a string pointer from a row, handling both string and []byte types
+func getStringPtr(row map[string]interface{}, key string) *string {
+	if v, ok := row[key].(string); ok {
+		return &v
+	}
+	if v, ok := row[key].([]byte); ok {
+		str := string(v)
+		return &str
+	}
+	return nil
+}
+
+// getInt64 extracts an int64 value from a row
+func getInt64(row map[string]interface{}, key string) int64 {
+	if v, ok := row[key].(int64); ok {
+		return v
+	}
+	return 0
+}
+
 // mapToAuthResource converts a database row map to AuthResource
 // Note: DBClient normalizes column names to lowercase
 func mapToAuthResource(row map[string]interface{}) *model.AuthResource {
-	authResource := &model.AuthResource{}
-
-	// Handle string columns (may be string or []byte from MySQL)
-	if v, ok := row["auth_id"].(string); ok {
-		authResource.AuthID = v
-	} else if v, ok := row["auth_id"].([]byte); ok {
-		authResource.AuthID = string(v)
+	return &model.AuthResource{
+		AuthID:      getString(row, "auth_id"),
+		ConsentID:   getString(row, "consent_id"),
+		AuthType:    getString(row, "auth_type"),
+		UserID:      getStringPtr(row, "user_id"),
+		AuthStatus:  getString(row, "auth_status"),
+		UpdatedTime: getInt64(row, "updated_time"),
+		Resources:   getStringPtr(row, "resources"),
+		OrgID:       getString(row, "org_id"),
 	}
-
-	if v, ok := row["consent_id"].(string); ok {
-		authResource.ConsentID = v
-	} else if v, ok := row["consent_id"].([]byte); ok {
-		authResource.ConsentID = string(v)
-	}
-
-	if v, ok := row["auth_type"].(string); ok {
-		authResource.AuthType = v
-	} else if v, ok := row["auth_type"].([]byte); ok {
-		authResource.AuthType = string(v)
-	}
-
-	if v, ok := row["user_id"].(string); ok {
-		authResource.UserID = &v
-	} else if v, ok := row["user_id"].([]byte); ok {
-		str := string(v)
-		authResource.UserID = &str
-	}
-
-	if v, ok := row["auth_status"].(string); ok {
-		authResource.AuthStatus = v
-	} else if v, ok := row["auth_status"].([]byte); ok {
-		authResource.AuthStatus = string(v)
-	}
-
-	if v, ok := row["updated_time"].(int64); ok {
-		authResource.UpdatedTime = v
-	}
-
-	if v, ok := row["resources"].(string); ok {
-		authResource.Resources = &v
-	} else if v, ok := row["resources"].([]byte); ok {
-		str := string(v)
-		authResource.Resources = &str
-	}
-
-	if v, ok := row["org_id"].(string); ok {
-		authResource.OrgID = v
-	} else if v, ok := row["org_id"].([]byte); ok {
-		authResource.OrgID = string(v)
-	}
-
-	return authResource
 }
