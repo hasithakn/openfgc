@@ -121,12 +121,11 @@ mysql -u root -p consent_mgt < consent-server/dbscripts/db_schema_mysql.sql
 ./build.sh package
 ```
 
-# This creates artifacts in target/server/:
-# - target/server/consent-server (binary)
-# - target/server/repository/conf/ (config directory)
-# - target/server/api/ (API specs)
-# - target/server/dbscripts/ (database scripts)
-```
+Build artifacts are created in `target/server/`:
+- `target/server/consent-server` (binary)
+- `target/server/repository/conf/` (config directory)
+- `target/server/api/` (API specs)
+- `target/server/dbscripts/` (database scripts)
 
 ### 3. Configure Application
 
@@ -170,7 +169,6 @@ Health check: `curl http://localhost:3000/health`
 ## API Endpoints
 
 - [Open Fine-Grained Consent API schema](api/consent-management-API.yaml)
-- [Configuration API schema](api/config-management-API.yaml)
 
 > **Tip:** You can import these OpenAPI specifications directly into [Postman](https://www.postman.com/) or similar tools to easily explore and test the API.
 
