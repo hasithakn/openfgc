@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	ServerBinary = "../../bin/consent-server"
+	ServerBinary = "../../target/server/consent-server"
 	ConfigPath   = "repository/conf/deployment.yaml" // Relative to tests/integration
 )
 
@@ -140,7 +140,7 @@ func SetupDatabase() error {
 func StartServer() error {
 	fmt.Println("Starting consent server...")
 	cmd := exec.Command("./consent-server")
-	cmd.Dir = "../../bin" // Run from bin directory where config files are located
+	cmd.Dir = "../../target/server" // Run from target/server directory where config files are located
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
