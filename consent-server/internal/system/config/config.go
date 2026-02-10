@@ -158,7 +158,7 @@ func (c *ConsentConfig) GetSystemRevokedAuthStatus() AuthStatus {
 // Load reads configuration from file and environment variables
 func Load(configPath string) (*Config, error) {
 	logger := log.GetLogger()
-	logger.Info("Loading configuration", log.String("config_path", configPath))
+	logger.Debug("Loading configuration", log.String("config_path", configPath))
 
 	// Determine config file path
 	var finalPath string
@@ -220,7 +220,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	globalConfig = &config
-	logger.Info("Configuration loaded and validated successfully",
+	logger.Debug("Configuration loaded and validated successfully",
 		log.String("server_port", fmt.Sprintf("%d", config.Server.Port)),
 		log.String("db_host", config.Database.Consent.Hostname),
 	)

@@ -162,9 +162,9 @@ func (d *dbProvider) initializeClientLocked() error {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "DBProvider"))
 
 	// Get database configuration
-	cfg, err := config.Load("")
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	cfg := config.Get()
+	if cfg == nil {
+		return fmt.Errorf("configuration not loaded")
 	}
 
 	dbConfig := &cfg.Database.Consent
@@ -211,7 +211,7 @@ func initializeDB(cfg *config.DatabaseConfig) (*model.DB, error) {
 	logger := log.GetLogger().With(log.String(log.LoggerKeyComponentName, "Database"))
 	dsn := cfg.GetDSN()
 
-	logger.Info("Connecting to database...",
+	logger.Debug("Connecting to database...",
 		log.String("hostname", cfg.Hostname),
 		log.Int("port", cfg.Port),
 		log.String("database", cfg.Database))
@@ -238,7 +238,7 @@ func initializeDB(cfg *config.DatabaseConfig) (*model.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logger.Info("Successfully connected to database")
+	logger.Debug("Successfully connected to database")
 
 	return &model.DB{DB: db, DBType: cfg.Type}, nil
 }

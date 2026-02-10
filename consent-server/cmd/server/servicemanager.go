@@ -44,24 +44,24 @@ func registerServices(
 		consentelement.NewConsentElementStore(),
 		consentpurpose.NewPurposeStore(),
 	)
-	logger.Info("Store Registry initialized with all stores")
+	logger.Debug("Store Registry initialized with all stores")
 
 	// Initialize all services with the registry
 	authresource.Initialize(mux, storeRegistry)
-	logger.Info("AuthResource module initialized")
+	logger.Debug("AuthResource module initialized")
 
 	consentelement.Initialize(mux, storeRegistry)
-	logger.Info("ConsentElement module initialized")
+	logger.Debug("ConsentElement module initialized")
 
 	consentpurpose.Initialize(mux, storeRegistry)
-	logger.Info("ConsentPurpose module initialized")
+	logger.Debug("ConsentPurpose module initialized")
 
 	consent.Initialize(mux, storeRegistry)
-	logger.Info("Consent module initialized")
+	logger.Debug("Consent module initialized")
 
 	// Register health check endpoints
 	registerHealthCheckEndpoints(mux)
-	logger.Info("Health check endpoints registered")
+	logger.Debug("Health check endpoints registered")
 }
 
 // registerHealthCheckEndpoints registers the health check endpoints.

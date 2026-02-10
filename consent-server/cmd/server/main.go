@@ -95,7 +95,7 @@ func setupHTTPServer(cfg *config.Config, logger *log.Logger) *http.Server {
 	}
 
 	// Log server configuration
-	logger.Info("HTTP server configured",
+	logger.Debug("HTTP server configured",
 		log.String("address", serverAddr),
 		log.Int("port", cfg.Server.Port),
 		log.String("read_timeout", cfg.Server.ReadTimeout.String()),
@@ -108,7 +108,7 @@ func setupHTTPServer(cfg *config.Config, logger *log.Logger) *http.Server {
 
 // startServer starts the HTTP server in a goroutine
 func startServer(server *http.Server, cfg *config.Config, logger *log.Logger) {
-	logger.Info("Starting HTTP server...",
+	logger.Debug("Starting HTTP server...",
 		log.String("hostname", cfg.Server.Hostname),
 		log.Int("port", cfg.Server.Port))
 
@@ -118,8 +118,7 @@ func startServer(server *http.Server, cfg *config.Config, logger *log.Logger) {
 		}
 	}()
 
-	logger.Info("✓ Server is running", log.String("address", server.Addr))
-	logger.Info("Press Ctrl+C to stop the server")
+	logger.Info("OpenFGC API Server is started", log.String("address", server.Addr))
 }
 
 // waitForShutdown waits for interrupt signal and gracefully shuts down
@@ -141,7 +140,7 @@ func waitForShutdown(server *http.Server, logger *log.Logger) {
 
 	// Unregister services
 	unregisterServices()
-	logger.Info("Services unregistered")
+	logger.Debug("Services unregistered")
 
 	closeDatabase(logger)
 	logger.Info("Server exited gracefully")
