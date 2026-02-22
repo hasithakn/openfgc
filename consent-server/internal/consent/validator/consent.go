@@ -142,7 +142,13 @@ func ValidateConsentGetRequest(consentID, orgID string) error {
 // This is a helper function for authresource package to avoid import cycles.
 // Uses the same priority logic as EvaluateConsentStatus.
 func EvaluateConsentStatusFromAuthStatuses(authStatuses []string) string {
-	consentConfig := config.Get().Consent
+	cfg := config.Get()
+	if cfg == nil {
+		return "created" // safe fallback
+	}
+	consentConfig := cfg.Consent
+
+	if len(authStatuses) == 0 {
 
 	if len(authStatuses) == 0 {
 		// No auth resources - default to created status
