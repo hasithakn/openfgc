@@ -31,7 +31,7 @@ on:
         description: 'Set as a pre-release'
         required: false
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: write
@@ -67,7 +67,7 @@ jobs:
               exit 1
             fi
             VERSION=$(tr -d '[:space:]' < version.txt)
-            PRERELEASE="false"
+            PRERELEASE="true"
           fi
 
           # Ensure version has 'v' prefix
