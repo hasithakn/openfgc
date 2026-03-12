@@ -329,6 +329,7 @@ jobs:
             }
 
             // ── Build download table ────────────────────────────────────────
+            // build.sh strips the 'v' prefix for zip naming: v0.5.0 -> consent-server-0.5.0-<os>-<arch>.zip
             const ver = currentTag.startsWith('v') ? currentTag.slice(1) : currentTag;
             const baseUrl = `https://github.com/${repoOwner}/${repoName}/releases/download/${currentTag}`;
 

@@ -84,7 +84,10 @@ if [ "$GO_ARCH" = "amd64" ]; then
     PACKAGE_ARCH=x64
 fi
 
-PRODUCT_FOLDER="${BINARY_NAME}-${VERSION}-${PACKAGE_OS}-${PACKAGE_ARCH}"
+# Strip leading 'v' from version for zip/folder naming (e.g. v0.5.0 -> 0.5.0)
+PACKAGE_VERSION="${VERSION#v}"
+
+PRODUCT_FOLDER="${BINARY_NAME}-${PACKAGE_VERSION}-${PACKAGE_OS}-${PACKAGE_ARCH}"
 
 # ============================================================================
 # Functions
