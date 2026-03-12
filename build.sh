@@ -22,7 +22,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Set Default OS and architecture --- 
+# --- Set Default OS and architecture ---
 # Auto-detect GO OS
 DEFAULT_OS=$(go env GOOS 2>/dev/null)
 if [ -z "$DEFAULT_OS" ]; then
@@ -105,23 +105,23 @@ function clean() {
 function build_binary() {
     echo "================================================================"
     echo "Building Consent Management API Server..."
-    
+
     # Set binary name with .exe extension for Windows
     local output_binary="$BINARY_NAME"
     if [ "$GO_OS" = "windows" ]; then
         output_binary="${BINARY_NAME}.exe"
     fi
-    
+
     # Clean previous build
     if [ -d "$OUTPUT_DIR" ]; then
         echo "Cleaning previous build..."
         rm -rf "$OUTPUT_DIR"
     fi
-    
+
     # Create directory structure
     echo "Creating directory structure..."
     mkdir -p "$OUTPUT_DIR/repository/conf"
-    
+
     # Build the binary with version and build date
     echo "Compiling binary for $GO_OS/$GO_ARCH..."
     cd consent-server
@@ -129,23 +129,23 @@ function build_binary() {
         -ldflags "-X 'main.version=$VERSION' -X 'main.buildDate=$(date -u '+%Y-%m-%d %H:%M:%S UTC')'" \
         -o "../$OUTPUT_DIR/$output_binary" "./cmd/server"
     cd ..
-    
+
     # Copy configuration
     echo "Copying configuration..."
     cp "$CONFIG_SOURCE" "$OUTPUT_DIR/repository/conf/deployment.yaml"
-    
+
     # Copy start script
     echo "Copying start script..."
     cp start.sh "$OUTPUT_DIR/start.sh"
     chmod +x "$OUTPUT_DIR/start.sh"
-    
+
     # Copy database scripts
     if [ -d "consent-server/dbscripts" ]; then
         echo "Copying database scripts..."
         mkdir -p "$OUTPUT_DIR/dbscripts"
         cp consent-server/dbscripts/*.sql "$OUTPUT_DIR/dbscripts/" 2>/dev/null || true
     fi
-    
+
     # Copy API specifications
     if [ -d "api" ]; then
         echo "Copying API specifications..."
@@ -158,12 +158,18 @@ function build_binary() {
         echo "Copying README..."
         cp "README.md" "$OUTPUT_DIR/"
     fi
-    
+
+    # Copy version file
+    if [ -f "$VERSION_FILE" ]; then
+        echo "Copying version file..."
+        cp "$VERSION_FILE" "$OUTPUT_DIR/"
+    fi
+
     # Make binary executable (not needed for Windows)
     if [ "$GO_OS" != "windows" ]; then
         chmod +x "$OUTPUT_DIR/$output_binary"
     fi
-    
+
     echo ""
     echo "✓ Build completed successfully!"
     echo ""
@@ -190,39 +196,39 @@ function build_binary() {
 function package() {
     echo "================================================================"
     echo "Creating distribution package..."
-    
+
     # Build first
     build_binary
-    
+
     # Create distribution directory
     mkdir -p "$DIST_DIR/$PRODUCT_FOLDER"
-    
+
     # Copy everything from bin to dist
     echo "Copying build artifacts to distribution..."
     cp -r "$OUTPUT_DIR/"* "$DIST_DIR/$PRODUCT_FOLDER/"
-    
+
     # Copy version file
     if [ -f "$VERSION_FILE" ]; then
         cp "$VERSION_FILE" "$DIST_DIR/$PRODUCT_FOLDER/"
     fi
-    
+
     # Copy README if exists
     if [ -f "README.md" ]; then
         cp "README.md" "$DIST_DIR/$PRODUCT_FOLDER/"
     fi
-    
+
     # Copy LICENSE if exists
     if [ -f "LICENSE" ]; then
         cp "LICENSE" "$DIST_DIR/$PRODUCT_FOLDER/"
     fi
-    
+
     # Create zip file
     echo "Creating zip archive..."
     (cd "$DIST_DIR" && zip -r "$PRODUCT_FOLDER.zip" "$PRODUCT_FOLDER")
-    
+
     # Clean up unzipped folder
     rm -rf "${DIST_DIR:?DIST_DIR not set}/${PRODUCT_FOLDER:?PRODUCT_FOLDER not set}"
-    
+
     echo ""
     echo "✓ Distribution package created successfully!"
     echo ""
@@ -234,13 +240,13 @@ function package() {
 function run_server() {
     echo "================================================================"
     echo "Running Consent Management API Server..."
-    
+
     # Build first if binary doesn't exist
     if [ ! -f "$OUTPUT_DIR/$BINARY_NAME" ]; then
         echo "Binary not found. Building first..."
         build_binary
     fi
-    
+
     echo "Starting server..."
     cd "$OUTPUT_DIR" && "./$BINARY_NAME"
     echo "================================================================"
@@ -260,17 +266,17 @@ function test_unit() {
 function test_integration() {
     echo "================================================================"
     echo "Running integration tests..."
-    
+
     # Clean test cache to ensure tests run with latest changes
     echo "Cleaning test cache..."
     go clean -testcache
-    
+
     # Build the server first if binary doesn't exist
     if [ ! -f "$OUTPUT_DIR/$BINARY_NAME" ]; then
         echo "Binary not found. Building first..."
         build_binary
     fi
-    
+
     # Replace app config with test config for integration tests
     echo "Copying test configuration..."
     if [ -f "tests/integration/repository/conf/deployment.yaml" ]; then
@@ -279,19 +285,19 @@ function test_integration() {
     else
         echo "⚠ Warning: Test configuration not found, using default config"
     fi
-    
+
     # Run integration test suite
     echo "Starting integration test suite..."
     cd tests/integration || exit 1
     go run main.go
     TEST_EXIT_CODE=$?
     cd "$SCRIPT_DIR" || exit 1
-    
+
     if [ $TEST_EXIT_CODE -ne 0 ]; then
         echo "✗ Integration tests failed"
         exit 1
     fi
-    
+
     echo "✓ Integration tests passed"
     echo "================================================================"
 }
