@@ -8,7 +8,7 @@ server:
 database:
   consent:
     type: mysql
-    hostname: localhost
+    hostname: 127.0.0.1
     port: 3306
     database: consent_mgt_integration_test
     max_open_conns: 25
