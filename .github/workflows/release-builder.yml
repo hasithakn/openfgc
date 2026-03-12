@@ -135,12 +135,75 @@ jobs:
         run: ./build.sh test_unit
 
   # ============================================================================
+  # Job: Test Integration - Run integration tests against MySQL
+  # ============================================================================
+  test-integration:
+    name: 🧪 Integration Tests
+    runs-on: ubuntu-latest
+    needs: [prepare, test]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: consent_mgt_integration_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u root -ppassword"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: ⚙️ Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: consent-server/go.mod
+          cache: false
+
+      - name: 🗄️ Cache Go Modules
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: 📦 Install Dependencies
+        run: |
+          cd consent-server && go mod download
+          cd ../tests/integration && go mod download
+
+      - name: ⏳ Wait for MySQL to be Ready
+        run: |
+          echo "Waiting for MySQL..."
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -u root -ppassword --silent 2>/dev/null; then
+              echo "✅ MySQL is ready"
+              break
+            fi
+            echo "Attempt $i/30 - MySQL not ready yet, waiting..."
+            sleep 2
+          done
+
+      - name: 🔨 Build Server Binary for Integration Tests
+        run: ./build.sh build linux amd64
+
+      - name: 🧪 Run Integration Tests
+        run: ./build.sh test_integration
+
+  # ============================================================================
   # Job: Build - Cross-compile and package for all platforms
   # ============================================================================
   build:
     name: 🔨 Build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
-    needs: prepare
+    needs: [prepare, test, test-integration]
     strategy:
       fail-fast: false
       matrix:
@@ -202,7 +265,7 @@ jobs:
   release:
     name: 🚀 Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [prepare, test, build]
+    needs: [prepare, test, test-integration, build]
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -266,6 +329,7 @@ jobs:
             }
 
             // ── Build download table ────────────────────────────────────────
+            // build.sh strips the 'v' prefix for zip naming: v0.5.0 -> consent-server-0.5.0-<os>-<arch>.zip
             const ver = currentTag.startsWith('v') ? currentTag.slice(1) : currentTag;
             const baseUrl = `https://github.com/${repoOwner}/${repoName}/releases/download/${currentTag}`;
 
