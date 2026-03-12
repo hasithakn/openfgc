@@ -229,6 +229,100 @@ jobs:
           git tag -a "$TAG_VERSION" -m "Release $TAG_VERSION"
           git push origin "$TAG_VERSION"
 
+      - name: � Generate Detailed Release Notes
+        id: release_notes
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const currentTag = '${{ needs.prepare.outputs.version }}';
+            const repoOwner = context.repo.owner;
+            const repoName = context.repo.repo;
+
+            // ── Determine previous tag ──────────────────────────────────────
+            let previousTag = null;
+            try {
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner: repoOwner, repo: repoName, per_page: 2
+              });
+              if (releases.length > 0) {
+                const latest = releases[0];
+                previousTag = (latest.tag_name === currentTag && releases[1])
+                  ? releases[1].tag_name
+                  : latest.tag_name !== currentTag ? latest.tag_name : null;
+              }
+            } catch (e) {
+              console.log('Could not fetch previous releases:', e.message);
+            }
+
+            // ── Generate changelog via GitHub API ───────────────────────────
+            let changelog = '';
+            try {
+              const params = { owner: repoOwner, repo: repoName, tag_name: currentTag };
+              if (previousTag) params.previous_tag_name = previousTag;
+              const { data } = await github.rest.repos.generateReleaseNotes(params);
+              changelog = data.body || '';
+            } catch (e) {
+              console.log('Could not generate release notes:', e.message);
+            }
+
+            // ── Build download table ────────────────────────────────────────
+            const ver = currentTag.startsWith('v') ? currentTag.slice(1) : currentTag;
+            const baseUrl = `https://github.com/${repoOwner}/${repoName}/releases/download/${currentTag}`;
+
+            const table = [
+              '| OS | Architecture | Download |',
+              '|-------|-------------|---------|',
+              `| 🍎 macOS | ARM64 (Apple Silicon) | [consent-server-${ver}-macos-arm64.zip](${baseUrl}/consent-server-${ver}-macos-arm64.zip) |`,
+              `| 🍎 macOS | x64 (Intel)           | [consent-server-${ver}-macos-x64.zip](${baseUrl}/consent-server-${ver}-macos-x64.zip) |`,
+              `| 🐧 Linux | x64                   | [consent-server-${ver}-linux-x64.zip](${baseUrl}/consent-server-${ver}-linux-x64.zip) |`,
+              `| 🐧 Linux | ARM64                 | [consent-server-${ver}-linux-arm64.zip](${baseUrl}/consent-server-${ver}-linux-arm64.zip) |`,
+              `| 🪟 Windows | x64                 | [consent-server-${ver}-win-x64.zip](${baseUrl}/consent-server-${ver}-win-x64.zip) |`,
+            ].join('\n');
+
+            // ── Build quickstart section ────────────────────────────────────
+            const quickstart = `
+            ## ⚡ Quickstart
+
+            ### Download and Run
+
+            1. Download the distribution for your platform:
+
+            ${table}
+
+            2. Unzip and navigate into the directory:
+            \`\`\`bash
+            unzip consent-server-${ver}-<os>-<arch>.zip
+            cd consent-server-${ver}-<os>-<arch>/
+            \`\`\`
+
+            3. Start the server:
+            \`\`\`bash
+            ./start.sh
+            \`\`\`
+
+            > On Windows use \`start.sh\` via Git Bash or WSL.
+
+            ### Configuration
+
+            The server configuration is located at \`repository/conf/deployment.yaml\`.
+            Update the database connection settings before starting the server.
+
+            ### Database
+
+            SQL scripts to initialize the database schema are in the \`dbscripts/\` directory.
+
+            ---
+
+            📖 Refer to the [README](https://github.com/${repoOwner}/${repoName}#readme) for full configuration and API documentation.
+            `.replace(/^            /gm, '');
+
+            // ── Combine body ────────────────────────────────────────────────
+            const body = [changelog, quickstart].filter(Boolean).join('\n\n---\n\n');
+
+            const fs = require('fs');
+            fs.writeFileSync('release-body.md', body);
+            console.log(`✅ Release notes generated (${body.length} chars)`);
+
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
@@ -237,7 +331,7 @@ jobs:
           draft: false
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           files: ./dist-artifacts/*.zip
-          generate_release_notes: true
+          body_path: release-body.md
 
       - name: 📝 Calculate Next Development Version
         id: next_version

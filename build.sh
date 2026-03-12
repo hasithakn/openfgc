@@ -158,7 +158,13 @@ function build_binary() {
         echo "Copying README..."
         cp "README.md" "$OUTPUT_DIR/"
     fi
-    
+
+    # Copy version file
+    if [ -f "$VERSION_FILE" ]; then
+        echo "Copying version file..."
+        cp "$VERSION_FILE" "$OUTPUT_DIR/"
+    fi
+
     # Make binary executable (not needed for Windows)
     if [ "$GO_OS" != "windows" ]; then
         chmod +x "$OUTPUT_DIR/$output_binary"
