@@ -425,13 +425,16 @@ jobs:
           echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Next development version: $NEXT_VERSION"
 
-      - name: 🏷️ Bump version.txt for Next Development Cycle
-        run: |
-          NEXT_VERSION="v${{ steps.next_version.outputs.next_version }}"
-          echo "$NEXT_VERSION" > version.txt
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add version.txt
-          git commit -m "[Release] Bump version to ${NEXT_VERSION} for next development iteration"
-          git push origin HEAD:${{ github.ref_name }}
-          echo "✅ Updated version.txt to $NEXT_VERSION"
+      # NOTE: This step requires the action token to have permission to push directly to the
+      # protected branch. If branch protection rules prevent this, run the version bump manually
+      # or configure a PAT/GitHub App token with the required permissions.
+      # - name: 🏷️ Bump version.txt for Next Development Cycle
+      #   run: |
+      #     NEXT_VERSION="v${{ steps.next_version.outputs.next_version }}"
+      #     echo "$NEXT_VERSION" > version.txt
+      #     git config --local user.email "action@github.com"
+      #     git config --local user.name "GitHub Action"
+      #     git add version.txt
+      #     git commit -m "[Release] Bump version to ${NEXT_VERSION} for next development iteration"
+      #     git push origin HEAD:${{ github.ref_name }}
+      #     echo "✅ Updated version.txt to $NEXT_VERSION"
