@@ -140,7 +140,7 @@ jobs:
   test-integration:
     name: 🧪 Integration Tests
     runs-on: ubuntu-latest
-    needs: [prepare, test]
+    needs: prepare
     services:
       mysql:
         image: mysql:8.0
