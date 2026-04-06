@@ -35,10 +35,6 @@ paths:
 
         Upon success, the system creates a **consent resource** with: A unique `consentId`
 
-        **Purpose Validation:**
-        - Cannot create consent with purposes that contain duplicate consent elements. Each element
-          can only appear once across all purposes in the request.
-
         **Response Behavior:**
         - The consent creation response payload includes all elements within each purpose.
         - If the request contains only a subset of elements for a purpose, any unmentioned elements from
@@ -315,10 +311,6 @@ paths:
       description: |
         Endpoint to perform a full update on a consent resource, including its authorization resources and attributes, in a single operation.
 
-        **Purpose Validation:**
-        - Cannot update consent with purposes that contain duplicate consent elements. Each purpose
-          can only appear once across all purposes in the request.
-
         **Response Behavior:**
         - The consent update response payload includes all purposes within each purpose.
         - If the request contains only a subset of purposes for a purpose, any unmentioned purposes from
@@ -402,7 +394,7 @@ paths:
       security:
         - basicAuth: []
   /consents/{consentId}/revoke:
-    put:
+    post:
       summary: Revoke a consent
       description: |
        Allows to revoke a consent. This action typically updates the consent status to a **revoke** type of status.
@@ -656,7 +648,6 @@ paths:
         - If the consent status is active (AUTHORIZED, ACTIVE, etc.)
         - If the consent has not expired based on validityTime
         - If all mandatory elements within the purposes are approved (isUserApproved: true)
-        - Optionally validates resource parameters against consent scope
 
         If the consent has expired, the endpoint automatically updates the consent status to EXPIRED.
         If mandatory elements are not approved, validation returns false.
@@ -2524,6 +2515,10 @@ components:
     ConsentAuthorizationCreateResponse:
       type: object
       description: Represents a detaild authorization object.
+      required:
+        - id
+        - type
+        - updatedTime
       properties:
         id:
           description: Auth Id
@@ -2648,6 +2643,14 @@ components:
     ConsentUpdateResponse:
       type: object
       description: A generic success response for consent management operations that return consent details.
+      required:
+        - id
+        - type
+        - clientId
+        - status
+        - purposes
+        - createdTime
+        - updatedTime
       example:
         id: "123e4567-e89b-12d3-a456-426614174000"
         purposes:
@@ -2741,9 +2744,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ConsentAuthorizationCreateResponse"
-        modifiedResponse:
-          description: Optional field used to provide an alternative payload that overrides the original `consentPurpose` during consent processing.
-          type: object
     ConsentRetrievalResponse:
       description: The response body returned after successfully initiating a new consent.
       example:
@@ -2779,6 +2779,14 @@ components:
             updatedTime: 1702800000
             resources:
               accountIds: ["acc-123", "acc-456"]
+      required:
+        - id
+        - type
+        - clientId
+        - status
+        - purposes
+        - createdTime
+        - updatedTime
       properties:
         id:
           description: Consent Id
@@ -2840,9 +2848,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ConsentAuthorizationCreateResponse"
-        modifiedResponse:
-          description: Optional field used to provide an alternative payload that overrides the original `consentPurpose` during consent processing.
-          type: object
     ConsentRevokedResponse:
       type: object
       description: The response body returned after successfully revoking a consent.
@@ -2863,6 +2868,14 @@ components:
     ConsentCreatedResponse:
       type: object
       description: The response body returned after successfully initiating a new consent.
+      required:
+        - id
+        - type
+        - clientId
+        - status
+        - purposes
+        - createdTime
+        - updatedTime
       example:
         id: "123e4567-e89b-12d3-a456-426614174000"
         purposes:
@@ -2956,12 +2969,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ConsentAuthorizationCreateResponse"
-        modifiedResponse:
-          description: Optional field used to provide an alternative payload that overrides the original `consentPurpose` during consent processing.
-          type: object
     ConsentDetail:
       type: object
       description: A comprehensive object representing a single consent and all its associated data.
+      required:
+        - id
+        - type
+        - clientId
+        - status
+        - purposes
+        - createdTime
+        - updatedTime
       example:
         id: "123e4567-e89b-12d3-a456-426614174000"
         purposes:
@@ -3078,6 +3096,10 @@ components:
     ConsentAuthorizationResource:
       type: object
       description: Represents a specific authorization action taken on a consent by a user.
+      required:
+        - id
+        - type
+        - updatedTime
       properties:
         id:
           description: Auth Id
@@ -3158,15 +3180,13 @@ components:
     ValidateResponse:
       type: object
       description: Response payload from consent validation.
+      required:
+        - isValid
       properties:
         isValid:
           description: Whether the consent is valid for the requested action.
           type: boolean
           example: true
-        modifiedPayload:
-          description: Optional modified payload if the consent requires transformation of the request.
-          type: object
-          nullable: true
         errorCode:
           description: HTTP status code if validation failed (e.g., 401, 404, 500).
           type: integer
@@ -3181,7 +3201,7 @@ components:
           example: "Consent has expired. Status updated to: EXPIRED"
         consentInformation:
           description: |
-            Complete consent information (excludes modifiedResponse field).
+            Complete consent information.
 
             **Includes enriched consent element details:**
             - Each consent element includes type, description, and attributes from the purpose definition
@@ -3192,7 +3212,7 @@ components:
             - $ref: "#/components/schemas/ValidateConsentAPIResponse"
     ValidateConsentAPIResponse:
       type: object
-      description: Consent information in validate response (same as ConsentAPIResponse but excludes modifiedResponse field)
+      description: Complete consent information returned in the validate response
       properties:
         id:
           type: string
@@ -3266,14 +3286,23 @@ components:
           items:
             type: object
             required:
+              - purposeId
               - name
               - version
               - elements
             properties:
+              purposeId:
+                type: string
+                description: Unique identifier of the purpose
+                example: "550e8400-e29b-41d4-a716-446655440000"
               name:
                 type: string
                 description: Name of the purpose
                 example: "marketing_communication_preferences"
+              description:
+                type: string
+                description: Human-readable description of the purpose
+                example: "Preferences for marketing communication channels and frequency"
               version:
                 type: string
                 description: The specific version of the purpose bound to this consent (e.g., v1, v2)
@@ -3296,11 +3325,25 @@ components:
                   allOf:
                     - $ref: "#/components/schemas/ConsentElementApprovalItem"
                     - type: object
+                      required:
+                        - elementId
+                        - name
+                        - namespace
+                        - version
+                        - type
                       properties:
+                        elementId:
+                          type: string
+                          description: Unique identifier of the consent element
+                          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                         version:
                           type: string
                           description: The specific version of the element bound to this consent purpose (e.g., v1, v2)
                           example: "v1"
+                        displayName:
+                          type: string
+                          description: Human-readable display name of the element version
+                          example: "User Email Address"
                         isMandatory:
                           type: boolean
                           description: Whether this element is mandatory for the consent (from purpose definition)
