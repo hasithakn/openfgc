@@ -79,11 +79,9 @@ paths:
                   version: "v1"
                   elements:
                     - name: "user_email"
-                      namespace: "personal"
                       isUserApproved: true
                       value: {}
                     - name: "user_mobile"
-                      namespace: "personal"
                       isUserApproved: true
                       value: {}
               attributes:
@@ -367,11 +365,9 @@ paths:
                   version: "v1"
                   elements:
                     - name: "first_name"
-                      namespace: "personal"
                       isUserApproved: true
                       value: {}
                     - name: "last_name"
-                      namespace: "personal"
                       isUserApproved: true
                       value: {}
               attributes:
@@ -773,20 +769,17 @@ paths:
         Creates one or more consent elements in a single request. Supports batch creation by accepting
         an array of element definitions.
 
-        **Type Handlers:**
-        Each element has a type that determines which properties are mandatory:
-        - **basic**: No mandatory properties (any properties are optional)
-        - **json**: Requires `validationSchema` property
-        - **xml**: Requires `validationSchema` property
+        When creating a consent, a value can be provided for each consent element. Based on the value type,
+        consent elements have three types:
+        - **basic**: Element value is treated as a simple string with no structural validation.
+        - **json**: Element value is a JSON string, validated against the provided json element schema at consent creation time.
+        - **xml**: Element value is an XML string, validated against the provided xml element schema at consent creation time.
 
         **Validation Rules:**
         - Name is required and must not exceed 255 characters
-        - The combination of `name` + `namespace` must be unique within the organization; elements with the same name are allowed under different namespaces (also checked within the batch)
+        - The combination of `name` + `namespace` must be unique within the organization
         - Type is required and must be one of: `basic`, `json`, `xml`
-        - Properties validation depends on type (see Type Handlers above)
-        - Description is optional but must not exceed 1024 characters if provided
         - At least one element must be provided in the request array
-        - Duplicate names within the same batch are not allowed
       operationId: createConsentElements
       tags:
         - Consent Elements
@@ -809,60 +802,58 @@ paths:
               items:
                 $ref: "#/components/schemas/ConsentElementCreateRequest"
             examples:
-              basicType:
-                summary: Basic type with properties
+              basicElement:
+                summary: Create a basic type element (namespace omitted — uses "default")
                 value:
                   - name: "license_read"
-                    namespace: "licensing"
-                    displayName: "License Read"
-                    description: "Allows accessing license API"
                     type: "basic"
+                    displayName: "License Read"
+                    description: "Allows read access to license API endpoints"
                     properties:
                       value: "license:read"
-              basicTypeMinimal:
-                summary: Basic type without optional fields (valid)
+                      resourcePath: "/api/license/{id}"
+              jsonElement:
+                summary: Create a json type element with schema validation
                 value:
-                  - name: "basic_access"
-                    namespace: "general"
-                    type: "basic"
-              jsonType:
-                summary: JSON type with validationSchema
-                value:
-                  - name: "account_schema"
-                    namespace: "banking"
-                    displayName: "Account Schema"
-                    description: "Account access schema validation"
+                  - name: "account_details"
                     type: "json"
-                    validationSchema: |
-                      {
-                        "type": "object",
-                        "properties": {
-                          "accountId": {"type": "string"},
-                          "permissions": {"type": "array", "items": {"type": "string"}}
-                        },
-                        "required": ["accountId"]
-                      }
-              xmlType:
-                summary: XML type with validationSchema
+                    displayName: "Account Details"
+                    description: "Structured account information with JSON schema validation"
+                    schema: '{"type":"object","properties":{"accountId":{"type":"string"},"balance":{"type":"number"}},"required":["accountId"]}'
+                    properties:
+                      resourcePath: "/accounts/{accountId}"
+                      jsonPath: "$.account"
+              xmlElement:
+                summary: Create an xml type element with schema validation
                 value:
-                  - name: "patient_schema"
-                    namespace: "healthcare"
-                    displayName: "Patient Schema"
-                    description: "Patient data XML schema"
+                  - name: "patient_record_xml"
                     type: "xml"
-                    validationSchema: "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"/>"
-              multipleElements:
-                summary: Create multiple elements with different types
+                    displayName: "Patient Record (XML)"
+                    description: "Patient record data validated against XML schema"
+                    schema: '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="patient"><xs:complexType><xs:sequence><xs:element name="patientId" type="xs:string"/></xs:sequence></xs:complexType></xs:element></xs:schema>'
+                    properties:
+                      resourcePath: "/Patient/{patientId}"
+                      xPath: "/patient/patientId"
+              batchElements:
+                summary: Create multiple elements in one batch (with explicit namespaces)
                 value:
-                  - name: "license_read"
-                    namespace: "licensing"
-                    displayName: "License Read"
+                  - name: "first_name"
+                    namespace: "personal"
                     type: "basic"
-                  - name: "tax_schema"
-                    namespace: "finance"
-                    displayName: "Tax Schema"
+                    displayName: "First Name"
+                    description: "Access to the user's first name"
+                    properties:
+                      resourcePath: "/Patient/{firstName}"
+                      jsonPath: "$.patient.firstName"
+                  - name: "patient_record"
+                    namespace: "healthcare"
                     type: "json"
-                    validationSchema: '{"type":"object"}'
+                    displayName: "Patient Record"
+                    description: "Full patient record with JSON schema validation"
+                    schema: '{"type":"object","properties":{"patientId":{"type":"string"},"dob":{"type":"string","format":"date"}},"required":["patientId"]}'
+                    properties:
+                      resourcePath: "/Patient/{patientId}"
+                      jsonPath: "$.patient"
       responses:
         "201":
           description: Successfully created consent element(s)
@@ -879,33 +870,37 @@ paths:
                     type: string
                     example: "Consent elements created successfully"
               examples:
-                basicType:
-                  summary: Basic type element created
+                basicElement:
+                  summary: Created basic type element
                   value:
                     data:
                       - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                         name: "license_read"
                         namespace: "licensing"
-                        displayName: "License Read"
-                        description: "Allows accessing license API"
                         type: "basic"
                         version: "v1"
+                        displayName: "License Read"
+                        description: "Allows read access to license API endpoints"
                         properties:
                           value: "license:read"
+                          resourcePath: "/api/license/{id}"
                         createdTime: "2026-03-25T10:00:00Z"
                     message: "Consent elements created successfully"
-                jsonType:
-                  summary: JSON type element created
+                jsonElement:
+                  summary: Created json type element
                   value:
                     data:
                       - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                        name: "account_schema"
+                        name: "account_details"
                         namespace: "banking"
-                        displayName: "Account Schema"
-                        description: "Account access schema validation"
                         type: "json"
                         version: "v1"
-                        validationSchema: '{"type":"object","properties":{"accountId":{"type":"string"}}}'
+                        displayName: "Account Details"
+                        description: "Structured account information with JSON schema validation"
+                        schema: '{"type":"object","properties":{"accountId":{"type":"string"},"balance":{"type":"number"}},"required":["accountId"]}'
+                        properties:
+                          resourcePath: "/accounts/{accountId}"
+                          jsonPath: "$.account"
                         createdTime: "2026-03-25T10:00:00Z"
                     message: "Consent elements created successfully"
         "400":
@@ -936,19 +931,19 @@ paths:
                     message: "Invalid element type"
                     description: "Type must be one of: basic, json, xml"
                     traceId: "20260107T123456Z-abc123"
-                jsonTypeMissingValidationSchema:
-                  summary: JSON type missing validationSchema
+                jsonTypeMissingSchema:
+                  summary: json type missing schema
                   value:
                     code: "BAD_REQUEST"
                     message: "Validation failed"
-                    description: "validationSchema is required for json type"
+                    description: "schema is required for json type"
                     traceId: "20260107T123456Z-abc123"
-                xmlTypeMissingValidationSchema:
-                  summary: XML type missing validationSchema
+                xmlTypeMissingSchema:
+                  summary: xml type missing schema
                   value:
                     code: "BAD_REQUEST"
                     message: "Validation failed"
-                    description: "validationSchema is required for xml type"
+                    description: "schema is required for xml type"
                     traceId: "20260107T123456Z-abc123"
                 duplicateName:
                   summary: Element name already exists
@@ -975,8 +970,8 @@ paths:
       description: |
         Retrieves a paginated list of all consent elements for the specified organization.
 
-        Supports filtering by `name` (partial match), `type`, and `namespace`.
-        Results are ordered alphabetically by element name by default. Use the `limit` and `offset`
+        Supports filtering by `name` (partial match) and `namespace`.
+        Results are ordered by created time (newest first) by default. Use the `limit` and `offset`
         query parameters to control pagination.
       operationId: listConsentPurposes
       tags:
@@ -996,17 +991,9 @@ paths:
           schema:
             type: string
             example: "account"
-        - name: type
-          in: query
-          description: Filter elements by type
-          required: false
-          schema:
-            type: string
-            enum: [basic, json, xml]
-          example: "basic"
         - name: namespace
           in: query
-          description: Filter elements by namespace
+          description: Filter elements by a namespace
           required: false
           schema:
             type: string
@@ -1044,18 +1031,15 @@ paths:
                   - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                     name: "first_name"
                     namespace: "personal"
-                    type: "basic"
                     latestVersion: "v3"
                   - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                    name: "readAccountBasic"
+                    name: "account_details"
                     namespace: "banking"
-                    type: "basic"
-                    latestVersion: "v1"
-                  - elementId: "c3d4e5f6-a7b8-9012-cdef-123456789012"
-                    name: "accountSchema"
-                    namespace: "banking"
-                    type: "json"
                     latestVersion: "v2"
+                  - elementId: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+                    name: "patient_record"
+                    namespace: "healthcare"
+                    latestVersion: "v1"
                 metadata:
                   total: 3
                   offset: 0
@@ -1078,8 +1062,8 @@ paths:
     get:
       summary: Get consent element metadata
       description: |
-        Retrieves the metadata of a consent element (name, type, latest version number).
-        Use the versions endpoints to access or manage version content.
+        Retrieves the metadata of a consent element (name, namespace, latest version number).
+        Use the versions endpoints to access version-specific content such as type, schema, and properties.
       operationId: getConsentElement
       tags:
         - Consent Elements
@@ -1109,7 +1093,6 @@ paths:
                 elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "first_name"
                 namespace: "personal"
-                type: "basic"
                 latestVersion: "v2"
         "404":
           description: Consent element not found
@@ -1167,10 +1150,24 @@ paths:
                 $ref: "#/components/schemas/ConsentElementVersionListResponse"
               example:
                 elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "first_name"
+                namespace: "personal"
                 versions:
                   - version: "v2"
+                    type: "basic"
+                    displayName: "First Name V2"
+                    description: "Updated access to the user's first name"
+                    properties:
+                      resourcePath: "/Patient/{firstName}"
+                      jsonPath: "$.patient.firstName"
                     createdTime: "2026-03-01T10:00:00Z"
                   - version: "v1"
+                    type: "basic"
+                    displayName: "First Name"
+                    description: "Allows access to the user's first name"
+                    properties:
+                      resourcePath: "/Patient/{firstName}"
+                      jsonPath: "$.patient.firstName"
                     createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Consent element not found
@@ -1204,13 +1201,13 @@ paths:
 
         **Immutable fields** (set at element creation, cannot change across versions):
         - `name`: The element identifier
-        - `namespace`: The element namespace
+        - `namespace`: The element namespace. If namespace was omitted at creation, it was set to `default`.
 
         **Mutable fields** (can be updated in each new version):
-        - `type`, `displayName`, `description`, `validationSchema`, `properties`
+        - `type`, `displayName`, `description`, `schema`, `properties`
 
         **Type requirements when type is `json` or `xml`:**
-        - `validationSchema` field is required
+        - `schema` field is required for json and xml types
       operationId: createElementVersion
       tags:
         - Consent Elements
@@ -1238,19 +1235,32 @@ paths:
               $ref: "#/components/schemas/ConsentElementVersionCreateRequest"
             examples:
               basicType:
-                summary: Create new version of basic type element
+                summary: Create new version of a basic type element (all fields)
                 value:
                   displayName: "First Name V2"
-                  description: "Updated first name access"
+                  description: "Updated access to the user's first name with additional path mapping"
                   properties:
                     resourcePath: "/Patient/{firstName}"
                     jsonPath: "$.patient.firstName"
+                    xPath: "/Patient/firstName"
               jsonType:
-                summary: Create new version of JSON type element
+                summary: Create new version of a json type element (all fields)
                 value:
-                  displayName: "Account Schema V2"
-                  description: "Updated JSON schema validation"
-                  validationSchema: '{"type":"object","properties":{"accountId":{"type":"string"}}}'  
+                  displayName: "Account Details V2"
+                  description: "Updated JSON schema to include account balance and currency fields"
+                  schema: '{"type":"object","properties":{"accountId":{"type":"string"},"balance":{"type":"number"},"currency":{"type":"string"}},"required":["accountId"]}'
+                  properties:
+                    resourcePath: "/accounts/{accountId}"
+                    jsonPath: "$.account"
+              xmlType:
+                summary: Create new version of an xml type element (all fields)
+                value:
+                  displayName: "Patient Record XML V2"
+                  description: "Updated XML schema to include date of birth field"
+                  schema: '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="patient"><xs:complexType><xs:sequence><xs:element name="patientId" type="xs:string"/><xs:element name="dob" type="xs:date"/></xs:sequence></xs:complexType></xs:element></xs:schema>'
+                  properties:
+                    resourcePath: "/Patient/{patientId}"
+                    xPath: "/patient/patientId"
       responses:
         "201":
           description: Successfully created new version
@@ -1258,17 +1268,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConsentElementVersionResponse"
-              example:
-                elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                namespace: "personal"
-                version: "v2"
-                type: "basic"
-                displayName: "First Name V2"
-                description: "Updated first name access"
-                properties:
-                  resourcePath: "/Patient/{firstName}"
-                  jsonPath: "$.patient.firstName"
-                createdTime: "2026-03-01T10:00:00Z"
+              examples:
+                basicVersion:
+                  summary: Created new version of a basic type element
+                  value:
+                    elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    name: "first_name"
+                    namespace: "personal"
+                    version: "v2"
+                    type: "basic"
+                    displayName: "First Name V2"
+                    description: "Updated access to the user's first name with additional path mapping"
+                    properties:
+                      resourcePath: "/Patient/{firstName}"
+                      jsonPath: "$.patient.firstName"
+                      xPath: "/Patient/firstName"
+                    createdTime: "2026-03-01T10:00:00Z"
+                jsonVersion:
+                  summary: Created new version of a json type element
+                  value:
+                    elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    name: "account_details"
+                    namespace: "banking"
+                    version: "v2"
+                    type: "json"
+                    displayName: "Account Details V2"
+                    description: "Updated JSON schema to include account balance and currency fields"
+                    schema: '{"type":"object","properties":{"accountId":{"type":"string"},"balance":{"type":"number"},"currency":{"type":"string"}},"required":["accountId"]}'
+                    properties:
+                      resourcePath: "/accounts/{accountId}"
+                      jsonPath: "$.account"
+                    createdTime: "2026-03-01T10:00:00Z"
         "400":
           description: Bad Request - Invalid input or validation error
           content:
@@ -1340,17 +1370,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConsentElementVersionResponse"
-              example:
-                elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                namespace: "personal"
-                version: "v1"
-                type: "basic"
-                displayName: "First Name"
-                description: "Allows access to the user's first name"
-                properties:
-                  resourcePath: "/Patient/{firstName}"
-                  jsonPath: "$.patient.firstName"
-                createdTime: "2026-01-10T08:00:00Z"
+              examples:
+                basicVersion:
+                  summary: Basic type element version
+                  value:
+                    elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    name: "first_name"
+                    namespace: "personal"
+                    version: "v1"
+                    type: "basic"
+                    displayName: "First Name"
+                    description: "Allows access to the user's first name"
+                    properties:
+                      resourcePath: "/Patient/{firstName}"
+                      jsonPath: "$.patient.firstName"
+                      xPath: "/Patient/firstName"
+                    createdTime: "2026-01-10T08:00:00Z"
+                jsonVersion:
+                  summary: json type element version
+                  value:
+                    elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    name: "account_details"
+                    namespace: "banking"
+                    version: "v1"
+                    type: "json"
+                    displayName: "Account Details"
+                    description: "Structured account information with JSON schema validation"
+                    schema: '{"type":"object","properties":{"accountId":{"type":"string"},"balance":{"type":"number"}},"required":["accountId"]}'
+                    properties:
+                      resourcePath: "/accounts/{accountId}"
+                      jsonPath: "$.account"
+                    createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Element or version not found
           content:
@@ -1470,7 +1520,7 @@ paths:
         - Purpose name must not exceed 255 characters.
         - Description is optional but must not exceed 1024 characters if provided.
         - At least one element version reference must be provided in the elements array.
-        - All element references must specify an existing element by `name`, `namespace`, and `version` (e.g., `v1`).
+        - All element references must specify an existing element by `name` (and optionally `namespace` and `version`).
         - Duplicate element references within the same purpose are not allowed.
         - Purpose is bound to the client ID specified in the TPP-client-id header.
 
@@ -1515,15 +1565,12 @@ paths:
                     region: "global"
                   elements:
                     - name: "user_email"
-                      namespace: "personal"
                       version: "v1"
                       isMandatory: true
                     - name: "user_mobile"
-                      namespace: "personal"
                       version: "v2"
                       isMandatory: false
                     - name: "user_address"
-                      namespace: "personal"
                       version: "v1"
                       isMandatory: false
               govDataAccessPurpose:
@@ -1536,15 +1583,12 @@ paths:
                     sector: "government"
                   elements:
                     - name: "tax_id"
-                      namespace: "government"
                       version: "v1"
                       isMandatory: false
                     - name: "national_id"
-                      namespace: "government"
                       version: "v1"
                       isMandatory: false
                     - name: "government_records"
-                      namespace: "government"
                       version: "v1"
                       isMandatory: true
       responses:
@@ -1850,10 +1894,43 @@ paths:
                 $ref: "#/components/schemas/ConsentPurposeVersionListResponse"
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "marketing_communication_preferences"
                 versions:
                   - version: "v2"
+                    displayName: "Marketing Communication Preferences V2"
+                    description: "Updated user preferences for marketing communications"
+                    properties:
+                      category: "marketing"
+                      region: "global"
+                    elements:
+                      - name: "user_email"
+                        namespace: "personal"
+                        version: "v1"
+                        isMandatory: true
+                      - name: "user_mobile"
+                        namespace: "personal"
+                        version: "v2"
+                        isMandatory: false
+                      - name: "user_address"
+                        namespace: "personal"
+                        version: "v1"
+                        isMandatory: false
                     createdTime: "2026-03-01T10:00:00Z"
                   - version: "v1"
+                    displayName: "Marketing Communication Preferences"
+                    description: "User preferences related to marketing communications"
+                    properties:
+                      category: "marketing"
+                      region: "APAC"
+                    elements:
+                      - name: "user_email"
+                        namespace: "personal"
+                        version: "v1"
+                        isMandatory: true
+                      - name: "user_mobile"
+                        namespace: "personal"
+                        version: "v1"
+                        isMandatory: false
                     createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Consent purpose not found
@@ -1891,7 +1968,7 @@ paths:
         **Validation Rules:**
         - Purpose with the specified ID must exist
         - At least one element reference must be provided
-        - Each element reference must specify `name`, `namespace`, and `version` of an existing element version
+        - Each element reference must specify `name` of an existing element version; `namespace` and `version` are optional
         - Duplicate element references within the same purpose version are not allowed
       operationId: createPurposeVersion
       tags:
@@ -1932,11 +2009,9 @@ paths:
                 specialization: "general"
               elements:
                 - name: "patient_name"
-                  namespace: "medical"
                   version: "v1"
                   isMandatory: true
                 - name: "medical_history"
-                  namespace: "medical"
                   version: "v2"
                   isMandatory: false
       responses:
@@ -1948,6 +2023,7 @@ paths:
                 $ref: "#/components/schemas/ConsentPurposeVersionResponse"
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "medical_data_access"
                 version: "v2"
                 displayName: "Medical Data Access V2"
                 description: "Updated access to basic medical record fields"
@@ -2046,6 +2122,7 @@ paths:
                 $ref: "#/components/schemas/ConsentPurposeVersionResponse"
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                name: "medical_data_access"
                 version: "v1"
                 displayName: "Medical Data Access V1"
                 description: "Access to basic medical record fields"
@@ -2212,12 +2289,12 @@ components:
         Contains the element name, namespace, and whether the user has approved it.
 
         The combination of `name` + `namespace` uniquely identifies the element within the purpose.
+        If `namespace` is not provided, the `default` namespace is used.
 
         **Note:** The mandatory flag is defined at the purpose level,
         not at the individual consent level.
       required:
         - name
-        - namespace
         - isUserApproved
       properties:
         name:
@@ -2231,6 +2308,7 @@ components:
           description: |
             The namespace of the consent element.
             Combined with `name`, uniquely identifies the element within the organization.
+            If not provided, the `default` namespace is used.
           example: "personal"
         isUserApproved:
           type: boolean
@@ -3184,7 +3262,7 @@ components:
             - isMandatory: Whether this element is mandatory (boolean) - indicates if approval is required
             - type: Element type from definition (basic, json, or xml)
             - description: Element description from definition
-            - properties: Element properties from definition (e.g., validationSchema, resourcePath, jsonPath)
+            - properties: Element properties from definition (e.g., schema, resourcePath, jsonPath)
           items:
             type: object
             required:
@@ -3316,8 +3394,8 @@ components:
         **Type Handler Architecture:**
         Each element type has specific property requirements:
         - **basic**: No mandatory properties (any properties are optional)
-        - **json**: Requires `validationSchema` field
-        - **xml**: Requires `validationSchema` field
+        - **json**: Requires `schema` field
+        - **xml**: Requires `schema` field
 
         **Batch Creation:**
         When creating multiple elements in a batch:
@@ -3333,6 +3411,14 @@ components:
             Database constraint: UNIQUE KEY unique_name_per_org (NAME, ORG_ID)
             Batch constraint: Must be unique within the batch request
           example: "license_read"
+        namespace:
+          type: string
+          maxLength: 255
+          description: |
+            The namespace of the consent element. Together with `name`, must be unique within the organization.
+            Used to logically group related elements (e.g., "personal", "banking", "healthcare").
+            If omitted or empty, the `default` namespace is used.
+          example: "licensing"
         description:
           type: string
           maxLength: 1024
@@ -3351,10 +3437,10 @@ components:
           description: |
             The type of the element:
             - 'basic': No mandatory properties
-            - 'json': Requires `validationSchema` field
-            - 'xml': Requires `validationSchema` field
+            - 'json': Requires `schema` field
+            - 'xml': Requires `schema` field
           example: "basic"
-        validationSchema:
+        schema:
           type: string
           description: Validation schema (required for json and xml types)
           example: "{\"type\":\"object\"}"
@@ -3373,6 +3459,7 @@ components:
       required:
         - elementId
         - name
+        - namespace
         - type
         - version
         - createdTime
@@ -3385,6 +3472,10 @@ components:
           type: string
           description: The name/identifier of the consent element
           example: "license_read"
+        namespace:
+          type: string
+          description: The namespace of the consent element
+          example: "licensing"
         type:
           type: string
           enum: [basic, json, xml]
@@ -3402,7 +3493,7 @@ components:
           type: string
           description: Description of the element
           example: "Allows accessing license API"
-        validationSchema:
+        schema:
           type: string
           description: Validation schema (present for json and xml types)
           example: '{"type":"object"}'
@@ -3481,16 +3572,14 @@ components:
           minItems: 1
           description: |
             Array of element version references with mandatory flags. Each reference must specify
-            an existing element by `name`, `namespace`, and `version`. At least one element is required.
+            an existing element by `name` (and optionally `namespace` and `version`). At least one element is required.
           items:
             $ref: "#/components/schemas/PurposeVersionElementItem"
           example:
             - name: "user_email"
-              namespace: "personal"
               version: "v1"
               isMandatory: true
             - name: "user_mobile"
-              namespace: "personal"
               version: "v1"
               isMandatory: false
     PurposeUpdateRequest:
@@ -3657,7 +3746,7 @@ components:
           type: array
           description: List of element version references with mandatory flags for this version
           items:
-            $ref: "#/components/schemas/PurposeVersionElementItem"
+            $ref: "#/components/schemas/PurposeVersionElementResponse"
         createdTime:
           type: string
           format: date-time
@@ -3683,7 +3772,7 @@ components:
       required:
         - elementId
         - name
-        - type
+        - namespace
         - latestVersion
       properties:
         elementId:
@@ -3694,11 +3783,10 @@ components:
           type: string
           description: The name/identifier of the consent element
           example: "first_name"
-        type:
+        namespace:
           type: string
-          enum: [basic, json, xml]
-          description: The element type
-          example: "basic"
+          description: The namespace of the consent element
+          example: "personal"
         latestVersion:
           type: string
           description: The latest version identifier of this element
@@ -3710,6 +3798,15 @@ components:
         Versions are immutable once created — to change content, create a new version.
         The element's name and namespace are fixed at creation time and cannot be changed across versions.
       properties:
+        type:
+          type: string
+          enum: [basic, json, xml]
+          description: |
+            The type of the element for this version. Can differ from previous versions.
+            - 'basic': No mandatory properties
+            - 'json': Requires `schema` field
+            - 'xml': Requires `schema` field
+          example: "basic"
         displayName:
           type: string
           description: Human-readable display name for this version (used in UIs)
@@ -3719,7 +3816,7 @@ components:
           maxLength: 1024
           description: Description for this version
           example: "Updated first name access"
-        validationSchema:
+        schema:
           type: string
           description: Validation schema (required for json and xml types)
           example: '{"type":"object"}'
@@ -3736,6 +3833,8 @@ components:
       description: Full detail response for a specific version of a consent element
       required:
         - elementId
+        - name
+        - namespace
         - version
         - type
         - createdTime
@@ -3744,6 +3843,14 @@ components:
           type: string
           description: Unique identifier for the consent element
           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: The name/identifier of the consent element
+          example: "first_name"
+        namespace:
+          type: string
+          description: The namespace of the consent element
+          example: "personal"
         version:
           type: string
           description: The version identifier
@@ -3761,7 +3868,7 @@ components:
           type: string
           description: Description of this version
           example: "Allows access to the user's first name"
-        validationSchema:
+        schema:
           type: string
           description: Validation schema (present for json and xml types)
           example: '{"type":"object"}'
@@ -3783,30 +3890,72 @@ components:
       description: Response for listing all versions of a consent element
       required:
         - elementId
+        - name
+        - namespace
         - versions
       properties:
         elementId:
           type: string
           description: Unique identifier for the consent element
           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: The name/identifier of the consent element
+          example: "first_name"
+        namespace:
+          type: string
+          description: The namespace of the consent element
+          example: "personal"
         versions:
           type: array
           description: List of versions ordered by version number (newest first)
           items:
-            type: object
-            required:
-              - version
-              - createdTime
-            properties:
-              version:
-                type: string
-                description: The version identifier
-                example: "v2"
-              createdTime:
-                type: string
-                format: date-time
-                description: ISO 8601 timestamp when this version was created
-                example: "2026-03-01T10:00:00Z"
+            $ref: "#/components/schemas/ConsentElementVersionItem"
+    ConsentElementVersionItem:
+      type: object
+      description: |
+        Version detail for a consent element as returned in list responses.
+        The `elementId`, `name`, and `namespace` are hoisted to the parent `ConsentElementVersionListResponse`
+        and are not repeated in each item.
+      required:
+        - version
+        - type
+        - createdTime
+      properties:
+        version:
+          type: string
+          description: The version identifier
+          example: "v2"
+        type:
+          type: string
+          enum: [basic, json, xml]
+          description: The element type
+          example: "basic"
+        displayName:
+          type: string
+          description: Human-readable display name for this version
+          example: "First Name V2"
+        description:
+          type: string
+          description: Description of this version
+          example: "Updated access to the user's first name"
+        schema:
+          type: string
+          description: Validation schema (present for json and xml types)
+          example: '{"type":"object"}'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Key-value properties for this version
+          example:
+            resourcePath: "/Patient/{firstName}"
+            jsonPath: "$.patient.firstName"
+        createdTime:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when this version was created
+          example: "2026-01-10T08:00:00Z"
     ConsentPurposeMetadataResponse:
       type: object
       description: Metadata response for a consent purpose (stable identity; version content is separate)
@@ -3864,6 +4013,7 @@ components:
       description: Full detail response for a specific version of a consent purpose
       required:
         - purposeId
+        - name
         - version
         - elements
         - createdTime
@@ -3872,6 +4022,10 @@ components:
           type: string
           description: Unique identifier for the consent purpose
           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: The name/identifier of the consent purpose
+          example: "medical_data_access"
         version:
           type: string
           description: The version identifier
@@ -3895,7 +4049,7 @@ components:
           type: array
           description: List of element version references with mandatory flags
           items:
-            $ref: "#/components/schemas/PurposeVersionElementItem"
+            $ref: "#/components/schemas/PurposeVersionElementResponse"
         createdTime:
           type: string
           format: date-time
@@ -3906,38 +4060,75 @@ components:
       description: Response for listing all versions of a consent purpose
       required:
         - purposeId
+        - name
         - versions
       properties:
         purposeId:
           type: string
           description: Unique identifier for the consent purpose
           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: The name/identifier of the consent purpose (immutable across versions)
+          example: "marketing_communication_preferences"
         versions:
           type: array
           description: List of versions ordered by version number (newest first)
           items:
-            type: object
-            required:
-              - version
-              - createdTime
-            properties:
-              version:
-                type: string
-                description: The version identifier
-                example: "v2"
-              createdTime:
-                type: string
-                format: date-time
-                description: ISO 8601 timestamp when this version was created
-                example: "2026-03-01T10:00:00Z"
-    PurposeVersionElementItem:
+            $ref: "#/components/schemas/ConsentPurposeVersionItem"
+    ConsentPurposeVersionItem:
+      type: object
+      description: |
+        Version detail for a consent purpose as returned in list responses.
+        The `purposeId` and `name` are hoisted to the parent `ConsentPurposeVersionListResponse`
+        and are not repeated in each item.
+      required:
+        - version
+        - elements
+        - createdTime
+      properties:
+        version:
+          type: string
+          description: The version identifier
+          example: "v2"
+        displayName:
+          type: string
+          description: Human-readable display name for this version
+          example: "Marketing Communication Preferences V2"
+        description:
+          type: string
+          description: Description of this version
+          example: "Updated user preferences for marketing communications"
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Key-value map of additional attributes associated with this version
+          example:
+            category: "marketing"
+            region: "global"
+        elements:
+          type: array
+          description: List of element version references with mandatory flags for this version
+          items:
+            $ref: "#/components/schemas/PurposeVersionElementResponse"
+        createdTime:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when this version was created
+          example: "2026-03-01T10:00:00Z"
+    PurposeVersionElementResponse:
       type: object
       required:
         - name
         - namespace
         - version
         - isMandatory
-      description: A reference to a specific version of a consent element within a purpose version, identified by name, namespace, and version
+      description: |
+        A resolved element reference within a purpose version response.
+        All fields are fully resolved by the server — `namespace` and `version` are always
+        present (the server substitutes `default` for namespace and the latest version
+        if they were omitted at request time).
       properties:
         name:
           type: string
@@ -3945,11 +4136,37 @@ components:
           example: "user_email"
         namespace:
           type: string
-          description: The namespace of the consent element
+          description: The namespace of the consent element (resolved to `default` if not specified at creation)
           example: "personal"
         version:
           type: string
-          description: The specific version of the element to reference (e.g., v1, v2)
+          description: The specific version of the element referenced in this purpose version (e.g., v1, v2)
+          example: "v1"
+        isMandatory:
+          type: boolean
+          description: |
+            Whether this element must be approved for the consent to be valid.
+            - `true`: Element approval is required
+            - `false`: Element approval is optional
+          example: true
+    PurposeVersionElementItem:
+      type: object
+      required:
+        - name
+        - isMandatory
+      description: A reference to a consent element within a purpose version, identified by name and namespace. If `namespace` is not provided, the `default` namespace is used. If `version` is not specified, the latest version of the element will be used.
+      properties:
+        name:
+          type: string
+          description: The name/identifier of the consent element
+          example: "user_email"
+        namespace:
+          type: string
+          description: The namespace of the consent element. If not provided, the `default` namespace is used.
+          example: "personal"
+        version:
+          type: string
+          description: The specific version of the element to reference (e.g., v1, v2). If omitted, the latest version is used.
           example: "v1"
         isMandatory:
           type: boolean
