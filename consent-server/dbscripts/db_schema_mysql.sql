@@ -77,43 +77,61 @@ CREATE TABLE IF NOT EXISTS CONSENT_ATTRIBUTE (
     ON DELETE CASCADE
 ) ENGINE=INNODB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Consent element table (formerly consent purpose)
+-- Consent element table — identity only (name + namespace uniquely identify an element per org)
 CREATE TABLE IF NOT EXISTS CONSENT_ELEMENT (
   ID            CHAR(36) NOT NULL,
   NAME          VARCHAR(255) NOT NULL,
-  DESCRIPTION   VARCHAR(1024) DEFAULT NULL,
-  TYPE          VARCHAR(64) NOT NULL DEFAULT 'basic',
+  NAMESPACE     VARCHAR(255) NOT NULL DEFAULT 'default',
   ORG_ID        VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
   PRIMARY KEY (ID, ORG_ID),
-  UNIQUE KEY unique_name_per_org (NAME, ORG_ID),
+  UNIQUE KEY unique_name_namespace_per_org (NAME, NAMESPACE, ORG_ID),
   INDEX idx_name (NAME),
-  INDEX idx_org_id (ORG_ID),
-  INDEX idx_type (TYPE)
+  INDEX idx_namespace (NAMESPACE),
+  INDEX idx_org_id (ORG_ID)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Properties for consent elements (key/value pairs scoped to element + org)
-CREATE TABLE IF NOT EXISTS CONSENT_ELEMENT_PROPERTY (
-  ELEMENT_ID       CHAR(36) NOT NULL,
-  ATT_KEY          VARCHAR(255) NOT NULL,
-  ATT_VALUE        TEXT NOT NULL,
-  ORG_ID           VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
-  PRIMARY KEY (ELEMENT_ID, ATT_KEY, ORG_ID),
-  INDEX idx_att_key_element (ATT_KEY),
-  CONSTRAINT FK_CONSENT_ELEMENT_PROPERTY_ELEMENT
+-- Versioned metadata for consent elements
+CREATE TABLE IF NOT EXISTS CONSENT_ELEMENT_VERSION (
+  VERSION_ID    CHAR(36) NOT NULL,
+  ELEMENT_ID    CHAR(36) NOT NULL,
+  VERSION       VARCHAR(64) NOT NULL,
+  TYPE          VARCHAR(64) NOT NULL DEFAULT 'basic',
+  DISPLAY_NAME  VARCHAR(255) DEFAULT NULL,
+  DESCRIPTION   VARCHAR(1024) DEFAULT NULL,
+  ELEMENT_SCHEMA TEXT DEFAULT NULL,
+  CREATED_TIME  BIGINT NOT NULL,
+  ORG_ID        VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+  PRIMARY KEY (VERSION_ID, ORG_ID),
+  UNIQUE KEY unique_element_version (ELEMENT_ID, VERSION, ORG_ID),
+  INDEX idx_element_version_element (ELEMENT_ID),
+  INDEX idx_element_version_type (TYPE),
+  INDEX idx_element_version_org (ORG_ID),
+  CONSTRAINT FK_ELEMENT_VERSION_ELEMENT
     FOREIGN KEY (ELEMENT_ID, ORG_ID)
     REFERENCES CONSENT_ELEMENT (ID, ORG_ID)
     ON DELETE CASCADE
 ) ENGINE=INNODB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Properties for consent element versions (key/value pairs scoped to element version + org)
+CREATE TABLE IF NOT EXISTS CONSENT_ELEMENT_PROPERTY (
+  ELEMENT_VERSION_ID  CHAR(36) NOT NULL,
+  ATT_KEY             VARCHAR(255) NOT NULL,
+  ATT_VALUE           TEXT NOT NULL,
+  ORG_ID              VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+  PRIMARY KEY (ELEMENT_VERSION_ID, ATT_KEY, ORG_ID),
+  INDEX idx_att_key_element (ATT_KEY),
+  CONSTRAINT FK_CONSENT_ELEMENT_PROPERTY_VERSION
+    FOREIGN KEY (ELEMENT_VERSION_ID, ORG_ID)
+    REFERENCES CONSENT_ELEMENT_VERSION (VERSION_ID, ORG_ID)
+    ON DELETE CASCADE
+) ENGINE=INNODB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Purpose table to organize related elements with mandatory/optional flags
+
+-- Purpose table — identity only (description and display fields live in versions)
 CREATE TABLE IF NOT EXISTS CONSENT_PURPOSE (
   ID           CHAR(36) NOT NULL,
   NAME         VARCHAR(255) NOT NULL,
-  DESCRIPTION  VARCHAR(1024) DEFAULT NULL,
   CLIENT_ID    VARCHAR(255) NOT NULL,   -- purpose ownership (TPP / client)
-  CREATED_TIME BIGINT NOT NULL,
-  UPDATED_TIME BIGINT NOT NULL,
   ORG_ID       VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
 
   PRIMARY KEY (ID, ORG_ID),
@@ -122,48 +140,90 @@ CREATE TABLE IF NOT EXISTS CONSENT_PURPOSE (
   INDEX idx_purpose_client_id (CLIENT_ID),
   INDEX idx_purpose_org_id (ORG_ID),
   INDEX idx_purpose_name (NAME),
-  INDEX idx_purpose_created_time (CREATED_TIME),
   INDEX idx_purpose_org_client (ORG_ID, CLIENT_ID)
 ) ENGINE=INNODB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- Maps elements to purposes with mandatory flag (defines purpose structure)
-CREATE TABLE IF NOT EXISTS PURPOSE_ELEMENT_MAPPING (
-  PURPOSE_ID   CHAR(36) NOT NULL,
-  ELEMENT_ID   CHAR(36) NOT NULL,
-  IS_MANDATORY BOOLEAN NOT NULL DEFAULT FALSE,
-  ORG_ID       VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+-- Versioned metadata for purposes
+CREATE TABLE IF NOT EXISTS CONSENT_PURPOSE_VERSION (
+  VERSION_ID    CHAR(36) NOT NULL,
+  PURPOSE_ID    CHAR(36) NOT NULL,
+  VERSION       VARCHAR(64) NOT NULL,
+  DISPLAY_NAME  VARCHAR(255) DEFAULT NULL,
+  DESCRIPTION   VARCHAR(1024) DEFAULT NULL,
+  CREATED_TIME  BIGINT NOT NULL,
+  ORG_ID        VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
 
-  PRIMARY KEY (PURPOSE_ID, ELEMENT_ID, ORG_ID),
+  PRIMARY KEY (VERSION_ID, ORG_ID),
+  UNIQUE KEY unique_purpose_version (PURPOSE_ID, VERSION, ORG_ID),
 
-  INDEX idx_purpose_element_purpose (PURPOSE_ID),
-  INDEX idx_purpose_element_element (ELEMENT_ID),
-  INDEX idx_purpose_element_org (ORG_ID),
+  INDEX idx_purpose_version_purpose (PURPOSE_ID),
+  INDEX idx_purpose_version_org (ORG_ID),
 
-  CONSTRAINT fk_purpose_element_purpose
+  CONSTRAINT FK_PURPOSE_VERSION_PURPOSE
     FOREIGN KEY (PURPOSE_ID, ORG_ID)
     REFERENCES CONSENT_PURPOSE (ID, ORG_ID)
+    ON DELETE CASCADE
+) ENGINE=INNODB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+-- Properties for purpose versions (key/value pairs scoped to purpose version + org)
+CREATE TABLE IF NOT EXISTS CONSENT_PURPOSE_PROPERTY (
+  PURPOSE_VERSION_ID  CHAR(36) NOT NULL,
+  ATT_KEY             VARCHAR(255) NOT NULL,
+  ATT_VALUE           TEXT NOT NULL,
+  ORG_ID              VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+
+  PRIMARY KEY (PURPOSE_VERSION_ID, ATT_KEY, ORG_ID),
+
+  INDEX idx_att_key_purpose (ATT_KEY),
+
+  CONSTRAINT FK_CONSENT_PURPOSE_PROPERTY_VERSION
+    FOREIGN KEY (PURPOSE_VERSION_ID, ORG_ID)
+    REFERENCES CONSENT_PURPOSE_VERSION (VERSION_ID, ORG_ID)
+    ON DELETE CASCADE
+) ENGINE=INNODB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+-- Maps element versions to purpose versions with mandatory flag (defines versioned purpose structure)
+CREATE TABLE IF NOT EXISTS PURPOSE_ELEMENT_MAPPING (
+  PURPOSE_VERSION_ID   CHAR(36) NOT NULL,
+  ELEMENT_VERSION_ID   CHAR(36) NOT NULL,
+  IS_MANDATORY         BOOLEAN NOT NULL DEFAULT FALSE,
+  ORG_ID               VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+
+  PRIMARY KEY (PURPOSE_VERSION_ID, ELEMENT_VERSION_ID, ORG_ID),
+
+  INDEX idx_purpose_element_purpose_ver (PURPOSE_VERSION_ID),
+  INDEX idx_purpose_element_element_ver (ELEMENT_VERSION_ID),
+  INDEX idx_purpose_element_org (ORG_ID),
+
+  CONSTRAINT fk_purpose_element_purpose_ver
+    FOREIGN KEY (PURPOSE_VERSION_ID, ORG_ID)
+    REFERENCES CONSENT_PURPOSE_VERSION (VERSION_ID, ORG_ID)
     ON DELETE CASCADE,
 
-  CONSTRAINT fk_purpose_element_element
-    FOREIGN KEY (ELEMENT_ID, ORG_ID)
-    REFERENCES CONSENT_ELEMENT (ID, ORG_ID)
+  CONSTRAINT fk_purpose_element_element_ver
+    FOREIGN KEY (ELEMENT_VERSION_ID, ORG_ID)
+    REFERENCES CONSENT_ELEMENT_VERSION (VERSION_ID, ORG_ID)
     ON DELETE RESTRICT
 ) ENGINE=INNODB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
-
+-- Maps consents to the specific purpose version they were created against
 CREATE TABLE IF NOT EXISTS PURPOSE_CONSENT_MAPPING (
-  CONSENT_ID CHAR(36) NOT NULL,
-  PURPOSE_ID CHAR(36) NOT NULL,
-  ORG_ID     VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+  CONSENT_ID         CHAR(36) NOT NULL,
+  PURPOSE_VERSION_ID CHAR(36) NOT NULL,
+  ORG_ID             VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
 
-  PRIMARY KEY (CONSENT_ID, PURPOSE_ID, ORG_ID),
+  PRIMARY KEY (CONSENT_ID, PURPOSE_VERSION_ID, ORG_ID),
 
   INDEX idx_purpose_consent_consent (CONSENT_ID),
-  INDEX idx_purpose_consent_purpose (PURPOSE_ID),
+  INDEX idx_purpose_consent_purpose_ver (PURPOSE_VERSION_ID),
   INDEX idx_purpose_consent_org (ORG_ID),
 
   CONSTRAINT fk_purpose_consent_consent
@@ -171,42 +231,41 @@ CREATE TABLE IF NOT EXISTS PURPOSE_CONSENT_MAPPING (
     REFERENCES CONSENT (CONSENT_ID, ORG_ID)
     ON DELETE CASCADE,
 
-  CONSTRAINT fk_purpose_consent_purpose
-    FOREIGN KEY (PURPOSE_ID, ORG_ID)
-    REFERENCES CONSENT_PURPOSE (ID, ORG_ID)
+  CONSTRAINT fk_purpose_consent_purpose_ver
+    FOREIGN KEY (PURPOSE_VERSION_ID, ORG_ID)
+    REFERENCES CONSENT_PURPOSE_VERSION (VERSION_ID, ORG_ID)
     ON DELETE RESTRICT
 ) ENGINE=INNODB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
--- Stores user approval status and value for each element in a consent
--- Replaces the old CONSENT_PURPOSE_MAPPING when using purposes
+-- Stores user approval status and value for each element version in a consent
 CREATE TABLE IF NOT EXISTS CONSENT_ELEMENT_APPROVAL (
-  CONSENT_ID       CHAR(36) NOT NULL,
-  PURPOSE_ID       CHAR(36) NOT NULL,
-  ELEMENT_ID       CHAR(36) NOT NULL,
-  IS_USER_APPROVED BOOLEAN NOT NULL DEFAULT FALSE,
-  VALUE            JSON DEFAULT NULL,  -- user-provided value for this element
-  ORG_ID           VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+  CONSENT_ID          CHAR(36) NOT NULL,
+  PURPOSE_VERSION_ID  CHAR(36) NOT NULL,
+  ELEMENT_VERSION_ID  CHAR(36) NOT NULL,
+  IS_USER_APPROVED    BOOLEAN NOT NULL DEFAULT FALSE,
+  VALUE               JSON DEFAULT NULL,  -- user-provided value for this element
+  ORG_ID              VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
 
-  -- One approval per element per purpose per consent
-  PRIMARY KEY (CONSENT_ID, PURPOSE_ID, ELEMENT_ID, ORG_ID),
+  -- One approval per element version per purpose version per consent
+  PRIMARY KEY (CONSENT_ID, PURPOSE_VERSION_ID, ELEMENT_VERSION_ID, ORG_ID),
 
   INDEX idx_approval_consent (CONSENT_ID, ORG_ID),
-  INDEX idx_approval_purpose (PURPOSE_ID, ORG_ID),
-  INDEX idx_approval_element (ELEMENT_ID, ORG_ID),
+  INDEX idx_approval_purpose_ver (PURPOSE_VERSION_ID, ORG_ID),
+  INDEX idx_approval_element_ver (ELEMENT_VERSION_ID, ORG_ID),
   INDEX idx_approval_status (IS_USER_APPROVED),
 
-  -- Element must belong to the purpose
-  CONSTRAINT fk_approval_purpose_element
-    FOREIGN KEY (PURPOSE_ID, ELEMENT_ID, ORG_ID)
-    REFERENCES PURPOSE_ELEMENT_MAPPING (PURPOSE_ID, ELEMENT_ID, ORG_ID)
+  -- Element version must belong to the purpose version
+  CONSTRAINT fk_approval_purpose_element_ver
+    FOREIGN KEY (PURPOSE_VERSION_ID, ELEMENT_VERSION_ID, ORG_ID)
+    REFERENCES PURPOSE_ELEMENT_MAPPING (PURPOSE_VERSION_ID, ELEMENT_VERSION_ID, ORG_ID)
     ON DELETE RESTRICT,
 
-  -- Purpose must belong to the consent
-  CONSTRAINT fk_approval_consent_purpose
-    FOREIGN KEY (CONSENT_ID, PURPOSE_ID, ORG_ID)
-    REFERENCES PURPOSE_CONSENT_MAPPING (CONSENT_ID, PURPOSE_ID, ORG_ID)
+  -- Purpose version must belong to the consent
+  CONSTRAINT fk_approval_consent_purpose_ver
+    FOREIGN KEY (CONSENT_ID, PURPOSE_VERSION_ID, ORG_ID)
+    REFERENCES PURPOSE_CONSENT_MAPPING (CONSENT_ID, PURPOSE_VERSION_ID, ORG_ID)
     ON DELETE CASCADE
 ) ENGINE=INNODB
   DEFAULT CHARSET=utf8mb4
