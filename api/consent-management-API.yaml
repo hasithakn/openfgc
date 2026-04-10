@@ -112,7 +112,9 @@ paths:
     get:
       summary: Search for consents
       description: |
-        Provides a powerful search capability to find consents based on various filter criteria like consent type, status, client ID , user ID and time range. Supports pagination.
+        Provides a powerful search capability to find consents based on various filter criteria like consent type, status, client ID, user ID, purpose, and element. Supports pagination.
+        If purposeVersion is specified, purposeName must also be provided.
+        If elementVersion is specified, at least one of elementName or elementNamespace must also be provided.
 
       operationId: consents-search-GET
       tags:
@@ -149,12 +151,37 @@ paths:
           schema:
             type: string
           example: "user1@example.com,user2@example.com"
-        - name: purposeNames
+        - name: purposeName
           in: query
-          description: A comma-separated list of consent purpose names to filter by. Returns consents that contain ANY of the specified purposes.
+          description: Filter by consent purpose name. Returns consents that contain this purpose.
           schema:
             type: string
-          example: "Account Information,Transaction History"
+          example: "marketing_communication_preferences"
+        - name: purposeVersion
+          in: query
+          description: Filter by a specific purpose version (e.g. "v2"). Requires purposeName to also be specified.
+          schema:
+            type: string
+          example: "v2"
+        - name: elementName
+          in: query
+          description: Filter by element name — returns consents that include this element.
+          schema:
+            type: string
+          example: "user_email"
+        - name: elementNamespace
+          in: query
+          description: Filter by element namespace — used together with elementName.
+          schema:
+            type: string
+          example: "personal"
+        - name: elementVersion
+          in: query
+          description: |
+            Filter by a specific element version (e.g. "v2"). Requires at least one of elementName or elementNamespace to also be specified.
+          schema:
+            type: string
+          example: "v2"
         - name: fromTime
           in: query
           description: The start of the time window for the search, as a Unix timestamp in seconds (integer).
@@ -846,56 +873,47 @@ paths:
                       resourcePath: "/Patient/{patientId}"
                       jsonPath: "$.patient"
       responses:
-        "201":
-          description: Successfully created consent element(s)
+        "200":
+          description: |
+            Bulk creation processed. Check each item's `status` field — `SUCCESS` or `FAILED`.
+            Valid items are batch-inserted; per-item validation errors do not prevent other items from being created.
+            See `metadata` for a summary of how many succeeded and failed.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/ConsentElementCreateResponse"
-                  message:
-                    type: string
-                    example: "Consent elements created successfully"
+                $ref: "#/components/schemas/ConsentElementBulkCreateResponse"
               examples:
-                basicElement:
-                  summary: Created basic type element
+                partialSuccess:
+                  summary: Batch with one success and one failure
                   value:
-                    data:
-                      - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                        name: "license_read"
-                        namespace: "licensing"
-                        type: "basic"
-                        version: "v1"
-                        displayName: "License Read"
-                        description: "Allows read access to license API endpoints"
-                        properties:
-                          value: "license:read"
-                          resourcePath: "/api/license/{id}"
-                        createdTime: "2026-03-25T10:00:00Z"
-                    message: "Consent elements created successfully"
-                jsonElement:
-                  summary: Created json type element
-                  value:
-                    data:
-                      - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                        name: "account_details"
-                        namespace: "banking"
-                        type: "json"
-                        version: "v1"
-                        displayName: "Account Details"
-                        description: "Structured account information with JSON schema validation"
-                        schema: '{"type":"object","properties":{"accountId":{"type":"string"},"balance":{"type":"number"}},"required":["accountId"]}'
-                        properties:
-                          resourcePath: "/accounts/{accountId}"
-                          jsonPath: "$.account"
-                        createdTime: "2026-03-25T10:00:00Z"
-                    message: "Consent elements created successfully"
+                    metadata:
+                      traceId: "4f9c2d7a-8b1e-4f9c-2d7a-8b1e4f9c2d7a"
+                      total: 2
+                      succeeded: 1
+                      failed: 1
+                    results:
+                      - index: 0
+                        status: "SUCCESS"
+                        data:
+                          elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                          name: "license_read"
+                          namespace: "licensing"
+                          type: "basic"
+                          version: "v1"
+                          displayName: "License Read"
+                          description: "Allows read access to license API endpoints"
+                          properties:
+                            value: "license:read"
+                            resourcePath: "/api/license/{id}"
+                          createdTime: "2026-03-25T10:00:00Z"
+                      - index: 1
+                        status: "FAILED"
+                        error:
+                          code: "CONFLICT"
+                          message: "Element already exists"
+                          description: "Element name 'user_email' already exists in namespace 'personal'"
         "400":
-          description: Bad Request - Invalid input or validation error
+          description: Bad Request — invalid top-level request (e.g. malformed JSON, empty array)
           content:
             application/json:
               schema:
@@ -908,43 +926,8 @@ paths:
                     message: "Empty request"
                     description: "At least one element must be provided"
                     traceId: "20260107T123456Z-abc123"
-                missingName:
-                  summary: Missing required name field
-                  value:
-                    code: "BAD_REQUEST"
-                    message: "Invalid request body"
-                    description: "Name field is required"
-                    traceId: "20260107T123456Z-abc123"
-                invalidType:
-                  summary: Invalid type value
-                  value:
-                    code: "BAD_REQUEST"
-                    message: "Invalid element type"
-                    description: "Type must be one of: basic, json, xml"
-                    traceId: "20260107T123456Z-abc123"
-                jsonTypeMissingSchema:
-                  summary: json type missing schema
-                  value:
-                    code: "BAD_REQUEST"
-                    message: "Validation failed"
-                    description: "schema is required for json type"
-                    traceId: "20260107T123456Z-abc123"
-                xmlTypeMissingSchema:
-                  summary: xml type missing schema
-                  value:
-                    code: "BAD_REQUEST"
-                    message: "Validation failed"
-                    description: "schema is required for xml type"
-                    traceId: "20260107T123456Z-abc123"
-                duplicateName:
-                  summary: Element name already exists
-                  value:
-                    code: "CONFLICT"
-                    message: "Element already exists"
-                    description: "Element name already exists in organization"
-                    traceId: "20260107T123456Z-abc123"
         "500":
-          description: Internal Server Error
+          description: Internal Server Error — batch persistence failed after successful validation
           content:
             application/json:
               schema:
@@ -952,19 +935,20 @@ paths:
               example:
                 code: "INTERNAL_ERROR"
                 message: "Server error"
-                description: "An unexpected error occurred"
+                description: "An unexpected error occurred while persisting elements"
                 traceId: "20260107T123456Z-abc123"
       security:
         - basicAuth: []
     get:
       summary: List all consent elements
       description: |
-        Retrieves a paginated list of all consent elements for the specified organization.
+        Returns a paginated list of consent elements for the organization.
 
-        Supports filtering by `name` (partial match) and `namespace`.
-        Results are ordered by created time (newest first) by default. Use the `limit` and `offset`
-        query parameters to control pagination.
-      operationId: listConsentPurposes
+        By default (`enrich=false`), each item includes only the immutable fields (`elementId`, `name`, `namespace`, `type`, `createdTime`) and the latest `version` number.
+        Set `enrich=true` to include full version content (displayName, description, schema, properties).
+
+        Use `name`, `namespace`, or `type` to filter results. If `version` is specified, at least one of `name` or `namespace` must also be provided.
+      operationId: listConsentElements
       tags:
         - Consent Elements
       parameters:
@@ -984,11 +968,38 @@ paths:
             example: "account"
         - name: namespace
           in: query
-          description: Filter elements by a namespace
+          description: Filter elements by namespace
           required: false
           schema:
             type: string
-          example: "healthcare"
+            example: "healthcare"
+        - name: type
+          in: query
+          description: Filter elements by type
+          required: false
+          schema:
+            type: string
+            enum: [basic, json, xml]
+            example: "basic"
+        - name: version
+          in: query
+          description: |
+            Filter by a specific version (e.g. `v2`). When provided with `enrich=true`, returns content of that
+            version instead of the latest. Requires at least one of `name` or `namespace`.
+          required: false
+          schema:
+            type: string
+            example: "v2"
+        - name: enrich
+          in: query
+          description: |
+            When `true`, each element in the response includes full version content (displayName, description,
+            schema, properties, createdTime). Default is `false`, which returns only immutable fields and latest version number.
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
         - name: limit
           in: query
           description: The maximum number of results to return in a single page. Used for pagination.
@@ -1012,30 +1023,79 @@ paths:
             example: 0
       responses:
         "200":
-          description: Successfully retrieved consent elements
+          description: |
+            Successfully retrieved consent elements.
+            Shape of each item depends on `enrich` parameter — see `ConsentElementSummaryResponse` (default)
+            and `ConsentElementVersionResponse` (when `enrich=true`).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConsentElementListResponse"
+              examples:
+                summary:
+                  summary: Default response (enrich=false)
+                  value:
+                    data:
+                      - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                        name: "first_name"
+                        namespace: "personal"
+                        type: "basic"
+                        version: "v3"
+                        createdTime: "2026-01-10T08:00:00Z"
+                      - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                        name: "account_details"
+                        namespace: "banking"
+                        type: "json"
+                        version: "v2"
+                        createdTime: "2026-02-01T09:00:00Z"
+                    metadata:
+                      total: 2
+                      offset: 0
+                      count: 2
+                      limit: 100
+                enriched:
+                  summary: Enriched response (enrich=true)
+                  value:
+                    data:
+                      - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                        name: "first_name"
+                        namespace: "personal"
+                        type: "basic"
+                        version: "v3"
+                        displayName: "First Name"
+                        description: "User's first name"
+                        properties:
+                          resourcePath: "/Patient/{firstName}"
+                          jsonPath: "$.patient.firstName"
+                        createdTime: "2026-01-10T08:00:00Z"
+                      - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                        name: "account_details"
+                        namespace: "banking"
+                        type: "json"
+                        version: "v2"
+                        displayName: "Account Details"
+                        description: "Bank account information"
+                        schema: '{"type":"object"}'
+                        properties:
+                          resourcePath: "/accounts/{accountId}"
+                          jsonPath: "$.account"
+                        createdTime: "2026-02-01T09:00:00Z"
+                    metadata:
+                      total: 2
+                      offset: 0
+                      count: 2
+                      limit: 100
+        "400":
+          description: Bad Request — `version` provided without `name` or `namespace`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentErrorCommon"
               example:
-                data:
-                  - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                    name: "first_name"
-                    namespace: "personal"
-                    latestVersion: "v3"
-                  - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-                    name: "account_details"
-                    namespace: "banking"
-                    latestVersion: "v2"
-                  - elementId: "c3d4e5f6-a7b8-9012-cdef-123456789012"
-                    name: "patient_record"
-                    namespace: "healthcare"
-                    latestVersion: "v1"
-                metadata:
-                  total: 3
-                  offset: 0
-                  count: 3
-                  limit: 100
+                code: "INVALID_REQUEST"
+                message: "Invalid query parameters"
+                description: "The 'version' parameter requires at least one of 'name' or 'namespace' to be specified"
+                traceId: "20260107T123456Z-abc123"
         "500":
           description: Internal Server Error
           content:
@@ -1051,10 +1111,10 @@ paths:
         - basicAuth: []
   /consent-elements/{elementId}:
     get:
-      summary: Get consent element metadata
+      summary: Get consent element
       description: |
-        Retrieves the metadata of a consent element (name, namespace, latest version number).
-        Use the versions endpoints to access version-specific content such as type, schema, and properties.
+        Retrieves a consent element including the full content of its latest version
+        (type, displayName, description, schema, properties).
       operationId: getConsentElement
       tags:
         - Consent Elements
@@ -1075,16 +1135,20 @@ paths:
             example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
       responses:
         "200":
-          description: Successfully retrieved consent element metadata
+          description: Successfully retrieved consent element
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConsentElementMetadataResponse"
+                $ref: "#/components/schemas/ConsentElementVersionResponse"
               example:
                 elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "first_name"
                 namespace: "personal"
-                latestVersion: "v2"
+                version: "v3"
+                type: "basic"
+                displayName: "First Name"
+                description: "Allows access to the user's first name"
+                createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Consent element not found
           content:
@@ -1143,9 +1207,9 @@ paths:
                 elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "first_name"
                 namespace: "personal"
+                type: "basic"
                 versions:
                   - version: "v2"
-                    type: "basic"
                     displayName: "First Name V2"
                     description: "Updated access to the user's first name"
                     properties:
@@ -1153,7 +1217,6 @@ paths:
                       jsonPath: "$.patient.firstName"
                     createdTime: "2026-03-01T10:00:00Z"
                   - version: "v1"
-                    type: "basic"
                     displayName: "First Name"
                     description: "Allows access to the user's first name"
                     properties:
@@ -1193,12 +1256,13 @@ paths:
         **Immutable fields** (set at element creation, cannot change across versions):
         - `name`: The element identifier
         - `namespace`: The element namespace. If namespace was omitted at creation, it was set to `default`.
+        - `type`: The element type (`basic`, `json`, `xml`). Fixed at creation time.
 
         **Mutable fields** (can be updated in each new version):
-        - `type`, `displayName`, `description`, `schema`, `properties`
+        - `displayName`, `description`, `schema`, `properties`
 
-        **Type requirements when type is `json` or `xml`:**
-        - `schema` field is required for json and xml types
+        **Schema requirement:**
+        - `schema` field is required when the element type is `json` or `xml`
       operationId: createElementVersion
       tags:
         - Consent Elements
@@ -1595,6 +1659,7 @@ paths:
                   value:
                     purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                     name: "marketing_communication_preferences_purpose"
+                    clientId: "TPP-CLIENT-001"
                     version: "v1"
                     displayName: "Marketing Communication Preferences"
                     description: "User preferences related to marketing communications"
@@ -1669,19 +1734,10 @@ paths:
     get:
       summary: List all purposes
       description: |
-        Retrieves a paginated list of all consent purposes for the specified organization.
-
-        **Filtering Options:**
-        - **name**: Filter by purpose name (partial match, case-insensitive LIKE search)
-        - **elementNames**: Comma-separated element names - returns purposes containing ALL specified elements
-        - **clientIds**: Filter by client IDs to get purposes bound to specific clients
-
-        **Search Logic for elementNames:**
-        When multiple element names are provided (e.g., "user_email,user_phone"), the API returns only
-        purposes that include ALL of the specified elements (AND operation). This helps find purposes that
-        satisfy a specific set of consent requirements.
-
-        Results are sorted by creation time (newest first) and support pagination via limit/offset.
+        Returns a paginated list of consent purposes for the organization.
+        By default (enrich=false), each item includes only the immutable fields (purposeId, name, clientId, createdTime) and the latest version number.
+        Set enrich=true to include full version content (displayName, description, properties, elements).
+        Use purposeName, purposeVersion, elementName, elementNamespace, elementVersion, or clientIds to filter results. If purposeVersion is specified, purposeName must also be provided. If elementVersion is specified, at least one of elementName or elementNamespace must also be provided.
       operationId: listPurposes
       tags:
         - Consent Purposes
@@ -1693,6 +1749,44 @@ paths:
           schema:
             type: string
             example: "ORG-001"
+        - name: purposeName
+          in: query
+          required: false
+          description: Filter by purpose name (partial match, case-insensitive)
+          schema:
+            type: string
+          example: "marketing_communication_preferences"
+        - name: purposeVersion
+          in: query
+          required: false
+          description: |
+            Filter by purpose version (e.g. "v2"). Requires purposeName to also be specified.
+            Returns the purpose at that specific version instead of the latest.
+          schema:
+            type: string
+          example: "v2"
+        - name: elementName
+          in: query
+          required: false
+          description: Filter by element name — returns purposes that contain this element
+          schema:
+            type: string
+          example: "user_email"
+        - name: elementNamespace
+          in: query
+          required: false
+          description: Filter by element namespace — used together with elementName
+          schema:
+            type: string
+          example: "personal"
+        - name: elementVersion
+          in: query
+          required: false
+          description: |
+            Filter by a specific element version (e.g. "v2"). Requires at least one of elementName or elementNamespace to also be specified.
+          schema:
+            type: string
+          example: "v2"
         - name: clientIds
           in: query
           required: false
@@ -1700,23 +1794,14 @@ paths:
           schema:
             type: string
           example: "CLIENT-123,CLIENT-456"
-        - name: name
+        - name: enrich
           in: query
           required: false
-          description: Filter by purpose name
+          description: Set to true to include full version content in each item (displayName, description, properties, elements). Default is false.
           schema:
-            type: string
-          example: "marketing_communication_preferences"
-        - name: elementNames
-          in: query
-          required: false
-          description: |
-            Comma-separated list of element names to filter by.
-            Returns purposes that contain ALL the specified elements (AND logic).
-            Example: "user_email,user_phone" will return purposes containing both elements.
-          schema:
-            type: string
-          example: "user_email,user_phone"
+            type: boolean
+            default: false
+          example: true
         - name: limit
           in: query
           description: Maximum number of results to return (default 10, max 100)
@@ -1744,20 +1829,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/PurposeListResponse"
               examples:
-                withPurposes:
-                  summary: Multiple purposes returned
+                summaryList:
+                  summary: Default summary list (enrich=false)
                   value:
                     data:
                       - purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                         name: "marketing_communication_preferences_purpose"
-                        latestVersion: 3
+                        clientId: "TPP-CLIENT-001"
+                        version: "v3"
+                        createdTime: "2026-01-10T08:00:00Z"
                       - purposeId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                         name: "account_access_permissions_purpose"
-                        latestVersion: 1
+                        clientId: "TPP-CLIENT-001"
+                        version: "v1"
+                        createdTime: "2026-02-15T09:00:00Z"
                     metadata:
                       total: 2
                       offset: 0
                       count: 2
+                      limit: 10
+                enrichedList:
+                  summary: Enriched list (enrich=true)
+                  value:
+                    data:
+                      - purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                        name: "marketing_communication_preferences_purpose"
+                        clientId: "TPP-CLIENT-001"
+                        version: "v3"
+                        displayName: "Marketing Communication Preferences"
+                        description: "User preferences related to marketing communications"
+                        properties:
+                          category: "marketing"
+                          region: "global"
+                        elements:
+                          - name: "user_email"
+                            namespace: "personal"
+                            version: "v1"
+                            isMandatory: true
+                          - name: "user_mobile"
+                            namespace: "personal"
+                            version: "v2"
+                            isMandatory: false
+                        createdTime: "2026-01-10T08:00:00Z"
+                    metadata:
+                      total: 1
+                      offset: 0
+                      count: 1
                       limit: 10
                 emptyResult:
                   summary: No purposes found
@@ -1768,24 +1885,17 @@ paths:
                       offset: 0
                       count: 0
                       limit: 10
-                filteredByElements:
-                  summary: Filtered by element names
-                  value:
-                    data:
-                      - purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                        name: "marketing_communication_preferences_purpose"
-                        latestVersion: 2
-                    metadata:
-                      total: 1
-                      offset: 0
-                      count: 1
-                      limit: 10
         "400":
-          description: Bad Request - Invalid query parameters
+          description: Bad Request - Invalid query parameters (e.g. purposeVersion provided without name)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConsentErrorCommon"
+              example:
+                code: "BAD_REQUEST"
+                message: "Invalid query parameters"
+                description: "purposeVersion requires purposeName to also be specified"
+                traceId: "20260107T123456Z-abc123"
         "500":
           description: Internal Server Error
           content:
@@ -1796,10 +1906,10 @@ paths:
         - basicAuth: []
   /consent-purposes/{purposeId}:
     get:
-      summary: Get consent purpose metadata
+      summary: Get a consent purpose
       description: |
-        Retrieves the metadata of a consent purpose (name, latest version number).
-        Use the versions endpoints to access or manage version content.
+        Retrieves the full content of the latest version of a consent purpose,
+        including displayName, description, properties, and element references.
       operationId: getPurposeById
       tags:
         - Consent Purposes
@@ -1820,15 +1930,35 @@ paths:
           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
       responses:
         "200":
-          description: Successfully retrieved purpose metadata
+          description: Successfully retrieved purpose
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConsentPurposeMetadataResponse"
+                $ref: "#/components/schemas/ConsentPurposeVersionResponse"
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "marketing_communication_preferences_purpose"
-                latestVersion: "v1"
+                clientId: "TPP-CLIENT-001"
+                version: "v3"
+                displayName: "Marketing Communication Preferences"
+                description: "User preferences related to marketing communications"
+                properties:
+                  category: "marketing"
+                  region: "global"
+                elements:
+                  - name: "user_email"
+                    namespace: "personal"
+                    version: "v1"
+                    isMandatory: true
+                  - name: "user_mobile"
+                    namespace: "personal"
+                    version: "v2"
+                    isMandatory: false
+                  - name: "user_address"
+                    namespace: "personal"
+                    version: "v1"
+                    isMandatory: false
+                createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Purpose not found
           content:
@@ -1886,6 +2016,7 @@ paths:
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "marketing_communication_preferences"
+                clientId: "TPP-CLIENT-001"
                 versions:
                   - version: "v2"
                     displayName: "Marketing Communication Preferences V2"
@@ -1951,7 +2082,6 @@ paths:
       summary: Create a new version of a consent purpose
       description: |
         Creates a new version of an existing consent purpose. The version number is auto-incremented.
-        The new version's default status is `active`.
 
         Versions are **immutable** — once created, the element references of a version cannot be changed.
         To update a purpose's elements, create a new version instead.
@@ -2015,6 +2145,7 @@ paths:
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "medical_data_access"
+                clientId: "TPP-CLIENT-001"
                 version: "v2"
                 displayName: "Medical Data Access V2"
                 description: "Updated access to basic medical record fields"
@@ -2114,6 +2245,7 @@ paths:
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "medical_data_access"
+                clientId: "TPP-CLIENT-001"
                 version: "v1"
                 displayName: "Medical Data Access V1"
                 description: "Access to basic medical record fields"
@@ -3304,7 +3436,7 @@ components:
                 description: Human-readable description of the purpose
                 example: "Preferences for marketing communication channels and frequency"
               version:
-                type: string
+                type: string1
                 description: The specific version of the purpose bound to this consent (e.g., v1, v2)
                 example: "v1"
               displayName:
@@ -3494,6 +3626,76 @@ components:
           description: Optional key-value map of extra properties for the element
           example:
             value: "license:read"
+    ConsentElementBulkCreateResponse:
+      type: object
+      description: Response for a bulk consent element creation request. Contains a per-item result for every element in the request, plus summary metadata.
+      required:
+        - metadata
+        - results
+      properties:
+        metadata:
+          type: object
+          required:
+            - traceId
+            - total
+            - succeeded
+            - failed
+          properties:
+            traceId:
+              type: string
+              format: uuid
+              description: Trace identifier for this request
+              example: "4f9c2d7a-8b1e-4f9c-2d7a-8b1e4f9c2d7a"
+            total:
+              type: integer
+              description: Total number of elements in the request
+              example: 3
+            succeeded:
+              type: integer
+              description: Number of elements successfully created
+              example: 2
+            failed:
+              type: integer
+              description: Number of elements that failed validation
+              example: 1
+        results:
+          type: array
+          description: Per-item results in the same order as the request array
+          items:
+            type: object
+            required:
+              - index
+              - status
+            properties:
+              index:
+                type: integer
+                description: Zero-based index of this element in the original request array
+                example: 0
+              status:
+                type: string
+                enum: [SUCCESS, FAILED]
+                description: Whether this element was created successfully or failed validation
+                example: "SUCCESS"
+              data:
+                description: Created element data — present when status is SUCCESS
+                allOf:
+                  - $ref: "#/components/schemas/ConsentElementCreateResponse"
+              error:
+                type: object
+                description: Error details — present when status is FAILED
+                required:
+                  - code
+                  - message
+                properties:
+                  code:
+                    type: string
+                    example: "CONFLICT"
+                  message:
+                    type: string
+                    example: "Element already exists"
+                  description:
+                    type: string
+                    example: "Element name 'user_email' already exists in namespace 'personal'"
     ConsentElementCreateResponse:
       type: object
       description: |
@@ -3552,15 +3754,59 @@ components:
           format: date-time
           description: ISO 8601 timestamp when this element and its initial version were created
           example: "2026-03-25T10:00:00Z"
+    ConsentElementSummaryResponse:
+      type: object
+      description: |
+        Summary response for a consent element containing only immutable fields and the latest version number.
+        Returned by `GET /consent-elements` when `enrich=false` (default).
+      required:
+        - elementId
+        - name
+        - namespace
+        - type
+        - version
+        - createdTime
+      properties:
+        elementId:
+          type: string
+          description: Unique identifier for the consent element
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: The name/identifier of the consent element
+          example: "first_name"
+        namespace:
+          type: string
+          description: The namespace of the consent element
+          example: "personal"
+        type:
+          type: string
+          enum: [basic, json, xml]
+          description: The element type (immutable)
+          example: "basic"
+        version:
+          type: string
+          description: The latest version identifier (e.g. v3). When `version` query param is provided, reflects that version instead.
+          example: "v3"
+        createdTime:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when this element was created
+          example: "2026-01-10T08:00:00Z"
     ConsentElementListResponse:
       type: object
-      description: The response from a successful consent element list/search query.
+      description: |
+        The response from a successful consent element list/search query.
+        When `enrich=false` (default), `data` items conform to `ConsentElementSummaryResponse`.
+        When `enrich=true`, `data` items conform to `ConsentElementVersionResponse`.
       properties:
         data:
           type: array
-          description: Array of consent element metadata items
+          description: Array of consent elements — summary or enriched shape depending on `enrich` parameter
           items:
-            $ref: "#/components/schemas/ConsentElementMetadataResponse"
+            oneOf:
+              - $ref: "#/components/schemas/ConsentElementSummaryResponse"
+              - $ref: "#/components/schemas/ConsentElementVersionResponse"
         metadata:
           $ref: "#/components/schemas/ConsentSearchMetadata"
       required:
@@ -3754,6 +4000,7 @@ components:
       required:
         - purposeId
         - name
+        - clientId
         - version
         - elements
         - createdTime
@@ -3766,6 +4013,10 @@ components:
           type: string
           description: The name/identifier of the consent purpose
           example: "marketing_communication_preferences_purpose"
+        clientId:
+          type: string
+          description: The client ID that owns this purpose (immutable)
+          example: "TPP-CLIENT-001"
         version:
           type: string
           description: The initial version identifier (always v1)
@@ -3795,6 +4046,37 @@ components:
           format: date-time
           description: ISO 8601 timestamp when this purpose and its initial version were created
           example: "2026-03-25T10:00:00Z"
+    ConsentPurposeSummaryResponse:
+      type: object
+      description: Summary response for a consent purpose — immutable identity fields and latest version number. Returned by default when enrich=false.
+      required:
+        - purposeId
+        - name
+        - clientId
+        - version
+        - createdTime
+      properties:
+        purposeId:
+          type: string
+          description: Unique identifier for the consent purpose
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: The name/identifier of the consent purpose (immutable)
+          example: "marketing_communication_preferences_purpose"
+        clientId:
+          type: string
+          description: The client ID that owns this purpose (immutable)
+          example: "TPP-CLIENT-001"
+        version:
+          type: string
+          description: The latest version of this purpose (or the requested version if purposeVersion was specified)
+          example: "v3"
+        createdTime:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when this purpose was created
+          example: "2026-01-10T08:00:00Z"
     PurposeListResponse:
       type: object
       required:
@@ -3804,9 +4086,11 @@ components:
       properties:
         data:
           type: array
-          description: Array of purpose metadata items
+          description: Array of purpose items — summary shape by default, full version content when enrich=true
           items:
-            $ref: "#/components/schemas/ConsentPurposeMetadataResponse"
+            oneOf:
+              - $ref: "#/components/schemas/ConsentPurposeSummaryResponse"
+              - $ref: "#/components/schemas/ConsentPurposeVersionResponse"
         metadata:
           $ref: "#/components/schemas/ConsentSearchMetadata"
     ConsentElementMetadataResponse:
@@ -3839,17 +4123,8 @@ components:
       description: |
         Request for creating a new version of a consent element.
         Versions are immutable once created — to change content, create a new version.
-        The element's name and namespace are fixed at creation time and cannot be changed across versions.
+        The element's `name`, `namespace`, and `type` are fixed at element creation time and cannot be changed across versions.
       properties:
-        type:
-          type: string
-          enum: [basic, json, xml]
-          description: |
-            The type of the element for this version. Can differ from previous versions.
-            - 'basic': No mandatory properties
-            - 'json': Requires `schema` field
-            - 'xml': Requires `schema` field
-          example: "basic"
         displayName:
           type: string
           description: Human-readable display name for this version (used in UIs)
@@ -3861,7 +4136,7 @@ components:
           example: "Updated first name access"
         schema:
           type: string
-          description: Validation schema (required for json and xml types)
+          description: Validation schema (required when element type is json or xml)
           example: '{"type":"object"}'
         properties:
           type: object
@@ -3935,6 +4210,7 @@ components:
         - elementId
         - name
         - namespace
+        - type
         - versions
       properties:
         elementId:
@@ -3949,6 +4225,11 @@ components:
           type: string
           description: The namespace of the consent element
           example: "personal"
+        type:
+          type: string
+          enum: [basic, json, xml]
+          description: The element type (immutable — shared across all versions)
+          example: "basic"
         versions:
           type: array
           description: List of versions ordered by version number (newest first)
@@ -3958,22 +4239,16 @@ components:
       type: object
       description: |
         Version detail for a consent element as returned in list responses.
-        The `elementId`, `name`, and `namespace` are hoisted to the parent `ConsentElementVersionListResponse`
+        The `elementId`, `name`, `namespace`, and `type` are hoisted to the parent `ConsentElementVersionListResponse`
         and are not repeated in each item.
       required:
         - version
-        - type
         - createdTime
       properties:
         version:
           type: string
           description: The version identifier
           example: "v2"
-        type:
-          type: string
-          enum: [basic, json, xml]
-          description: The element type
-          example: "basic"
         displayName:
           type: string
           description: Human-readable display name for this version
@@ -4057,6 +4332,7 @@ components:
       required:
         - purposeId
         - name
+        - clientId
         - version
         - elements
         - createdTime
@@ -4069,6 +4345,10 @@ components:
           type: string
           description: The name/identifier of the consent purpose
           example: "medical_data_access"
+        clientId:
+          type: string
+          description: The client ID that owns this purpose (immutable)
+          example: "TPP-CLIENT-001"
         version:
           type: string
           description: The version identifier
@@ -4104,6 +4384,7 @@ components:
       required:
         - purposeId
         - name
+        - clientId
         - versions
       properties:
         purposeId:
@@ -4114,6 +4395,10 @@ components:
           type: string
           description: The name/identifier of the consent purpose (immutable across versions)
           example: "marketing_communication_preferences"
+        clientId:
+          type: string
+          description: The client ID that owns this purpose (immutable)
+          example: "TPP-CLIENT-001"
         versions:
           type: array
           description: List of versions ordered by version number (newest first)
