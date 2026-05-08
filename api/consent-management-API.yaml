@@ -35,10 +35,16 @@ paths:
 
         Upon success, the system creates a **consent resource** with: A unique `consentId`
 
+        **Purpose Access Rules:**
+        When a purpose is referenced in a consent, the server validates that the consent is allowed to use it:
+        - **Allowed** if `purpose.groupId == consent.groupId` — the purpose belongs to the same group as the consent.
+        - **Allowed** if `purpose.groupId == orgId` — the purpose is an org-level purpose, available to all consents in the organization.
+        - **Rejected** otherwise — a group-specific purpose from a different group cannot be used.
+
         **Response Behavior:**
         - The consent creation response payload includes all elements within each purpose.
         - If the request contains only a subset of elements for a purpose, any unmentioned elements from
-          that purpose are automatically resolved and returned with `isUserApproved: false`.
+          that purpose are automatically resolved and returned with `approved: false`.
       operationId: consents-POST
       tags:
         - Consents
@@ -51,12 +57,12 @@ paths:
             type: string
             example: "ORG-001"
         - in: header
-          name: TPP-client-id
+          name: group-id
           required: true
-          description: "The client ID of the Third-Party Provider (TPP) application that is requesting the consent."
+          description: "An identifier used to group related purposes and consents."
           schema:
             type: string
-            example: "TPP-CLIENT-001"
+            example: "group-001"
       requestBody:
         description: The payload containing the consent data.
         required: true
@@ -75,10 +81,10 @@ paths:
                   version: "v1"
                   elements:
                     - name: "user_email"
-                      isUserApproved: true
+                      approved: true
                       value: {}
                     - name: "user_mobile"
-                      isUserApproved: true
+                      approved: true
                       value: {}
               attributes:
                 department: "marketing"
@@ -112,7 +118,7 @@ paths:
     get:
       summary: Search for consents
       description: |
-        Provides a powerful search capability to find consents based on various filter criteria like consent type, status, client ID, user ID, purpose, and element. Supports pagination.
+        Provides a powerful search capability to find consents based on various filter criteria like consent type, status, group ID, user ID, purpose, and element. Supports pagination.
         If purposeVersion is specified, purposeName must also be provided.
         If elementVersion is specified, at least one of elementName or elementNamespace must also be provided.
 
@@ -139,12 +145,12 @@ paths:
           schema:
             type: string
           example: "ACTIVE,CREATED"
-        - name: clientIds
+        - name: groupIds
           in: query
-          description: A comma-separated list of TPP client IDs to filter by.
+          description: A comma-separated list of group IDs to filter by.
           schema:
             type: string
-          example: "TPP-CLIENT-001,TPP-CLIENT-002"
+          example: "group-001,group-002"
         - name: userIds
           in: query
           description: A comma-separated list of end-user IDs to filter by.
@@ -338,10 +344,14 @@ paths:
       description: |
         Endpoint to perform a full update on a consent resource, including its authorization resources and attributes, in a single operation.
 
+        **Purpose Access Rules:**
+        Same groupId validation as consent creation applies — a purpose can only be used if its `groupId`
+        matches the consent's `groupId`, or if it is an org-level purpose (`purpose.groupId == orgId`).
+
         **Response Behavior:**
-        - The consent update response payload includes all purposes within each purpose.
-        - If the request contains only a subset of purposes for a purpose, any unmentioned purposes from
-          that purpose are automatically resolved and returned with `isUserApproved: false`.
+        - The consent update response payload includes all elements within each purpose.
+        - If the request contains only a subset of elements for a purpose, any unmentioned elements from
+          that purpose are automatically resolved and returned with `approved: false`.
 
       operationId: consents-PUT
       tags:
@@ -355,12 +365,12 @@ paths:
             type: string
             example: "ORG-001"
         - in: header
-          name: TPP-client-id
+          name: group-id
           required: true
-          description: "The client ID of the Third-Party Provider (TPP) application that is requesting the consent."
+          description: "An identifier used to group related purposes and consents."
           schema:
             type: string
-            example: "TPP-CLIENT-001"
+            example: "group-001"
         - name: consentId
           in: path
           description: The unique identifier of the consent to update.
@@ -384,10 +394,10 @@ paths:
                   version: "v1"
                   elements:
                     - name: "first_name"
-                      isUserApproved: true
+                      approved: true
                       value: {}
                     - name: "last_name"
-                      isUserApproved: true
+                      approved: true
                       value: {}
               attributes:
                 department: "sales"
@@ -674,7 +684,7 @@ paths:
         - If the consent exists and belongs to the specified user
         - If the consent status is active (AUTHORIZED, ACTIVE, etc.)
         - If the consent has not expired based on validityTime
-        - If all mandatory elements within the purposes are approved (isUserApproved: true)
+        - If all mandatory elements within the purposes are approved (approved: true)
 
         If the consent has expired, the endpoint automatically updates the consent status to EXPIRED.
         If mandatory elements are not approved, validation returns false.
@@ -719,7 +729,7 @@ paths:
                 consentInformation:
                   id: "123e4567-e89b-12d3-a456-426614174000"
                   type: "accounts"
-                  clientId: "tpp-client-123"
+                  groupId: "group-123"
                   status: "ACTIVE"
                   createdTime: 1702800000
                   updatedTime: 1702800000
@@ -738,8 +748,8 @@ paths:
                           namespace: "personal"
                           version: "v1"
                           value: {}
-                          isUserApproved: true
-                          isMandatory: true
+                          approved: true
+                          mandatory: true
                           type: "basic"
                           description: "Allows access to the user's first name"
                           properties:
@@ -944,8 +954,8 @@ paths:
       description: |
         Returns a paginated list of consent elements for the organization.
 
-        By default (`enrich=false`), each item includes only the immutable fields (`elementId`, `name`, `namespace`, `type`, `createdTime`) and the latest `version` number.
-        Set `enrich=true` to include full version content (displayName, description, schema, properties).
+        By default (`details=false`), each item includes the immutable fields (`elementId`, `name`, `namespace`, `type`, `createdTime`), the latest `version` number, and the latest version's `displayName` and `description`.
+        Set `details=true` to also include the full version content (schema, properties).
 
         Use `name`, `namespace`, or `type` to filter results. If `version` is specified, at least one of `name` or `namespace` must also be provided.
       operationId: listConsentElements
@@ -984,17 +994,17 @@ paths:
         - name: version
           in: query
           description: |
-            Filter by a specific version (e.g. `v2`). When provided with `enrich=true`, returns content of that
+            Filter by a specific version (e.g. `v2`). When provided, returns content of that
             version instead of the latest. Requires at least one of `name` or `namespace`.
           required: false
           schema:
             type: string
             example: "v2"
-        - name: enrich
+        - name: details
           in: query
           description: |
-            When `true`, each element in the response includes full version content (displayName, description,
-            schema, properties, createdTime). Default is `false`, which returns only immutable fields and latest version number.
+            When `true`, each element in the response also includes the full version content (schema, properties).
+            `displayName` and `description` are always present regardless of this flag.
           required: false
           schema:
             type: boolean
@@ -1025,15 +1035,15 @@ paths:
         "200":
           description: |
             Successfully retrieved consent elements.
-            Shape of each item depends on `enrich` parameter — see `ConsentElementSummaryResponse` (default)
-            and `ConsentElementVersionResponse` (when `enrich=true`).
+            Shape of each item depends on `details` parameter — see `ConsentElementSummaryResponse` (default)
+            and `ConsentElementVersionResponse` (when `details=true`).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConsentElementListResponse"
               examples:
                 summary:
-                  summary: Default response (enrich=false)
+                  summary: Default response (details=false)
                   value:
                     data:
                       - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -1041,12 +1051,16 @@ paths:
                         namespace: "personal"
                         type: "basic"
                         version: "v3"
+                        displayName: "First Name"
+                        description: "Access to the user's first name"
                         createdTime: "2026-01-10T08:00:00Z"
                       - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                         name: "account_details"
                         namespace: "banking"
                         type: "json"
                         version: "v2"
+                        displayName: "Account Details"
+                        description: "Structured account information with JSON schema validation"
                         createdTime: "2026-02-01T09:00:00Z"
                     metadata:
                       total: 2
@@ -1054,7 +1068,7 @@ paths:
                       count: 2
                       limit: 100
                 enriched:
-                  summary: Enriched response (enrich=true)
+                  summary: Detailed response (details=true)
                   value:
                     data:
                       - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -1488,7 +1502,7 @@ paths:
         **Deletion Rules:**
         - Cannot delete a version if it is referenced by any purpose version, regardless of status (returns 409).
           All referencing purpose versions must be deleted before this version can be removed.
-        - Cannot delete the only remaining version of an element.
+        - Deleting the only remaining version deletes the element itself.
       operationId: deleteElementVersion
       tags:
         - Consent Elements
@@ -1518,7 +1532,7 @@ paths:
         "204":
           description: Successfully deleted consent element version
         "409":
-          description: Conflict - Version is in use or is the only remaining version
+          description: Conflict - Version is referenced by an existing purpose version
           content:
             application/json:
               schema:
@@ -1530,13 +1544,6 @@ paths:
                     code: "CONFLICT"
                     message: "Version in use"
                     description: "Cannot delete version that is referenced by an existing purpose version"
-                    traceId: "20260107T123456Z-abc123"
-                lastVersion:
-                  summary: Cannot delete the only remaining version
-                  value:
-                    code: "CONFLICT"
-                    message: "Cannot delete last version"
-                    description: "Cannot delete the only remaining version of an element"
                     traceId: "20260107T123456Z-abc123"
         "404":
           description: Element or version not found
@@ -1567,20 +1574,23 @@ paths:
       summary: Create a consent purpose
       description: |
         Creates a new consent purpose that organizes related consent elements together.
-        Each purpose is bound to a specific client ID (specified in TPP-client-id header) and 
-        enables streamlined consent collection by defining which elements are mandatory and which are optional.
+
+        **Purpose Ownership (group-id header):**
+        - If the `group-id` header is **omitted or empty**, the purpose is an **org-level purpose** —
+          its `groupId` is set to the `org-id` and it is available to all consents within the organization.
+        - If `group-id` is **provided**, the purpose is a **group-specific purpose** owned by that group
+          and can only be used by consents that belong to the same group.
 
         **Validation Rules:**
-        - Purpose name is required and must be unique within the organization and client.
+        - Purpose name is required and must be unique within the organization and group.
         - Purpose name must not exceed 255 characters.
         - Description is optional but must not exceed 1024 characters if provided.
         - At least one element version reference must be provided in the elements array.
         - All element references must specify an existing element by `name` (and optionally `namespace` and `version`).
         - Duplicate element references within the same purpose are not allowed.
-        - Purpose is bound to the client ID specified in the TPP-client-id header.
 
         **Mandatory Flag:**
-        The `isMandatory` flag on each element indicates whether that element must be
+        The `mandatory` flag on each element indicates whether that element must be
         approved for the consent to be valid. This provides fine-grained control over
         which elements are essential vs. optional within the purpose.
       operationId: createPurpose
@@ -1595,12 +1605,12 @@ paths:
             type: string
             example: "ORG-001"
         - in: header
-          name: TPP-client-id
+          name: group-id
           required: true
-          description: The client ID of the Third-Party Provider (TPP) application making the request.
+          description: An identifier used to group related purposes and consents.
           schema:
             type: string
-            example: "TPP-CLIENT-001"
+            example: "group-001"
       requestBody:
         description: Purpose definition
         required: true
@@ -1619,15 +1629,18 @@ paths:
                     category: "marketing"
                     region: "global"
                   elements:
-                    - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    - name: "user_email"
+                      namespace: "personal"
                       version: "v1"
-                      isMandatory: true
-                    - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                      mandatory: true
+                    - name: "user_mobile"
+                      namespace: "personal"
                       version: "v2"
-                      isMandatory: false
-                    - elementId: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+                      mandatory: false
+                    - name: "user_address"
+                      namespace: "personal"
                       version: "v1"
-                      isMandatory: false
+                      mandatory: false
               govDataAccessPurpose:
                 summary: Government data access purpose
                 value:
@@ -1637,15 +1650,18 @@ paths:
                   properties:
                     sector: "government"
                   elements:
-                    - elementId: "d4e5f6a7-b8c9-0123-defa-234567890123"
+                    - name: "patient_name"
+                      namespace: "medical"
                       version: "v1"
-                      isMandatory: false
-                    - elementId: "e5f6a7b8-c9d0-1234-efab-345678901234"
+                      mandatory: false
+                    - name: "medical_history"
+                      namespace: "medical"
                       version: "v1"
-                      isMandatory: false
-                    - elementId: "f6a7b8c9-d0e1-2345-fabc-456789012345"
+                      mandatory: false
+                    - name: "medical_record_id"
+                      namespace: "medical"
                       version: "v1"
-                      isMandatory: true
+                      mandatory: true
       responses:
         "201":
           description: Successfully created purpose
@@ -1659,7 +1675,7 @@ paths:
                   value:
                     purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                     name: "marketing_communication_preferences_purpose"
-                    clientId: "TPP-CLIENT-001"
+                    groupId: "group-001"
                     version: "v1"
                     displayName: "Marketing Communication Preferences"
                     description: "User preferences related to marketing communications"
@@ -1671,12 +1687,12 @@ paths:
                         name: "user_email"
                         namespace: "personal"
                         version: "v1"
-                        isMandatory: true
+                        mandatory: true
                       - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                         name: "user_mobile"
                         namespace: "personal"
                         version: "v2"
-                        isMandatory: false
+                        mandatory: false
                     createdTime: "2026-03-25T10:00:00Z"
         "400":
           description: Bad Request - Invalid input or validation error
@@ -1737,9 +1753,9 @@ paths:
       summary: List all purposes
       description: |
         Returns a paginated list of consent purposes for the organization.
-        By default (enrich=false), each item includes only the immutable fields (purposeId, name, clientId, createdTime) and the latest version number.
-        Set enrich=true to include full version content (displayName, description, properties, elements).
-        Use purposeName, purposeVersion, elementName, elementNamespace, elementVersion, or clientIds to filter results. If purposeVersion is specified, purposeName must also be provided. If elementVersion is specified, at least one of elementName or elementNamespace must also be provided.
+        By default (`details=false`), each item includes the immutable fields (`purposeId`, `name`, `groupId`, `createdTime`), the latest `version` number, and the latest version's `displayName` and `description`.
+        Set `details=true` to also include full version content (properties, elements).
+        Use `purposeName`, `purposeVersion`, `elementName`, `elementNamespace`, `elementVersion`, or `groupIds` to filter results. If `purposeVersion` is specified, `purposeName` must also be provided. If `elementVersion` is specified, at least one of `elementName` or `elementNamespace` must also be provided.
       operationId: listPurposes
       tags:
         - Consent Purposes
@@ -1789,17 +1805,17 @@ paths:
           schema:
             type: string
           example: "v2"
-        - name: clientIds
+        - name: groupIds
           in: query
           required: false
-          description: Comma-separated list of client IDs to filter purposes by
+          description: Comma-separated list of group IDs to filter purposes by
           schema:
             type: string
-          example: "CLIENT-123,CLIENT-456"
-        - name: enrich
+          example: "GROUP-123,GROUP-456"
+        - name: details
           in: query
           required: false
-          description: Set to true to include full version content in each item (displayName, description, properties, elements). Default is false.
+          description: When `true`, each purpose in the response also includes full version content (properties, elements). `displayName` and `description` are always present regardless of this flag.
           schema:
             type: boolean
             default: false
@@ -1832,31 +1848,35 @@ paths:
                 $ref: "#/components/schemas/PurposeListResponse"
               examples:
                 summaryList:
-                  summary: Default summary list (enrich=false)
+                  summary: Default summary list (details=false)
                   value:
                     data:
                       - purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                         name: "marketing_communication_preferences_purpose"
-                        clientId: "TPP-CLIENT-001"
+                        groupId: "group-001"
                         version: "v3"
+                        displayName: "Marketing Communication Preferences"
+                        description: "User preferences related to marketing communications"
                         createdTime: "2026-01-10T08:00:00Z"
                       - purposeId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                         name: "account_access_permissions_purpose"
-                        clientId: "TPP-CLIENT-001"
+                        groupId: "group-001"
                         version: "v1"
+                        displayName: "Account Access Permissions"
+                        description: "Permissions for accessing account data"
                         createdTime: "2026-02-15T09:00:00Z"
                     metadata:
                       total: 2
                       offset: 0
                       count: 2
                       limit: 10
-                enrichedList:
-                  summary: Enriched list (enrich=true)
+                detailedList:
+                  summary: Detailed list (details=true)
                   value:
                     data:
                       - purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                         name: "marketing_communication_preferences_purpose"
-                        clientId: "TPP-CLIENT-001"
+                        groupId: "group-001"
                         version: "v3"
                         displayName: "Marketing Communication Preferences"
                         description: "User preferences related to marketing communications"
@@ -1868,12 +1888,12 @@ paths:
                             name: "user_email"
                             namespace: "personal"
                             version: "v1"
-                            isMandatory: true
+                            mandatory: true
                           - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                             name: "user_mobile"
                             namespace: "personal"
                             version: "v2"
-                            isMandatory: false
+                            mandatory: false
                         createdTime: "2026-01-10T08:00:00Z"
                     metadata:
                       total: 1
@@ -1942,7 +1962,7 @@ paths:
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "marketing_communication_preferences_purpose"
-                clientId: "TPP-CLIENT-001"
+                groupId: "group-001"
                 version: "v3"
                 displayName: "Marketing Communication Preferences"
                 description: "User preferences related to marketing communications"
@@ -1954,17 +1974,17 @@ paths:
                     name: "user_email"
                     namespace: "personal"
                     version: "v1"
-                    isMandatory: true
+                    mandatory: true
                   - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                     name: "user_mobile"
                     namespace: "personal"
                     version: "v2"
-                    isMandatory: false
+                    mandatory: false
                   - elementId: "c3d4e5f6-a7b8-9012-cdef-123456789012"
                     name: "user_address"
                     namespace: "personal"
                     version: "v1"
-                    isMandatory: false
+                    mandatory: false
                 createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Purpose not found
@@ -2023,7 +2043,7 @@ paths:
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "marketing_communication_preferences"
-                clientId: "TPP-CLIENT-001"
+                groupId: "group-001"
                 versions:
                   - version: "v2"
                     displayName: "Marketing Communication Preferences V2"
@@ -2036,17 +2056,17 @@ paths:
                         name: "user_email"
                         namespace: "personal"
                         version: "v1"
-                        isMandatory: true
+                        mandatory: true
                       - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                         name: "user_mobile"
                         namespace: "personal"
                         version: "v2"
-                        isMandatory: false
+                        mandatory: false
                       - elementId: "c3d4e5f6-a7b8-9012-cdef-123456789012"
                         name: "user_address"
                         namespace: "personal"
                         version: "v1"
-                        isMandatory: false
+                        mandatory: false
                     createdTime: "2026-03-01T10:00:00Z"
                   - version: "v1"
                     displayName: "Marketing Communication Preferences"
@@ -2059,12 +2079,12 @@ paths:
                         name: "user_email"
                         namespace: "personal"
                         version: "v1"
-                        isMandatory: true
+                        mandatory: true
                       - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
                         name: "user_mobile"
                         namespace: "personal"
                         version: "v1"
-                        isMandatory: false
+                        mandatory: false
                     createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Consent purpose not found
@@ -2114,13 +2134,6 @@ paths:
           schema:
             type: string
             example: "ORG-001"
-        - in: header
-          name: TPP-client-id
-          required: true
-          description: The client ID of the Third-Party Provider (TPP) application
-          schema:
-            type: string
-            example: "TPP-CLIENT-001"
         - name: purposeId
           in: path
           required: true
@@ -2141,12 +2154,14 @@ paths:
               properties:
                 specialization: "general"
               elements:
-                - elementId: "d4e5f6a7-b8c9-0123-defa-234567890123"
+                - name: "patient_name"
+                  namespace: "medical"
                   version: "v1"
-                  isMandatory: true
-                - elementId: "e5f6a7b8-c9d0-1234-efab-345678901234"
+                  mandatory: true
+                - name: "medical_history"
+                  namespace: "medical"
                   version: "v2"
-                  isMandatory: false
+                  mandatory: false
       responses:
         "201":
           description: Successfully created new purpose version
@@ -2157,7 +2172,7 @@ paths:
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "medical_data_access"
-                clientId: "TPP-CLIENT-001"
+                groupId: "group-001"
                 version: "v2"
                 displayName: "Medical Data Access V2"
                 description: "Updated access to basic medical record fields"
@@ -2168,12 +2183,12 @@ paths:
                     name: "patient_name"
                     namespace: "medical"
                     version: "v1"
-                    isMandatory: true
+                    mandatory: true
                   - elementId: "e5f6a7b8-c9d0-1234-efab-345678901234"
                     name: "medical_history"
                     namespace: "medical"
                     version: "v2"
-                    isMandatory: false
+                    mandatory: false
                 createdTime: "2026-03-01T10:00:00Z"
         "400":
           description: Bad Request - Invalid input or validation error
@@ -2259,7 +2274,7 @@ paths:
               example:
                 purposeId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
                 name: "medical_data_access"
-                clientId: "TPP-CLIENT-001"
+                groupId: "group-001"
                 version: "v1"
                 displayName: "Medical Data Access V1"
                 description: "Access to basic medical record fields"
@@ -2270,12 +2285,12 @@ paths:
                     name: "patient_name"
                     namespace: "medical"
                     version: "v1"
-                    isMandatory: true
+                    mandatory: true
                   - elementId: "e5f6a7b8-c9d0-1234-efab-345678901234"
                     name: "medical_history"
                     namespace: "medical"
                     version: "v1"
-                    isMandatory: false
+                    mandatory: false
                 createdTime: "2026-01-10T08:00:00Z"
         "404":
           description: Purpose or version not found
@@ -2307,8 +2322,8 @@ paths:
         Deletes a specific version of a consent purpose.
 
         **Deletion Rules:**
-        - Cannot delete a version if it is currently bound to any consent (returns 409)
-        - Cannot delete the only remaining version of a purpose (delete the purpose instead)
+        - Cannot delete a version if it is currently bound to any consent (returns 409).
+        - Deleting the only remaining version deletes the purpose itself.
       operationId: deletePurposeVersion
       tags:
         - Consent Purposes
@@ -2338,7 +2353,7 @@ paths:
         "204":
           description: Successfully deleted purpose version
         "409":
-          description: Conflict - Version is in use or is the only remaining version
+          description: Conflict - Version is bound to an active consent
           content:
             application/json:
               schema:
@@ -2350,13 +2365,6 @@ paths:
                     code: "CONFLICT"
                     message: "Version in use"
                     description: "Cannot delete version that is referenced by active consents"
-                    traceId: "20260107T123456Z-abc123"
-                lastVersion:
-                  summary: Cannot delete the only remaining version
-                  value:
-                    code: "CONFLICT"
-                    message: "Cannot delete last version"
-                    description: "Cannot delete the only remaining version of a purpose"
                     traceId: "20260107T123456Z-abc123"
         "404":
           description: Purpose or version not found
@@ -2434,7 +2442,7 @@ components:
         not at the individual consent level.
       required:
         - name
-        - isUserApproved
+        - approved
       properties:
         name:
           type: string
@@ -2449,7 +2457,7 @@ components:
             Combined with `name`, uniquely identifies the element within the organization.
             If not provided, the `default` namespace is used.
           example: "personal"
-        isUserApproved:
+        approved:
           type: boolean
           description: |
             Indicates whether the user has approved this specific consent element for this consent.
@@ -2794,7 +2802,7 @@ components:
       required:
         - id
         - type
-        - clientId
+        - groupId
         - status
         - purposes
         - createdTime
@@ -2807,15 +2815,15 @@ components:
             elements:
               - name: "user_email"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
               - name: "user_mobile"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
         createdTime: 1702800000
         updatedTime: 1702800000
-        clientId: "tpp-client-123"
+        groupId: "group-123"
         type: "marketing"
         status: "ACTIVE"
         frequency: 0
@@ -2850,7 +2858,7 @@ components:
           type: integer
           format: int64
           example: 1702800000
-        clientId:
+        groupId:
           type: string
         type:
           description: The type of consent (e.g., 'accounts', 'payments').
@@ -2902,15 +2910,15 @@ components:
             elements:
               - name: "user_email"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
               - name: "user_mobile"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
         createdTime: 1702800000
         updatedTime: 1702800000
-        clientId: "tpp-client-123"
+        groupId: "group-123"
         type: "marketing"
         status: "ACTIVE"
         frequency: 0
@@ -2930,7 +2938,7 @@ components:
       required:
         - id
         - type
-        - clientId
+        - groupId
         - status
         - purposes
         - createdTime
@@ -2953,7 +2961,7 @@ components:
           type: integer
           format: int64
           example: 1702800000
-        clientId:
+        groupId:
           type: string
         type:
           description: The type of consent (e.g., 'accounts', 'payments').
@@ -3019,7 +3027,7 @@ components:
       required:
         - id
         - type
-        - clientId
+        - groupId
         - status
         - purposes
         - createdTime
@@ -3032,15 +3040,15 @@ components:
             elements:
               - name: "user_email"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
               - name: "user_mobile"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
         createdTime: 1702800000
         updatedTime: 1702800000
-        clientId: "tpp-client-123"
+        groupId: "group-123"
         type: "marketing"
         status: "ACTIVE"
         frequency: 0
@@ -3075,7 +3083,7 @@ components:
           type: integer
           format: int64
           example: 1702800000
-        clientId:
+        groupId:
           type: string
         type:
           description: The type of consent (e.g., 'accounts', 'payments').
@@ -3123,7 +3131,7 @@ components:
       required:
         - id
         - type
-        - clientId
+        - groupId
         - status
         - purposes
         - createdTime
@@ -3136,15 +3144,15 @@ components:
             elements:
               - name: "user_email"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
               - name: "user_mobile"
                 namespace: "personal"
-                isUserApproved: true
+                approved: true
                 value: {}
         createdTime: 1702800000
         updatedTime: 1702800000
-        clientId: "tpp-client-123"
+        groupId: "group-123"
         type: "marketing"
         status: "ACTIVE"
         frequency: 0
@@ -3179,7 +3187,7 @@ components:
           type: integer
           format: int64
           example: 1702800000
-        clientId:
+        groupId:
           type: string
         type:
           description: The type of consent (e.g., 'accounts', 'payments', 'marketing').
@@ -3291,8 +3299,8 @@ components:
           description: The unique identifier of the user performing the action (optional).
           type: string
           example: "user123"
-        clientId:
-          description: The client ID of the application making the request (optional).
+        groupId:
+          description: An identifier used to group related objects (optional).
           type: string
           example: "banking-app-001"
         headers:
@@ -3370,9 +3378,9 @@ components:
           type: string
           description: The consent type (e.g., accounts, payments, etc.)
           example: "accounts"
-        clientId:
+        groupId:
           type: string
-          description: Client ID of the application that created the consent
+          description: The group ID associated with this consent
           example: "client-app-123"
         status:
           type: string
@@ -3426,8 +3434,8 @@ components:
             - namespace: Element namespace (with name, uniquely identifies the element)
             - version: The specific version of the element bound to this consent purpose
             - value: User-provided value for this element (if any)
-            - isUserApproved: Whether the user has approved this element (boolean, default false)
-            - isMandatory: Whether this element is mandatory (boolean) - indicates if approval is required
+            - approved: Whether the user has approved this element (boolean, default false)
+            - mandatory: Whether this element is mandatory (boolean) - indicates if approval is required
             - type: Element type from definition (basic, json, or xml)
             - description: Element description from definition
             - properties: Element properties from definition (e.g., schema, resourcePath, jsonPath)
@@ -3492,7 +3500,7 @@ components:
                           type: string
                           description: Human-readable display name of the element version
                           example: "User Email Address"
-                        isMandatory:
+                        mandatory:
                           type: boolean
                           description: Whether this element is mandatory for the consent (from purpose definition)
                           example: true
@@ -3553,7 +3561,7 @@ components:
       required:
         - id
         - type
-        - clientId
+        - groupId
         - status
         - createdTime
         - updatedTime
@@ -3773,8 +3781,9 @@ components:
     ConsentElementSummaryResponse:
       type: object
       description: |
-        Summary response for a consent element containing only immutable fields and the latest version number.
-        Returned by `GET /consent-elements` when `enrich=false` (default).
+        Summary response for a consent element. Always includes immutable fields, the latest version number,
+        and the latest version's displayName and description.
+        Returned by `GET /consent-elements` when `details=false` (default).
       required:
         - elementId
         - name
@@ -3804,6 +3813,14 @@ components:
           type: string
           description: The latest version identifier (e.g. v3). When `version` query param is provided, reflects that version instead.
           example: "v3"
+        displayName:
+          type: string
+          description: Human-readable display name from the latest (or requested) version.
+          example: "First Name"
+        description:
+          type: string
+          description: Description from the latest (or requested) version.
+          example: "Access to the user's first name"
         createdTime:
           type: string
           format: date-time
@@ -3813,12 +3830,12 @@ components:
       type: object
       description: |
         The response from a successful consent element list/search query.
-        When `enrich=false` (default), `data` items conform to `ConsentElementSummaryResponse`.
-        When `enrich=true`, `data` items conform to `ConsentElementVersionResponse`.
+        When `details=false` (default), `data` items conform to `ConsentElementSummaryResponse`.
+        When `details=true`, `data` items conform to `ConsentElementVersionResponse`.
       properties:
         data:
           type: array
-          description: Array of consent elements — summary or enriched shape depending on `enrich` parameter
+          description: Array of consent elements — summary shape by default, full version content when `details=true`
           items:
             oneOf:
               - $ref: "#/components/schemas/ConsentElementSummaryResponse"
@@ -3876,16 +3893,18 @@ components:
           type: array
           minItems: 1
           description: |
-            Array of element references with mandatory flags. Each reference must specify an existing element by `elementId`. At least one element is required.
+            Array of element references with mandatory flags. Each reference must specify an existing element by `name` (and optionally `namespace` and `version`). At least one element is required.
           items:
             $ref: "#/components/schemas/PurposeVersionElementItem"
           example:
-            - elementId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            - name: "user_email"
+              namespace: "personal"
               version: "v1"
-              isMandatory: true
-            - elementId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+              mandatory: true
+            - name: "user_mobile"
+              namespace: "personal"
               version: "v1"
-              isMandatory: false
+              mandatory: false
     PurposeUpdateRequest:
       type: object
       required:
@@ -3920,16 +3939,16 @@ components:
             $ref: "#/components/schemas/PurposeElementItem"
           example:
             - name: "user_email"
-              isMandatory: true
+              mandatory: true
             - name: "user_phone"
-              isMandatory: true
+              mandatory: true
             - name: "user_sms"
-              isMandatory: false
+              mandatory: false
     PurposeElementItem:
       type: object
       required:
         - name
-        - isMandatory
+        - mandatory
       description: |
         Represents a single element within a purpose, including whether it is
         mandatory for the consent to be valid.
@@ -3948,7 +3967,7 @@ components:
           type: string
           description: The specific version of the element to reference in this purpose version (e.g., v1, v2)
           example: "v1"
-        isMandatory:
+        mandatory:
           type: boolean
           description: |
             Indicates whether this element must be approved for consents using this purpose.
@@ -3981,10 +4000,10 @@ components:
           type: string
           description: Description of the purpose (optional)
           example: "User preferences related to marketing communications"
-        clientId:
+        groupId:
           type: string
-          description: The client ID of the Third-Party Provider (TPP) that created this purpose
-          example: "TPP-CLIENT-001"
+          description: The group ID associated with this purpose
+          example: "group-001"
         elements:
           type: array
           description: Array of elements included in this purpose with their mandatory flags
@@ -3992,11 +4011,11 @@ components:
             $ref: "#/components/schemas/PurposeElementItem"
           example:
             - name: "user_email"
-              isMandatory: true
+              mandatory: true
             - name: "user_phone"
-              isMandatory: false
+              mandatory: false
             - name: "user_address"
-              isMandatory: false
+              mandatory: false
         createdTime:
           type: integer
           format: int64
@@ -4015,7 +4034,7 @@ components:
       required:
         - purposeId
         - name
-        - clientId
+        - groupId
         - version
         - elements
         - createdTime
@@ -4028,10 +4047,10 @@ components:
           type: string
           description: The name/identifier of the consent purpose
           example: "marketing_communication_preferences_purpose"
-        clientId:
+        groupId:
           type: string
-          description: The client ID that owns this purpose (immutable)
-          example: "TPP-CLIENT-001"
+          description: The group ID associated with this purpose (immutable)
+          example: "group-001"
         version:
           type: string
           description: The initial version identifier (always v1)
@@ -4063,11 +4082,11 @@ components:
           example: "2026-03-25T10:00:00Z"
     ConsentPurposeSummaryResponse:
       type: object
-      description: Summary response for a consent purpose — immutable identity fields and latest version number. Returned by default when enrich=false.
+      description: Summary response for a consent purpose. Always includes immutable identity fields, the latest version number, and the latest version's displayName and description. Returned by default when `details=false`.
       required:
         - purposeId
         - name
-        - clientId
+        - groupId
         - version
         - createdTime
       properties:
@@ -4079,14 +4098,22 @@ components:
           type: string
           description: The name/identifier of the consent purpose (immutable)
           example: "marketing_communication_preferences_purpose"
-        clientId:
+        groupId:
           type: string
-          description: The client ID that owns this purpose (immutable)
-          example: "TPP-CLIENT-001"
+          description: The group ID associated with this purpose (immutable)
+          example: "group-001"
         version:
           type: string
           description: The latest version of this purpose (or the requested version if purposeVersion was specified)
           example: "v3"
+        displayName:
+          type: string
+          description: Human-readable display name from the latest (or requested) version.
+          example: "Marketing Communication Preferences"
+        description:
+          type: string
+          description: Description from the latest (or requested) version.
+          example: "User preferences related to marketing communications"
         createdTime:
           type: string
           format: date-time
@@ -4101,7 +4128,7 @@ components:
       properties:
         data:
           type: array
-          description: Array of purpose items — summary shape by default, full version content when enrich=true
+          description: Array of purpose items — summary shape by default, full version content when `details=true`
           items:
             oneOf:
               - $ref: "#/components/schemas/ConsentPurposeSummaryResponse"
@@ -4347,7 +4374,7 @@ components:
       required:
         - purposeId
         - name
-        - clientId
+        - groupId
         - version
         - elements
         - createdTime
@@ -4360,10 +4387,10 @@ components:
           type: string
           description: The name/identifier of the consent purpose
           example: "medical_data_access"
-        clientId:
+        groupId:
           type: string
-          description: The client ID that owns this purpose (immutable)
-          example: "TPP-CLIENT-001"
+          description: The group ID associated with this purpose (immutable)
+          example: "group-001"
         version:
           type: string
           description: The version identifier
@@ -4399,7 +4426,7 @@ components:
       required:
         - purposeId
         - name
-        - clientId
+        - groupId
         - versions
       properties:
         purposeId:
@@ -4410,10 +4437,10 @@ components:
           type: string
           description: The name/identifier of the consent purpose (immutable across versions)
           example: "marketing_communication_preferences"
-        clientId:
+        groupId:
           type: string
-          description: The client ID that owns this purpose (immutable)
-          example: "TPP-CLIENT-001"
+          description: The group ID associated with this purpose (immutable)
+          example: "group-001"
         versions:
           type: array
           description: List of versions ordered by version number (newest first)
@@ -4467,7 +4494,7 @@ components:
         - name
         - namespace
         - version
-        - isMandatory
+        - mandatory
       description: |
         A resolved element reference within a purpose version response.
         The server always returns elementId, name, namespace, and the resolved version.
@@ -4488,7 +4515,7 @@ components:
           type: string
           description: The specific version of the element referenced in this purpose version (e.g., v1, v2)
           example: "v1"
-        isMandatory:
+        mandatory:
           type: boolean
           description: |
             Whether this element must be approved for the consent to be valid.
@@ -4498,19 +4525,23 @@ components:
     PurposeVersionElementItem:
       type: object
       required:
-        - elementId
-        - isMandatory
-      description: A reference to a consent element within a purpose version, identified by elementId. If `version` is not specified, the latest version of the element is used.
+        - name
+        - mandatory
+      description: A reference to a consent element within a purpose version, identified by name, namespace, and version. If `namespace` is not specified, the default namespace is used. If `version` is not specified, the latest version of the element is used.
       properties:
-        elementId:
+        name:
           type: string
-          description: The unique identifier of the consent element
-          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          description: The name of the consent element
+          example: "user_email"
+        namespace:
+          type: string
+          description: The namespace of the consent element. If omitted, the default namespace is used.
+          example: "personal"
         version:
           type: string
           description: The specific version of the element to reference (e.g., v1, v2). If omitted, the latest version is used.
           example: "v1"
-        isMandatory:
+        mandatory:
           type: boolean
           description: |
             Whether this element must be approved for the consent to be valid.
