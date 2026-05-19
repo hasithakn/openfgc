@@ -26,35 +26,22 @@ import (
 	"github.com/wso2/openfgc/internal/system/stores"
 )
 
-// Initialize sets up the consent element module and registers routes
+// Initialize sets up the consent element module and registers routes.
 func Initialize(mux *http.ServeMux, registry *stores.StoreRegistry) ConsentElementService {
-	// Create service and handler using the registry
 	service := newConsentElementService(registry)
 	handler := newConsentElementHandler(service)
-
-	// Register routes
 	registerRoutes(mux, handler)
-
 	return service
 }
 
-// registerRoutes registers all consent element routes
 func registerRoutes(mux *http.ServeMux, handler *consentElementHandler) {
-	// POST /api/v1/consent-elements - Create element
-	mux.HandleFunc("POST "+constants.APIBasePath+"/consent-elements", handler.createElement)
+	base := constants.APIBasePath + "/consent-elements"
 
-	// GET /api/v1/consent-elements/{elementId} - Get element by ID
-	mux.HandleFunc("GET "+constants.APIBasePath+"/consent-elements/{elementId}", handler.getElement)
-
-	// GET /api/v1/consent-elements - List elements
-	mux.HandleFunc("GET "+constants.APIBasePath+"/consent-elements", handler.listElements)
-
-	// POST /api/v1/consent-elements/validate - Validate element names
-	mux.HandleFunc("POST "+constants.APIBasePath+"/consent-elements/validate", handler.validateElements)
-
-	// PUT /api/v1/consent-elements/{elementId} - Update element
-	mux.HandleFunc("PUT "+constants.APIBasePath+"/consent-elements/{elementId}", handler.updateElement)
-
-	// DELETE /api/v1/consent-elements/{elementId} - Delete element
-	mux.HandleFunc("DELETE "+constants.APIBasePath+"/consent-elements/{elementId}", handler.deleteElement)
+	mux.HandleFunc("POST "+base, handler.createElements)
+	mux.HandleFunc("GET "+base, handler.listElements)
+	mux.HandleFunc("GET "+base+"/{elementId}", handler.getElement)
+	mux.HandleFunc("GET "+base+"/{elementId}/versions", handler.listElementVersions)
+	mux.HandleFunc("POST "+base+"/{elementId}/versions", handler.createElementVersion)
+	mux.HandleFunc("GET "+base+"/{elementId}/versions/{version}", handler.getElementVersion)
+	mux.HandleFunc("DELETE "+base+"/{elementId}/versions/{version}", handler.deleteElementVersion)
 }

@@ -1260,7 +1260,7 @@ func (consentService *consentService) EnrichedValidateConsentAPIResponse(ctx con
 
 				// Fetch full element details from consent element service
 				if elementItem.ElementName != "" {
-					element, err := consentElementStore.GetByName(ctx, elementItem.ElementName, orgID)
+					element, err := consentElementStore.GetByNameAndNamespace(ctx, elementItem.ElementName, "default", orgID)
 					if err == nil && element != nil {
 						// Enrich with element details
 						enrichedElement.Type = element.Type
@@ -1268,15 +1268,6 @@ func (consentService *consentService) EnrichedValidateConsentAPIResponse(ctx con
 						// Dereference description pointer if not nil
 						if element.Description != nil {
 							enrichedElement.Description = *element.Description
-						}
-
-						// Fetch properties from CONSENT_ELEMENT_PROPERTY table
-						properties, propErr := consentElementStore.GetPropertiesByElementID(ctx, element.ID, orgID)
-						if propErr == nil && len(properties) > 0 {
-							enrichedElement.Properties = make(map[string]interface{})
-							for _, prop := range properties {
-								enrichedElement.Properties[prop.Key] = prop.Value
-							}
 						}
 
 						logger.Debug("Element details enriched for validate",

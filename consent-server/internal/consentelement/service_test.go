@@ -31,271 +31,480 @@ import (
 	interfacesmock "github.com/wso2/openfgc/tests/mocks/stores/interfacesmock"
 )
 
-// TestService_CreateElementsInBatch_Success tests successful batch creation - skipped due to transaction complexity
-// This functionality is covered by integration tests
-func TestService_CreateElementsInBatch_Success(t *testing.T) {
-	t.Skip("Transaction-based tests covered by integration tests")
-}
+// --- CreateElementsInBatch ---
 
-// TestService_CreateElementsInBatch_EmptyRequest tests empty request array
 func TestService_CreateElementsInBatch_EmptyRequest(t *testing.T) {
-	registry := &stores.StoreRegistry{}
-	service := newConsentElementService(registry)
-
-	ctx := context.Background()
-	elements, err := service.CreateElementsInBatch(ctx, []model.ConsentElementCreateRequest{}, testOrgID)
-
+	service := newConsentElementService(&stores.StoreRegistry{})
+	resp, err := service.CreateElementsInBatch(context.Background(), []model.ConsentElementCreateRequest{}, testOrgID)
 	require.Error(t, err)
-	require.Nil(t, elements)
+	require.Nil(t, resp)
 	require.Equal(t, "CE-1002", err.Code)
 }
 
-// TestService_CreateElementsInBatch_DuplicateNameInBatch tests duplicate names in batch
-func TestService_CreateElementsInBatch_DuplicateNameInBatch(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+func TestService_CreateElementsInBatch_ValidationError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
 
-	requests := []model.ConsentElementCreateRequest{
-		{Name: "duplicate", Type: "basic"},
-		{Name: "duplicate", Type: "basic"},
-	}
+	// Missing name — validation fails before any store call
+	requests := []model.ConsentElementCreateRequest{{Type: "basic"}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
 
-	// Mock CheckNameExists for first occurrence - service checks DB before detecting duplicate in batch
-	mockElementStore.On("CheckNameExists", mock.Anything, "duplicate", testOrgID).
-		Return(false, nil).Maybe()
-
-	ctx := context.Background()
-	elements, err := service.CreateElementsInBatch(ctx, requests, testOrgID)
-
-	require.Error(t, err)
-	require.Nil(t, elements)
-	require.Contains(t, err.Description, "duplicate element name")
+	require.Nil(t, err) // batch never returns a top-level error
+	require.NotNil(t, resp)
+	require.Len(t, resp.Results, 1)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+	require.NotNil(t, resp.Results[0].Error)
 }
 
-// TestService_CreateElementsInBatch_NameAlreadyExists tests existing name in database
 func TestService_CreateElementsInBatch_NameAlreadyExists(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	existing := &model.ElementVersion{ID: "old-id", Name: "email", Namespace: "default"}
+	mockStore.On("GetByNameAndNamespace", mock.Anything, "email", "default", testOrgID).Return(existing, nil)
+
+	requests := []model.ConsentElementCreateRequest{{Name: "email", Type: "basic"}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
+
+	require.Nil(t, err)
+	require.Len(t, resp.Results, 1)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+}
+
+func TestService_CreateElementsInBatch_InvalidType(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	requests := []model.ConsentElementCreateRequest{{Name: "email", Type: "invalid-type"}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
+
+	require.Nil(t, err)
+	require.Len(t, resp.Results, 1)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+}
+
+func TestService_CreateElementsInBatch_InvalidJSONSchema(t *testing.T) {
+	service := newConsentElementService(&stores.StoreRegistry{})
+
+	badSchema := "{not json"
+	requests := []model.ConsentElementCreateRequest{{Name: "email", Type: "json", Schema: &badSchema}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
+
+	require.Nil(t, err)
+	require.Len(t, resp.Results, 1)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+}
+
+func TestService_CreateElementsInBatch_SchemaRequiredForJSONAndXML(t *testing.T) {
+	// json and xml without schema → FAILED; basic without schema → lookup proceeds (store not called here since we stop at mock boundary)
+	service := newConsentElementService(&stores.StoreRegistry{})
 
 	requests := []model.ConsentElementCreateRequest{
-		{Name: "existing", Type: "basic"},
+		{Name: "doc", Type: "json"},  // missing schema → FAILED
+		{Name: "feed", Type: "xml"},  // missing schema → FAILED
 	}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
 
-	// Mock name existence check - returns true
-	mockElementStore.On("CheckNameExists", mock.Anything, "existing", testOrgID).
-		Return(true, nil)
-
-	ctx := context.Background()
-	elements, err := service.CreateElementsInBatch(ctx, requests, testOrgID)
-
-	require.Error(t, err)
-	require.Nil(t, elements)
-	require.Equal(t, "CE-1011", err.Code)
-	require.Contains(t, err.Description, "already exists")
+	require.Nil(t, err)
+	require.Len(t, resp.Results, 2)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+	require.Equal(t, "FAILED", resp.Results[1].Status)
 }
 
-// TestService_GetElement_Success tests successful element retrieval
+func TestService_CreateElementsInBatch_ContinuesOnValidationFailure(t *testing.T) {
+	// Verify that a validation error on one item does not abort processing the rest.
+	// Both items fail validation here so no DB calls are needed.
+	service := newConsentElementService(&stores.StoreRegistry{})
+
+	requests := []model.ConsentElementCreateRequest{
+		{Type: "basic"},         // missing name → FAILED
+		{Name: "x", Type: "???"}, // invalid type → FAILED
+	}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
+
+	require.Nil(t, err)
+	require.Len(t, resp.Results, 2)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+	require.Equal(t, "FAILED", resp.Results[1].Status)
+}
+
+// --- GetElement ---
+
 func TestService_GetElement_Success(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
 
-	expectedElement := &model.ConsentElement{
-		ID:         testElementID,
-		Name:       "test_element",
-		Type:       "basic",
-		OrgID:      testOrgID,
-		Properties: make(map[string]string),
-	}
+	expected := &model.ElementVersion{ID: testElementID, Name: "email", Type: "basic", Version: 1}
+	mockStore.On("GetLatestVersion", mock.Anything, testElementID, testOrgID).Return(expected, nil)
 
-	mockElementStore.On("GetByID", mock.Anything, testElementID, testOrgID).
-		Return(expectedElement, nil)
-	mockElementStore.On("GetPropertiesByElementID", mock.Anything, testElementID, testOrgID).
-		Return([]model.ConsentElementProperty{}, nil)
-
-	ctx := context.Background()
-	element, err := service.GetElement(ctx, testElementID, testOrgID)
-
-	if err != nil {
-		t.Logf("Error is not nil: %v (type: %T)", err, err)
-	}
+	v, err := service.GetElement(context.Background(), testElementID, testOrgID)
 	require.Nil(t, err)
-	require.NotNil(t, element)
-	require.Equal(t, testElementID, element.ID)
-	require.Equal(t, "test_element", element.Name)
-	mockElementStore.AssertExpectations(t)
+	require.Equal(t, testElementID, v.ID)
 }
 
-// TestService_GetElement_NotFound tests element not found
 func TestService_GetElement_NotFound(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
 
-	mockElementStore.On("GetByID", mock.Anything, testElementID, testOrgID).
-		Return(nil, nil)
+	mockStore.On("GetLatestVersion", mock.Anything, testElementID, testOrgID).Return(nil, nil)
 
-	ctx := context.Background()
-	element, err := service.GetElement(ctx, testElementID, testOrgID)
-
+	v, err := service.GetElement(context.Background(), testElementID, testOrgID)
 	require.Error(t, err)
-	require.Nil(t, element)
+	require.Nil(t, v)
 	require.Equal(t, "CE-1016", err.Code)
 }
 
-// TestService_ListElements_Success tests successful element listing
+func TestService_GetElement_DBError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("GetLatestVersion", mock.Anything, testElementID, testOrgID).Return(nil, errors.New("db error"))
+
+	v, err := service.GetElement(context.Background(), testElementID, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, v)
+}
+
+// --- GetElementVersion ---
+
+func TestService_GetElementVersion_Success(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	expected := &model.ElementVersion{ID: testElementID, Version: 2}
+	mockStore.On("GetVersion", mock.Anything, testElementID, 2, testOrgID).Return(expected, nil)
+
+	v, err := service.GetElementVersion(context.Background(), testElementID, 2, testOrgID)
+	require.Nil(t, err)
+	require.Equal(t, 2, v.Version)
+}
+
+func TestService_GetElementVersion_NotFound(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("GetVersion", mock.Anything, testElementID, 99, testOrgID).Return(nil, nil)
+
+	v, err := service.GetElementVersion(context.Background(), testElementID, 99, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, v)
+	require.Equal(t, "CE-1016", err.Code)
+}
+
+// --- ListElementVersions ---
+
+func TestService_ListElementVersions_Success(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("ElementExists", mock.Anything, testElementID, testOrgID).Return(true, nil)
+	mockStore.On("ListVersions", mock.Anything, testElementID, testOrgID).Return([]model.ElementVersion{
+		{ID: testElementID, Version: 1},
+		{ID: testElementID, Version: 2},
+	}, nil)
+
+	resp, err := service.ListElementVersions(context.Background(), testElementID, testOrgID)
+	require.Nil(t, err)
+	require.Equal(t, testElementID, resp.ElementID)
+	require.Len(t, resp.Versions, 2)
+}
+
+func TestService_ListElementVersions_ElementNotFound(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("ElementExists", mock.Anything, testElementID, testOrgID).Return(false, nil)
+
+	resp, err := service.ListElementVersions(context.Background(), testElementID, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, resp)
+	require.Equal(t, "CE-1016", err.Code)
+}
+
+// --- ListElements ---
+
 func TestService_ListElements_Success(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
 
-	expectedElements := []model.ConsentElement{
-		{ID: "elem-1", Name: "element_1", OrgID: testOrgID, Properties: make(map[string]string)},
-		{ID: "elem-2", Name: "element_2", OrgID: testOrgID, Properties: make(map[string]string)},
-	}
+	filters := model.ElementListFilters{Limit: 10, Offset: 0}
+	mockStore.On("List", mock.Anything, testOrgID, filters).Return([]model.ElementVersion{
+		{ID: "e1"}, {ID: "e2"},
+	}, 2, nil)
 
-	mockElementStore.On("List", mock.Anything, testOrgID, 100, 0, "").
-		Return(expectedElements, 2, nil)
-	mockElementStore.On("GetPropertiesByElementID", mock.Anything, "elem-1", testOrgID).
-		Return([]model.ConsentElementProperty{}, nil)
-	mockElementStore.On("GetPropertiesByElementID", mock.Anything, "elem-2", testOrgID).
-		Return([]model.ConsentElementProperty{}, nil)
-
-	ctx := context.Background()
-	elements, total, err := service.ListElements(ctx, testOrgID, 100, 0, "")
-
+	resp, err := service.ListElements(context.Background(), testOrgID, filters)
 	require.Nil(t, err)
-	require.Len(t, elements, 2)
-	require.Equal(t, 2, total)
-	mockElementStore.AssertExpectations(t)
+	require.Equal(t, 2, resp.Total)
+	require.Len(t, resp.Elements, 2)
 }
 
-// TestService_DeleteElement_Success tests successful element deletion - skipped due to transaction complexity
-// This functionality is covered by integration tests
-func TestService_DeleteElement_Success(t *testing.T) {
-	t.Skip("Transaction-based tests covered by integration tests")
+func TestService_ListElements_DefaultLimit(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	// Limit 0 → defaults to 100
+	mockStore.On("List", mock.Anything, testOrgID, model.ElementListFilters{Limit: 100}).Return([]model.ElementVersion{}, 0, nil)
+
+	resp, err := service.ListElements(context.Background(), testOrgID, model.ElementListFilters{Limit: 0})
+	require.Nil(t, err)
+	require.Equal(t, 0, resp.Total)
 }
 
-// TestService_DeleteElement_NotFound tests deleting non-existent element
-func TestService_DeleteElement_NotFound(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+// --- CreateElementVersion ---
 
-	mockElementStore.On("GetByID", mock.Anything, testElementID, testOrgID).
-		Return(nil, nil)
+func TestService_CreateElementVersion_ElementNotFound(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
 
-	ctx := context.Background()
-	err := service.DeleteElement(ctx, testElementID, testOrgID)
+	mockStore.On("GetLatestVersion", mock.Anything, testElementID, testOrgID).Return(nil, nil)
 
+	v, err := service.CreateElementVersion(context.Background(), testElementID, model.ElementVersionCreateRequest{}, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, v)
+	require.Equal(t, "CE-1016", err.Code)
+}
+
+// --- DeleteElementVersion ---
+
+func TestService_DeleteElementVersion_NotFound(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(nil, nil)
+
+	err := service.DeleteElementVersion(context.Background(), testElementID, 1, testOrgID)
 	require.Error(t, err)
 	require.Equal(t, "CE-1016", err.Code)
 }
 
-// TestService_DeleteElement_UsedInPurposes tests deleting element used in purposes
-func TestService_DeleteElement_UsedInPurposes(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	mockPurposeStore := interfacesmock.NewConsentPurposeStore(t)
+func TestService_DeleteElementVersion_ReferencedByPurpose(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
 
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-		ConsentPurpose: mockPurposeStore,
-	}
-	service := newConsentElementService(registry)
+	v := &model.ElementVersion{ID: testElementID, VersionID: "v-uuid-1", Version: 1}
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(v, nil)
+	mockStore.On("IsVersionReferencedByPurpose", mock.Anything, "v-uuid-1", testOrgID).Return(true, nil)
 
-	// Element exists
-	existingElement := &model.ConsentElement{
-		ID:         testElementID,
-		Properties: make(map[string]string),
-	}
-	mockElementStore.On("GetByID", mock.Anything, testElementID, testOrgID).
-		Return(existingElement, nil)
-
-	// Element is used in purposes
-	mockPurposeStore.On("IsElementUsedInPurposes", mock.Anything, testElementID, testOrgID).
-		Return(true, nil)
-
-	ctx := context.Background()
-	err := service.DeleteElement(ctx, testElementID, testOrgID)
-
+	err := service.DeleteElementVersion(context.Background(), testElementID, 1, testOrgID)
 	require.Error(t, err)
-	require.Equal(t, "CE-5009", err.Code)
-	require.Contains(t, err.Description, "used in one or more consent purposes")
-	mockElementStore.AssertExpectations(t)
-	mockPurposeStore.AssertExpectations(t)
+	require.Equal(t, "CE-4090", err.Code)
 }
 
-// TestValidateElementNames_Success tests successful name validation
-func TestValidateElementNames_Success(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+// --- CreateElementsInBatch / validateCreateRequest — additional validation paths ---
 
-	ctx := context.Background()
+func TestService_CreateElementsInBatch_NameTooLong(t *testing.T) {
+	service := newConsentElementService(&stores.StoreRegistry{})
 
-	// Mock GetIDsByNames - returns map of name->ID for existing elements
-	elementIDMap := map[string]string{
-		"element_1": "id-1",
-		"element_3": "id-3",
-		// element_2 not included - doesn't exist
-	}
-	mockElementStore.On("GetIDsByNames", mock.Anything, []string{"element_1", "element_2", "element_3"}, testOrgID).
-		Return(elementIDMap, nil)
-
-	validNames, err := service.ValidateElementNames(ctx, testOrgID, []string{"element_1", "element_2", "element_3"})
+	requests := []model.ConsentElementCreateRequest{{Name: string(make([]byte, 256)), Type: "basic"}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
 
 	require.Nil(t, err)
-	require.Len(t, validNames, 2)
-	require.Contains(t, validNames, "element_1")
-	require.Contains(t, validNames, "element_3")
-	require.NotContains(t, validNames, "element_2")
-	mockElementStore.AssertExpectations(t)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
 }
 
-// TestValidateElementNames_EmptyInput tests empty input
-func TestValidateElementNames_EmptyInput(t *testing.T) {
-	registry := &stores.StoreRegistry{}
-	service := newConsentElementService(registry)
+func TestService_CreateElementsInBatch_DescriptionTooLong(t *testing.T) {
+	service := newConsentElementService(&stores.StoreRegistry{})
 
-	ctx := context.Background()
-	validNames, err := service.ValidateElementNames(ctx, testOrgID, []string{})
+	desc := string(make([]byte, 1025))
+	requests := []model.ConsentElementCreateRequest{{Name: "email", Type: "basic", Description: &desc}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
 
-	require.Error(t, err)
-	require.Nil(t, validNames)
+	require.Nil(t, err)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
 }
 
-// TestValidateElementNames_DatabaseError tests database error during validation
-func TestValidateElementNames_DatabaseError(t *testing.T) {
-	mockElementStore := interfacesmock.NewConsentElementStore(t)
-	registry := &stores.StoreRegistry{
-		ConsentElement: mockElementStore,
-	}
-	service := newConsentElementService(registry)
+func TestService_CreateElementsInBatch_EmptyType(t *testing.T) {
+	service := newConsentElementService(&stores.StoreRegistry{})
 
-	ctx := context.Background()
+	requests := []model.ConsentElementCreateRequest{{Name: "email", Type: ""}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
 
-	mockElementStore.On("GetIDsByNames", mock.Anything, []string{"element_1"}, testOrgID).
-		Return(nil, errors.New("database error"))
+	require.Nil(t, err)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+}
 
-	validNames, err := service.ValidateElementNames(ctx, testOrgID, []string{"element_1"})
+func TestService_CreateElementsInBatch_NameCheckDBError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
 
+	mockStore.On("GetByNameAndNamespace", mock.Anything, "email", "default", testOrgID).
+		Return(nil, errors.New("db error"))
+
+	requests := []model.ConsentElementCreateRequest{{Name: "email", Type: "basic"}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
+
+	require.Nil(t, err)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+}
+
+func TestService_CreateElementsInBatch_TransactionFailure(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("GetByNameAndNamespace", mock.Anything, "email", "default", testOrgID).Return(nil, nil)
+
+	requests := []model.ConsentElementCreateRequest{{Name: "email", Type: "basic"}}
+	resp, err := service.CreateElementsInBatch(context.Background(), requests, testOrgID)
+
+	require.Nil(t, err)
+	require.Equal(t, "FAILED", resp.Results[0].Status)
+}
+
+// --- GetElementVersion — additional paths ---
+
+func TestService_GetElementVersion_DBError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(nil, errors.New("db error"))
+
+	v, err := service.GetElementVersion(context.Background(), testElementID, 1, testOrgID)
 	require.Error(t, err)
-	require.Nil(t, validNames)
-	mockElementStore.AssertExpectations(t)
+	require.Nil(t, v)
+}
+
+// --- ListElementVersions — additional paths ---
+
+func TestService_ListElementVersions_ElementExistsError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("ElementExists", mock.Anything, testElementID, testOrgID).Return(false, errors.New("db error"))
+
+	resp, err := service.ListElementVersions(context.Background(), testElementID, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, resp)
+}
+
+func TestService_ListElementVersions_ListVersionsError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("ElementExists", mock.Anything, testElementID, testOrgID).Return(true, nil)
+	mockStore.On("ListVersions", mock.Anything, testElementID, testOrgID).Return(nil, errors.New("db error"))
+
+	resp, err := service.ListElementVersions(context.Background(), testElementID, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, resp)
+}
+
+// --- ListElements — additional paths ---
+
+func TestService_ListElements_DBError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("List", mock.Anything, testOrgID, model.ElementListFilters{Limit: 10}).
+		Return(nil, 0, errors.New("db error"))
+
+	resp, err := service.ListElements(context.Background(), testOrgID, model.ElementListFilters{Limit: 10})
+	require.Error(t, err)
+	require.Nil(t, resp)
+}
+
+func TestService_ListElements_NegativeOffset(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	// Negative offset must be clamped to 0 before the store call.
+	mockStore.On("List", mock.Anything, testOrgID, model.ElementListFilters{Limit: 10, Offset: 0}).
+		Return([]model.ElementVersion{}, 0, nil)
+
+	resp, err := service.ListElements(context.Background(), testOrgID, model.ElementListFilters{Limit: 10, Offset: -5})
+	require.Nil(t, err)
+	require.NotNil(t, resp)
+}
+
+// --- CreateElementVersion — additional paths ---
+
+func TestService_CreateElementVersion_DBError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("GetLatestVersion", mock.Anything, testElementID, testOrgID).Return(nil, errors.New("db error"))
+
+	v, err := service.CreateElementVersion(context.Background(), testElementID, model.ElementVersionCreateRequest{}, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, v)
+}
+
+func TestService_CreateElementVersion_TransactionFailure(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	latest := &model.ElementVersion{ID: testElementID, Name: "email", Namespace: "default", Type: "basic", Version: 1}
+	mockStore.On("GetLatestVersion", mock.Anything, testElementID, testOrgID).Return(latest, nil)
+
+	v, err := service.CreateElementVersion(context.Background(), testElementID, model.ElementVersionCreateRequest{}, testOrgID)
+	require.Error(t, err)
+	require.Nil(t, v)
+}
+
+// --- DeleteElementVersion — additional paths ---
+
+func TestService_DeleteElementVersion_GetVersionError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(nil, errors.New("db error"))
+
+	err := service.DeleteElementVersion(context.Background(), testElementID, 1, testOrgID)
+	require.Error(t, err)
+}
+
+func TestService_DeleteElementVersion_ReferenceCheckError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	v := &model.ElementVersion{ID: testElementID, VersionID: "v-uuid-1", Version: 1}
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(v, nil)
+	mockStore.On("IsVersionReferencedByPurpose", mock.Anything, "v-uuid-1", testOrgID).Return(false, errors.New("db error"))
+
+	err := service.DeleteElementVersion(context.Background(), testElementID, 1, testOrgID)
+	require.Error(t, err)
+}
+
+func TestService_DeleteElementVersion_ListVersionsError(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	v := &model.ElementVersion{ID: testElementID, VersionID: "v-uuid-1", Version: 1}
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(v, nil)
+	mockStore.On("IsVersionReferencedByPurpose", mock.Anything, "v-uuid-1", testOrgID).Return(false, nil)
+	mockStore.On("ListVersions", mock.Anything, testElementID, testOrgID).Return(nil, errors.New("db error"))
+
+	err := service.DeleteElementVersion(context.Background(), testElementID, 1, testOrgID)
+	require.Error(t, err)
+}
+
+func TestService_DeleteElementVersion_TransactionFailure(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	v := &model.ElementVersion{ID: testElementID, VersionID: "v-uuid-1", Version: 1}
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(v, nil)
+	mockStore.On("IsVersionReferencedByPurpose", mock.Anything, "v-uuid-1", testOrgID).Return(false, nil)
+	mockStore.On("ListVersions", mock.Anything, testElementID, testOrgID).Return([]model.ElementVersion{
+		{ID: testElementID, Version: 1},
+	}, nil)
+
+	err := service.DeleteElementVersion(context.Background(), testElementID, 1, testOrgID)
+	require.Error(t, err)
+}
+
+// isLastVersion=false path: only DeleteVersion is added to txOps (DeleteElement is not appended).
+func TestService_DeleteElementVersion_NotLastVersion_TransactionFailure(t *testing.T) {
+	mockStore := interfacesmock.NewConsentElementStore(t)
+	service := newConsentElementService(&stores.StoreRegistry{ConsentElement: mockStore})
+
+	v := &model.ElementVersion{ID: testElementID, VersionID: "v-uuid-1", Version: 1}
+	mockStore.On("GetVersion", mock.Anything, testElementID, 1, testOrgID).Return(v, nil)
+	mockStore.On("IsVersionReferencedByPurpose", mock.Anything, "v-uuid-1", testOrgID).Return(false, nil)
+	mockStore.On("ListVersions", mock.Anything, testElementID, testOrgID).Return([]model.ElementVersion{
+		{ID: testElementID, Version: 1},
+		{ID: testElementID, Version: 2},
+	}, nil)
+
+	err := service.DeleteElementVersion(context.Background(), testElementID, 1, testOrgID)
+	require.Error(t, err)
 }

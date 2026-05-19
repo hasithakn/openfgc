@@ -47,9 +47,10 @@ func TestInitialize(t *testing.T) {
 		{"POST", constants.APIBasePath + "/consent-elements"},
 		{"GET", constants.APIBasePath + "/consent-elements"},
 		{"GET", constants.APIBasePath + "/consent-elements/test-id"},
-		{"PUT", constants.APIBasePath + "/consent-elements/test-id"},
-		{"DELETE", constants.APIBasePath + "/consent-elements/test-id"},
-		{"POST", constants.APIBasePath + "/consent-elements/validate"},
+		{"GET", constants.APIBasePath + "/consent-elements/test-id/versions"},
+		{"POST", constants.APIBasePath + "/consent-elements/test-id/versions"},
+		{"GET", constants.APIBasePath + "/consent-elements/test-id/versions/1"},
+		{"DELETE", constants.APIBasePath + "/consent-elements/test-id/versions/1"},
 	}
 
 	for _, tc := range testCases {
@@ -83,9 +84,10 @@ func TestRegisterRoutes(t *testing.T) {
 		{"POST", "/api/v1/consent-elements"},
 		{"GET", "/api/v1/consent-elements"},
 		{"GET", "/api/v1/consent-elements/elem-123"},
-		{"PUT", "/api/v1/consent-elements/elem-123"},
-		{"DELETE", "/api/v1/consent-elements/elem-123"},
-		{"POST", "/api/v1/consent-elements/validate"},
+		{"GET", "/api/v1/consent-elements/elem-123/versions"},
+		{"POST", "/api/v1/consent-elements/elem-123/versions"},
+		{"GET", "/api/v1/consent-elements/elem-123/versions/1"},
+		{"DELETE", "/api/v1/consent-elements/elem-123/versions/1"},
 	}
 
 	for _, route := range routes {

@@ -64,19 +64,43 @@ type AuthResourceStore interface {
 	UpdateAllStatusByConsentID(tx dbmodel.TxInterface, consentID, orgID, status string, updatedTime int64) error
 }
 
-// ConsentElementStore defines the interface for consent element data operations
+// ConsentElementStore defines the interface for consent element data operations.
+// Each logical element is identified by an ID and has one or more immutable versions.
+// Version 1 is created when the element is first created; subsequent versions are added via CreateVersion.
 type ConsentElementStore interface {
-	GetByID(ctx context.Context, purposeID, orgID string) (*consentElementModel.ConsentElement, error)
-	GetByName(ctx context.Context, name, orgID string) (*consentElementModel.ConsentElement, error)
-	List(ctx context.Context, orgID string, limit, offset int, name string) ([]consentElementModel.ConsentElement, int, error)
-	CheckNameExists(ctx context.Context, name, orgID string) (bool, error)
-	GetPropertiesByElementID(ctx context.Context, elementID, orgID string) ([]consentElementModel.ConsentElementProperty, error)
-	GetIDsByNames(ctx context.Context, names []string, orgID string) (map[string]string, error)
-	Create(tx dbmodel.TxInterface, element *consentElementModel.ConsentElement) error
-	Update(tx dbmodel.TxInterface, element *consentElementModel.ConsentElement) error
-	Delete(tx dbmodel.TxInterface, elementID, orgID string) error
-	CreateProperties(tx dbmodel.TxInterface, properties []consentElementModel.ConsentElementProperty) error
-	DeletePropertiesByElementID(tx dbmodel.TxInterface, elementID, orgID string) error
+	// CreateVersion inserts a new element version (ELEMENT row + ELEMENT_PROPERTY rows).
+	// Used for the initial create (version=1) and all subsequent versions.
+	CreateVersion(tx dbmodel.TxInterface, version *consentElementModel.ElementVersion) error
+
+	// GetLatestVersion returns the highest-numbered version of an element, with properties populated.
+	GetLatestVersion(ctx context.Context, elementID, orgID string) (*consentElementModel.ElementVersion, error)
+
+	// GetVersion returns a specific version by version number, with properties populated.
+	GetVersion(ctx context.Context, elementID string, version int, orgID string) (*consentElementModel.ElementVersion, error)
+
+	// ListVersions returns all versions of one element ordered by version number ascending, with properties.
+	ListVersions(ctx context.Context, elementID, orgID string) ([]consentElementModel.ElementVersion, error)
+
+	// List returns the latest version of each element matching the filters, with total count for pagination.
+	// When filters.Details is false, Schema and Properties are not populated.
+	List(ctx context.Context, orgID string, filters consentElementModel.ElementListFilters) ([]consentElementModel.ElementVersion, int, error)
+
+	// GetByNameAndNamespace returns the latest version of an element matching name+namespace, or nil if not found.
+	// Used for duplicate-name checks on element create.
+	GetByNameAndNamespace(ctx context.Context, name, namespace, orgID string) (*consentElementModel.ElementVersion, error)
+
+	// ElementExists reports whether any version of the element exists.
+	ElementExists(ctx context.Context, elementID, orgID string) (bool, error)
+
+	// DeleteVersion deletes a specific version row (ELEMENT_PROPERTY rows cascade).
+	DeleteVersion(tx dbmodel.TxInterface, versionID, orgID string) error
+
+	// DeleteElement deletes all versions of an element. Called when the last version is removed.
+	DeleteElement(tx dbmodel.TxInterface, elementID, orgID string) error
+
+	// IsVersionReferencedByPurpose reports whether any purpose version references this element version.
+	// Returns true → caller must reject the delete with 409 Conflict.
+	IsVersionReferencedByPurpose(ctx context.Context, versionID, orgID string) (bool, error)
 }
 
 // ConsentPurposeStore defines the interface for purpose data operations

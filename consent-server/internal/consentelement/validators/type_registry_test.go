@@ -24,41 +24,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewElementTypeHandlerRegistry tests creating a new registry
-func TestNewElementTypeHandlerRegistry(t *testing.T) {
-	registry := NewElementTypeHandlerRegistry()
+// TestNewTypeRegistry tests creating a new registry
+func TestNewTypeRegistry(t *testing.T) {
+	registry := NewTypeRegistry()
 	require.NotNil(t, registry)
-	require.NotNil(t, registry.handlers)
-	require.Equal(t, 0, len(registry.handlers))
+	require.NotNil(t, registry.types)
+	require.Equal(t, 0, len(registry.types))
 }
 
 // TestRegister tests registering handlers
 func TestRegister(t *testing.T) {
 	testCases := []struct {
 		name          string
-		handlers      []ElementTypeHandler
+		handlers      []ElementType
 		expectError   bool
 		errorContains string
 	}{
 		{
 			name:        "Register single handler",
-			handlers:    []ElementTypeHandler{&BasicElementTypeHandler{}},
+			handlers:    []ElementType{&BasicElementType{}},
 			expectError: false,
 		},
 		{
 			name: "Register multiple different handlers",
-			handlers: []ElementTypeHandler{
-				&BasicElementTypeHandler{},
-				&JsonPayloadElementTypeHandler{},
-				&ResourceFieldElementTypeHandler{},
+			handlers: []ElementType{
+				&BasicElementType{},
+				&JSONElementType{},
+				&XMLElementType{},
 			},
 			expectError: false,
 		},
 		{
 			name: "Register duplicate handler",
-			handlers: []ElementTypeHandler{
-				&BasicElementTypeHandler{},
-				&BasicElementTypeHandler{},
+			handlers: []ElementType{
+				&BasicElementType{},
+				&BasicElementType{},
 			},
 			expectError:   true,
 			errorContains: "already registered",
@@ -67,7 +67,7 @@ func TestRegister(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			registry := NewElementTypeHandlerRegistry()
+			registry := NewTypeRegistry()
 			var err error
 
 			for _, handler := range tc.handlers {
@@ -82,7 +82,7 @@ func TestRegister(t *testing.T) {
 				require.Contains(t, err.Error(), tc.errorContains)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, len(tc.handlers), len(registry.handlers))
+				require.Equal(t, len(tc.handlers), len(registry.types))
 			}
 		})
 	}
@@ -92,40 +92,40 @@ func TestRegister(t *testing.T) {
 func TestGet(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setupHandlers []ElementTypeHandler
+		setupHandlers []ElementType
 		getType       string
 		expectError   bool
 		expectedType  string
 	}{
 		{
 			name:          "Get existing handler",
-			setupHandlers: []ElementTypeHandler{&BasicElementTypeHandler{}},
+			setupHandlers: []ElementType{&BasicElementType{}},
 			getType:       "basic",
 			expectError:   false,
 			expectedType:  "basic",
 		},
 		{
 			name:          "Get non-existent handler",
-			setupHandlers: []ElementTypeHandler{&BasicElementTypeHandler{}},
+			setupHandlers: []ElementType{&BasicElementType{}},
 			getType:       "non-existent-type",
 			expectError:   true,
 		},
 		{
 			name: "Get from multiple handlers",
-			setupHandlers: []ElementTypeHandler{
-				&BasicElementTypeHandler{},
-				&JsonPayloadElementTypeHandler{},
-				&ResourceFieldElementTypeHandler{},
+			setupHandlers: []ElementType{
+				&BasicElementType{},
+				&JSONElementType{},
+				&XMLElementType{},
 			},
-			getType:      "json-payload",
+			getType:      "json",
 			expectError:  false,
-			expectedType: "json-payload",
+			expectedType: "json",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			registry := NewElementTypeHandlerRegistry()
+			registry := NewTypeRegistry()
 			for _, handler := range tc.setupHandlers {
 				_ = registry.Register(handler)
 			}
@@ -135,7 +135,7 @@ func TestGet(t *testing.T) {
 			if tc.expectError {
 				require.Error(t, err)
 				require.Nil(t, handler)
-				require.Contains(t, err.Error(), "no handler registered")
+				require.Contains(t, err.Error(), "no element type registered")
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, handler)
@@ -149,37 +149,37 @@ func TestGet(t *testing.T) {
 func TestGetAllTypes(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setupHandlers []ElementTypeHandler
+		setupHandlers []ElementType
 		expectedCount int
 		expectedTypes []string
 	}{
 		{
 			name:          "Empty registry",
-			setupHandlers: []ElementTypeHandler{},
+			setupHandlers: []ElementType{},
 			expectedCount: 0,
 			expectedTypes: []string{},
 		},
 		{
 			name:          "Single handler",
-			setupHandlers: []ElementTypeHandler{&BasicElementTypeHandler{}},
+			setupHandlers: []ElementType{&BasicElementType{}},
 			expectedCount: 1,
 			expectedTypes: []string{"basic"},
 		},
 		{
 			name: "Multiple handlers",
-			setupHandlers: []ElementTypeHandler{
-				&BasicElementTypeHandler{},
-				&JsonPayloadElementTypeHandler{},
-				&ResourceFieldElementTypeHandler{},
+			setupHandlers: []ElementType{
+				&BasicElementType{},
+				&JSONElementType{},
+				&XMLElementType{},
 			},
 			expectedCount: 3,
-			expectedTypes: []string{"basic", "json-payload", "resource-field"},
+			expectedTypes: []string{"basic", "json", "xml"},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			registry := NewElementTypeHandlerRegistry()
+			registry := NewTypeRegistry()
 			for _, handler := range tc.setupHandlers {
 				_ = registry.Register(handler)
 			}
@@ -194,70 +194,14 @@ func TestGetAllTypes(t *testing.T) {
 	}
 }
 
-// TestGetHandler tests the global GetHandler function
-func TestGetHandler(t *testing.T) {
-	// Default registry should have all three handlers registered in init()
-	testCases := []struct {
-		name        string
-		typeStr     string
-		expectError bool
-	}{
-		{
-			name:        "Get basic handler",
-			typeStr:     "basic",
-			expectError: false,
-		},
-		{
-			name:        "Get json-payload handler",
-			typeStr:     "json-payload",
-			expectError: false,
-		},
-		{
-			name:        "Get resource-field handler",
-			typeStr:     "resource-field",
-			expectError: false,
-		},
-		{
-			name:        "Get non-existent handler",
-			typeStr:     "unknown-type",
-			expectError: true,
-		},
-	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			handler, err := GetHandler(tc.typeStr)
-
-			if tc.expectError {
-				require.Error(t, err)
-				require.Nil(t, handler)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, handler)
-				require.Equal(t, tc.typeStr, handler.GetType())
-			}
-		})
-	}
-}
-
-// TestGetAllHandlerTypes tests the global GetAllHandlerTypes function
-func TestGetAllHandlerTypes(t *testing.T) {
-	types := GetAllHandlerTypes()
-	
-	// Default registry should have 3 handlers registered
-	require.Equal(t, 3, len(types))
-	require.Contains(t, types, "basic")
-	require.Contains(t, types, "json-payload")
-	require.Contains(t, types, "resource-field")
-}
-
-// TestGetDefaultRegistry tests the global registry getter
-func TestGetDefaultRegistry(t *testing.T) {
-	registry := GetDefaultRegistry()
+// TestGetTypeRegistry tests the global registry getter
+func TestGetTypeRegistry(t *testing.T) {
+	registry := GetTypeRegistry()
 	require.NotNil(t, registry)
 	
 	// Should be the same instance on multiple calls
-	registry2 := GetDefaultRegistry()
+	registry2 := GetTypeRegistry()
 	require.Equal(t, registry, registry2)
 	
 	// Should have handlers from init()

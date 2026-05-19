@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS CONSENT_ELEMENT_APPROVAL (
   APPROVED            BOOLEAN NOT NULL DEFAULT FALSE,
   VALUE               BLOB DEFAULT NULL,  -- user-provided value for this element
   ORG_ID              VARCHAR(255) NOT NULL DEFAULT 'DEFAULT_ORG',
+  -- One approval per element version per purpose version per consent
   PRIMARY KEY (CONSENT_ID, PURPOSE_VERSION_ID, ELEMENT_VERSION_ID),
   INDEX idx_approval_consent (CONSENT_ID),
   INDEX idx_approval_purpose_ver (PURPOSE_VERSION_ID),

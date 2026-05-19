@@ -19,343 +19,268 @@
 package consentelement
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	dbconst "github.com/wso2/openfgc/internal/system/database/constants"
 	"github.com/wso2/openfgc/internal/consentelement/model"
+	providermock "github.com/wso2/openfgc/tests/mocks/database/providermock"
 )
 
-// TestNewConsentElementStore tests store creation
 func TestNewConsentElementStore(t *testing.T) {
-	store := NewConsentElementStore()
-	require.NotNil(t, store)
+	s := NewConsentElementStore()
+	require.NotNil(t, s)
 }
 
-// TestGetString tests the getString helper function
 func TestGetString(t *testing.T) {
-	testCases := []struct {
+	cases := []struct {
 		name     string
 		row      map[string]interface{}
 		key      string
 		expected string
 	}{
-		{
-			name:     "String value",
-			row:      map[string]interface{}{"key": "value"},
-			key:      "key",
-			expected: "value",
-		},
-		{
-			name:     "Byte slice value",
-			row:      map[string]interface{}{"key": []byte("value")},
-			key:      "key",
-			expected: "value",
-		},
-		{
-			name:     "Missing key",
-			row:      map[string]interface{}{"other": "value"},
-			key:      "key",
-			expected: "",
-		},
-		{
-			name:     "Nil row",
-			row:      nil,
-			key:      "key",
-			expected: "",
-		},
-		{
-			name:     "Empty row",
-			row:      map[string]interface{}{},
-			key:      "key",
-			expected: "",
-		},
-		{
-			name:     "Integer value",
-			row:      map[string]interface{}{"key": 123},
-			key:      "key",
-			expected: "",
-		},
-		{
-			name:     "Nil value",
-			row:      map[string]interface{}{"key": nil},
-			key:      "key",
-			expected: "",
-		},
+		{"string value", map[string]interface{}{"k": "v"}, "k", "v"},
+		{"byte slice value", map[string]interface{}{"k": []byte("v")}, "k", "v"},
+		{"missing key", map[string]interface{}{"other": "v"}, "k", ""},
+		{"nil row", nil, "k", ""},
+		{"integer value", map[string]interface{}{"k": 42}, "k", ""},
 	}
-
-	for _, tc := range testCases {
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getString(tc.row, tc.key)
-			require.Equal(t, tc.expected, result)
+			require.Equal(t, tc.expected, getString(tc.row, tc.key))
 		})
 	}
 }
 
-// TestMapToConsentElement tests mapping database row to ConsentElement
-func TestMapToConsentElement(t *testing.T) {
-	testCases := []struct {
-		name     string
-		row      map[string]interface{}
-		expected *model.ConsentElement
-	}{
-		{
-			name: "Complete element with description",
-			row: map[string]interface{}{
-				"id":          "elem-123",
-				"name":        "test_element",
-				"type":        "basic",
-				"org_id":      "org-456",
-				"description": "Test description",
-			},
-			expected: &model.ConsentElement{
-				ID:          "elem-123",
-				Name:        "test_element",
-				Type:        "basic",
-				OrgID:       "org-456",
-				Description: stringPtr("Test description"),
-				Properties:  make(map[string]string),
-			},
-		},
-		{
-			name: "Element without description",
-			row: map[string]interface{}{
-				"id":     "elem-123",
-				"name":   "test_element",
-				"type":   "basic",
-				"org_id": "org-456",
-			},
-			expected: &model.ConsentElement{
-				ID:          "elem-123",
-				Name:        "test_element",
-				Type:        "basic",
-				OrgID:       "org-456",
-				Description: nil,
-				Properties:  make(map[string]string),
-			},
-		},
-		{
-			name: "Element with byte slice values",
-			row: map[string]interface{}{
-				"id":          []byte("elem-123"),
-				"name":        []byte("test_element"),
-				"type":        []byte("basic"),
-				"org_id":      []byte("org-456"),
-				"description": []byte("Test description"),
-			},
-			expected: &model.ConsentElement{
-				ID:          "elem-123",
-				Name:        "test_element",
-				Type:        "basic",
-				OrgID:       "org-456",
-				Description: stringPtr("Test description"),
-				Properties:  make(map[string]string),
-			},
-		},
-		{
-			name: "Element with empty description",
-			row: map[string]interface{}{
-				"id":          "elem-123",
-				"name":        "test_element",
-				"type":        "basic",
-				"org_id":      "org-456",
-				"description": "",
-			},
-			expected: &model.ConsentElement{
-				ID:          "elem-123",
-				Name:        "test_element",
-				Type:        "basic",
-				OrgID:       "org-456",
-				Description: nil,
-				Properties:  make(map[string]string),
-			},
-		},
-		{
-			name:     "Nil row",
-			row:      nil,
-			expected: nil,
-		},
-		{
-			name: "Empty row",
-			row:  map[string]interface{}{},
-			expected: &model.ConsentElement{
-				ID:          "",
-				Name:        "",
-				Type:        "",
-				OrgID:       "",
-				Description: nil,
-				Properties:  make(map[string]string),
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := mapToConsentElement(tc.row)
-
-			if tc.expected == nil {
-				require.Nil(t, result)
-			} else {
-				require.NotNil(t, result)
-				require.Equal(t, tc.expected.ID, result.ID)
-				require.Equal(t, tc.expected.Name, result.Name)
-				require.Equal(t, tc.expected.Type, result.Type)
-				require.Equal(t, tc.expected.OrgID, result.OrgID)
-				require.NotNil(t, result.Properties)
-
-				if tc.expected.Description == nil {
-					require.Nil(t, result.Description)
-				} else {
-					require.NotNil(t, result.Description)
-					require.Equal(t, *tc.expected.Description, *result.Description)
-				}
-			}
-		})
-	}
+func TestGetInt64(t *testing.T) {
+	require.Equal(t, int64(42), getInt64(map[string]interface{}{"k": int64(42)}, "k"))
+	require.Equal(t, int64(0), getInt64(map[string]interface{}{"k": "not-int"}, "k"))
+	require.Equal(t, int64(0), getInt64(nil, "k"))
 }
 
-// TestMapToConsentElementProperty tests mapping database row to ConsentElementProperty
-func TestMapToConsentElementProperty(t *testing.T) {
-	testCases := []struct {
-		name     string
-		row      map[string]interface{}
-		expected *model.ConsentElementProperty
-	}{
-		{
-			name: "Complete property",
-			row: map[string]interface{}{
-				"element_id": "elem-456",
-				"att_key":    "key1",
-				"att_value":  "value1",
-				"org_id":     "org-789",
-			},
-			expected: &model.ConsentElementProperty{
-				ElementID: "elem-456",
-				Key:       "key1",
-				Value:     "value1",
-				OrgID:     "org-789",
-			},
-		},
-		{
-			name: "Property with byte slice values",
-			row: map[string]interface{}{
-				"element_id": []byte("elem-456"),
-				"att_key":    []byte("key1"),
-				"att_value":  []byte("value1"),
-				"org_id":     []byte("org-789"),
-			},
-			expected: &model.ConsentElementProperty{
-				ElementID: "elem-456",
-				Key:       "key1",
-				Value:     "value1",
-				OrgID:     "org-789",
-			},
-		},
-		{
-			name:     "Nil row",
-			row:      nil,
-			expected: nil,
-		},
-		{
-			name: "Empty row",
-			row:  map[string]interface{}{},
-			expected: &model.ConsentElementProperty{
-
-				ElementID: "",
-				Key:       "",
-				Value:     "",
-				OrgID:     "",
-			},
-		},
-		{
-			name: "Partial property",
-			row: map[string]interface{}{
-				"element_id": "elem-456",
-				"att_key":    "key1",
-			},
-			expected: &model.ConsentElementProperty{
-				ElementID: "elem-456",
-				Key:       "key1",
-				Value:     "",
-				OrgID:     "",
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := mapToConsentElementProperty(tc.row)
-
-			if tc.expected == nil {
-				require.Nil(t, result)
-			} else {
-				require.NotNil(t, result)
-				require.Equal(t, tc.expected.ElementID, result.ElementID)
-				require.Equal(t, tc.expected.Key, result.Key)
-				require.Equal(t, tc.expected.Value, result.Value)
-				require.Equal(t, tc.expected.OrgID, result.OrgID)
-			}
-		})
-	}
+func TestGetInt(t *testing.T) {
+	require.Equal(t, 3, getInt(map[string]interface{}{"k": int64(3)}, "k"))
+	require.Equal(t, 5, getInt(map[string]interface{}{"k": int32(5)}, "k"))
+	require.Equal(t, 7, getInt(map[string]interface{}{"k": uint32(7)}, "k"))
+	require.Equal(t, 0, getInt(map[string]interface{}{"k": "nope"}, "k"))
 }
 
-// TestGetIDsByNames_EmptyInput tests GetIDsByNames with empty input
-func TestGetIDsByNames_EmptyInput(t *testing.T) {
-	// Note: This test doesn't require database mocking as it returns early
-	// Database layer tests are covered by integration tests
-	t.Skip("Database layer tests covered by integration tests")
+func TestMapToElementVersion(t *testing.T) {
+	t.Run("nil row returns nil", func(t *testing.T) {
+		require.Nil(t, mapToElementVersion(nil))
+	})
+
+	t.Run("complete row", func(t *testing.T) {
+		row := map[string]interface{}{
+			"version_id":     "vid-1",
+			"id":             "elem-1",
+			"name":           "email",
+			"namespace":      "default",
+			"type":           "basic",
+			"version":        int64(2),
+			"display_name":   "Email Address",
+			"description":    "User email",
+			"element_schema": nil,
+			"created_time":   int64(1700000000),
+			"org_id":         "org-1",
+		}
+		v := mapToElementVersion(row)
+		require.NotNil(t, v)
+		require.Equal(t, "vid-1", v.VersionID)
+		require.Equal(t, "elem-1", v.ID)
+		require.Equal(t, "email", v.Name)
+		require.Equal(t, "default", v.Namespace)
+		require.Equal(t, "basic", v.Type)
+		require.Equal(t, 2, v.Version)
+		require.NotNil(t, v.DisplayName)
+		require.Equal(t, "Email Address", *v.DisplayName)
+		require.NotNil(t, v.Description)
+		require.Equal(t, "User email", *v.Description)
+		require.Nil(t, v.Schema)
+		require.Equal(t, int64(1700000000), v.CreatedTime)
+		require.Equal(t, "org-1", v.OrgID)
+	})
+
+	t.Run("byte slice values", func(t *testing.T) {
+		row := map[string]interface{}{
+			"version_id": []byte("vid-2"),
+			"id":         []byte("elem-2"),
+			"name":       []byte("phone"),
+			"namespace":  []byte("ns1"),
+			"type":       []byte("xml"),
+			"version":    int64(1),
+			"org_id":     []byte("org-2"),
+		}
+		v := mapToElementVersion(row)
+		require.Equal(t, "vid-2", v.VersionID)
+		require.Equal(t, "phone", v.Name)
+		require.Equal(t, "ns1", v.Namespace)
+	})
+
+	t.Run("empty row returns zero values", func(t *testing.T) {
+		v := mapToElementVersion(map[string]interface{}{})
+		require.NotNil(t, v)
+		require.Equal(t, "", v.ID)
+		require.Equal(t, 0, v.Version)
+	})
 }
 
-// TestCreate tests Create function
-func TestCreate(t *testing.T) {
-	// Database transaction tests are covered by integration tests
-	t.Skip("Database transaction tests covered by integration tests")
+// DB query/transaction tests are covered by integration tests.
+func TestStoreDBOperations(t *testing.T) {
+	t.Skip("Database operation tests covered by integration tests")
 }
 
-// TestGetByID tests GetByID function
-func TestGetByID(t *testing.T) {
-	// Database query tests are covered by integration tests
-	t.Skip("Database query tests covered by integration tests")
+// --- getStringPtr ---
+
+func TestGetStringPtr(t *testing.T) {
+	s := "hello"
+	got := getStringPtr(map[string]interface{}{"k": s}, "k")
+	require.NotNil(t, got)
+	require.Equal(t, "hello", *got)
+
+	b := []byte("world")
+	got = getStringPtr(map[string]interface{}{"k": b}, "k")
+	require.NotNil(t, got)
+	require.Equal(t, "world", *got)
+
+	got = getStringPtr(map[string]interface{}{"k": nil}, "k")
+	require.Nil(t, got)
+
+	got = getStringPtr(map[string]interface{}{}, "k")
+	require.Nil(t, got)
+
+	got = getStringPtr(map[string]interface{}{"k": 42}, "k")
+	require.Nil(t, got)
 }
 
-// TestList tests List function
-func TestList(t *testing.T) {
-	// Database query tests are covered by integration tests
-	t.Skip("Database query tests covered by integration tests")
+// --- mapToElementVersionSlice ---
+
+func TestMapToElementVersionSlice(t *testing.T) {
+	t.Run("empty input returns empty slice", func(t *testing.T) {
+		result := mapToElementVersionSlice([]map[string]interface{}{})
+		require.NotNil(t, result)
+		require.Len(t, result, 0)
+	})
+
+	t.Run("valid rows are mapped", func(t *testing.T) {
+		rows := []map[string]interface{}{
+			{"version_id": "v1", "id": "e1", "name": "email", "namespace": "default", "type": "basic", "version": int64(1), "org_id": "org-1"},
+			{"version_id": "v2", "id": "e2", "name": "phone", "namespace": "default", "type": "basic", "version": int64(1), "org_id": "org-1"},
+		}
+		result := mapToElementVersionSlice(rows)
+		require.Len(t, result, 2)
+		require.Equal(t, "v1", result[0].VersionID)
+		require.Equal(t, "v2", result[1].VersionID)
+	})
+
+	t.Run("nil rows are skipped", func(t *testing.T) {
+		rows := []map[string]interface{}{
+			{"version_id": "v1", "id": "e1", "name": "email", "namespace": "default", "type": "basic", "version": int64(1), "org_id": "org-1"},
+			nil,
+		}
+		result := mapToElementVersionSlice(rows)
+		require.Len(t, result, 1)
+		require.Equal(t, "v1", result[0].VersionID)
+	})
 }
 
-// TestUpdate tests Update function
-func TestUpdate(t *testing.T) {
-	// Database transaction tests are covered by integration tests
-	t.Skip("Database transaction tests covered by integration tests")
+// --- likePattern ---
+
+func mockClientWithType(t *testing.T, dbType string) *providermock.DBClientInterface {
+	t.Helper()
+	m := providermock.NewDBClientInterface(t)
+	m.On("GetDBType").Maybe().Return(dbType)
+	return m
 }
 
-// TestDelete tests Delete function
-func TestDelete(t *testing.T) {
-	// Database transaction tests are covered by integration tests
-	t.Skip("Database transaction tests covered by integration tests")
+func TestLikePattern(t *testing.T) {
+	t.Run("mysql wraps with percent, no escape clause", func(t *testing.T) {
+		pattern, escapeClause := likePattern(mockClientWithType(t, dbconst.DatabaseTypeMySQL), "email")
+		require.Equal(t, "%email%", pattern)
+		require.Equal(t, "", escapeClause)
+	})
+
+	t.Run("mysql escapes percent and underscore", func(t *testing.T) {
+		pattern, escapeClause := likePattern(mockClientWithType(t, dbconst.DatabaseTypeMySQL), "100%_done")
+		require.Equal(t, `%100\%\_done%`, pattern)
+		require.Equal(t, "", escapeClause)
+	})
+
+	t.Run("sqlite wraps with percent and adds escape clause", func(t *testing.T) {
+		pattern, escapeClause := likePattern(mockClientWithType(t, dbconst.DatabaseTypeSQLite), "email")
+		require.Equal(t, "%email%", pattern)
+		require.Equal(t, " ESCAPE '|'", escapeClause)
+	})
+
+	t.Run("sqlite escapes percent, underscore, and pipe", func(t *testing.T) {
+		pattern, escapeClause := likePattern(mockClientWithType(t, dbconst.DatabaseTypeSQLite), "a|b%c_d")
+		require.Equal(t, "%a||b|%c|_d%", pattern)
+		require.Equal(t, " ESCAPE '|'", escapeClause)
+	})
+
+	t.Run("postgres behaves same as sqlite", func(t *testing.T) {
+		pattern, escapeClause := likePattern(mockClientWithType(t, dbconst.DatabaseTypePostgres), "a%b")
+		require.Equal(t, "%a|%b%", pattern)
+		require.Equal(t, " ESCAPE '|'", escapeClause)
+	})
 }
 
-// TestCheckNameExists tests CheckNameExists function
-func TestCheckNameExists(t *testing.T) {
-	// Database query tests are covered by integration tests
-	t.Skip("Database query tests covered by integration tests")
-}
+// --- buildListQuery ---
 
-// TestCreateProperties tests CreateProperties function
-func TestCreateProperties(t *testing.T) {
-	// Database transaction tests are covered by integration tests
-	t.Skip("Database transaction tests covered by integration tests")
-}
+func TestBuildListQuery(t *testing.T) {
+	s := &store{}
+	orgID := "org-1"
 
-// TestGetPropertiesByElementID tests GetPropertiesByElementID function
-func TestGetPropertiesByElementID(t *testing.T) {
-	// Database query tests are covered by integration tests
-	t.Skip("Database query tests covered by integration tests")
-}
+	t.Run("no filters produces latest-version join", func(t *testing.T) {
+		dbClient := mockClientWithType(t, dbconst.DatabaseTypeMySQL)
+		_, dataQ, dataArgs, _ := s.buildListQuery(dbClient, orgID, model.ElementListFilters{Limit: 10, Offset: 0})
+		require.Contains(t, dataQ.Query, "INNER JOIN")
+		require.Contains(t, dataQ.Query, "MAX_VERSION")
+		require.Contains(t, dataQ.Query, "LIMIT ? OFFSET ?")
+		require.Equal(t, orgID, dataArgs[0])
+		require.Equal(t, orgID, dataArgs[1])
+		require.Equal(t, 10, dataArgs[len(dataArgs)-2])
+		require.Equal(t, 0, dataArgs[len(dataArgs)-1])
+	})
 
-// TestDeleteProperties tests DeleteProperties function
-func TestDeleteProperties(t *testing.T) {
-	// Database transaction tests are covered by integration tests
-	t.Skip("Database transaction tests covered by integration tests")
+	t.Run("version filter queries directly without join", func(t *testing.T) {
+		dbClient := mockClientWithType(t, dbconst.DatabaseTypeMySQL)
+		version := 2
+		_, dataQ, dataArgs, _ := s.buildListQuery(dbClient, orgID, model.ElementListFilters{Limit: 5, Offset: 0, Version: &version})
+		require.NotContains(t, dataQ.Query, "INNER JOIN")
+		require.Contains(t, dataQ.Query, "e.VERSION = ?")
+		require.Equal(t, 2, dataArgs[1])
+	})
+
+	t.Run("name filter adds LIKE clause", func(t *testing.T) {
+		dbClient := mockClientWithType(t, dbconst.DatabaseTypeMySQL)
+		_, dataQ, _, _ := s.buildListQuery(dbClient, orgID, model.ElementListFilters{Limit: 10, Name: "email"})
+		require.Contains(t, dataQ.Query, "e.NAME LIKE ?")
+	})
+
+	t.Run("namespace filter adds equality clause", func(t *testing.T) {
+		dbClient := mockClientWithType(t, dbconst.DatabaseTypeMySQL)
+		_, dataQ, _, _ := s.buildListQuery(dbClient, orgID, model.ElementListFilters{Limit: 10, Namespace: "default"})
+		require.Contains(t, dataQ.Query, "e.NAMESPACE = ?")
+	})
+
+	t.Run("type filter adds equality clause", func(t *testing.T) {
+		dbClient := mockClientWithType(t, dbconst.DatabaseTypeMySQL)
+		_, dataQ, _, _ := s.buildListQuery(dbClient, orgID, model.ElementListFilters{Limit: 10, Type: "basic"})
+		require.Contains(t, dataQ.Query, "e.TYPE = ?")
+	})
+
+	t.Run("count query wraps data query", func(t *testing.T) {
+		dbClient := mockClientWithType(t, dbconst.DatabaseTypeMySQL)
+		countQ, _, _, _ := s.buildListQuery(dbClient, orgID, model.ElementListFilters{Limit: 10})
+		require.True(t, strings.HasPrefix(countQ.Query, "SELECT COUNT(*) AS cnt FROM ("))
+	})
+
+	t.Run("postgres query uses dollar placeholders", func(t *testing.T) {
+		dbClient := mockClientWithType(t, dbconst.DatabaseTypePostgres)
+		_, dataQ, _, _ := s.buildListQuery(dbClient, orgID, model.ElementListFilters{Limit: 10})
+		require.Contains(t, dataQ.PostgresQuery, "$1")
+	})
 }

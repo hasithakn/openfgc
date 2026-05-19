@@ -121,6 +121,14 @@ var (
 		Message:     "Element not found",
 		Description: "The requested element could not be found",
 	}
+	// ErrorVersionReferencedByPurpose is returned when deleting an element version that is
+	// still referenced by one or more purpose versions (HTTP 409 Conflict).
+	ErrorVersionReferencedByPurpose = serviceerror.ServiceError{
+		Type:        serviceerror.ClientErrorType,
+		Code:        "CE-4090",
+		Message:     "Element version is referenced by a purpose",
+		Description: "Cannot delete element version as it is referenced by one or more purpose versions",
+	}
 )
 
 // Server errors for consent element operations.

@@ -390,25 +390,20 @@ func (s *consentPurposeService) validateUpdateRequest(req model.UpdateRequest) *
 	return nil
 }
 
-// validateElementNamesExist validates that all element names exist and returns a map of name -> ID
+// validateElementNamesExist validates that all element names exist and returns a map of name -> elementID.
+// Elements are looked up by name in the "default" namespace.
 func (s *consentPurposeService) validateElementNamesExist(ctx context.Context, elements []model.ElementInput, orgID string) (map[string]string, *serviceerror.ServiceError) {
-	elementNames := make([]string, len(elements))
-	for i, elementInput := range elements {
-		elementNames[i] = elementInput.ElementName
-	}
-
-	elementNameToID, err := s.stores.ConsentElement.GetIDsByNames(ctx, elementNames, orgID)
-	if err != nil {
-		return nil, &ErrorInternalServerError
-	}
-
-	// Check that all elements were found
-	for _, element := range elements {
-		if _, found := elementNameToID[element.ElementName]; !found {
-			return nil, serviceerror.CustomServiceError(ErrorInvalidRequestBody, fmt.Sprintf("element '%s' does not exist", element.ElementName))
+	elementNameToID := make(map[string]string, len(elements))
+	for _, elementInput := range elements {
+		ev, err := s.stores.ConsentElement.GetByNameAndNamespace(ctx, elementInput.ElementName, "default", orgID)
+		if err != nil {
+			return nil, &ErrorInternalServerError
 		}
+		if ev == nil {
+			return nil, serviceerror.CustomServiceError(ErrorInvalidRequestBody, fmt.Sprintf("element '%s' does not exist", elementInput.ElementName))
+		}
+		elementNameToID[elementInput.ElementName] = ev.ID
 	}
-
 	return elementNameToID, nil
 }
 

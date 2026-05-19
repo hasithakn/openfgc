@@ -19,135 +19,94 @@
 // Package model provides data models for consent elements.
 package model
 
-import (
-	"database/sql/driver"
-	"encoding/json"
-	"fmt"
-
-	"github.com/wso2/openfgc/internal/consentelement/validators"
+// Element type constants — matches the API type values.
+const (
+	ElementTypeBasic = "basic"
+	ElementTypeJSON  = "json"
+	ElementTypeXML   = "xml"
 )
 
-// JSONValue represents a JSON value that can be stored in the database
-type JSONValue json.RawMessage
+const DefaultNamespace = "default"
 
-// Scan implements the sql.Scanner interface for JSONValue
-func (jsonValue *JSONValue) Scan(value interface{}) error {
-	if value == nil {
-		*jsonValue = nil
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return fmt.Errorf("failed to unmarshal JSON value: %v", value)
-	}
-	*jsonValue = JSONValue(bytes)
-	return nil
-}
-
-// Value implements the driver.Valuer interface for JSONValue
-func (jsonValue JSONValue) Value() (driver.Value, error) {
-	if len(jsonValue) == 0 {
-		return nil, nil
-	}
-	return []byte(jsonValue), nil
-}
-
-// MarshalJSON implements the json.Marshaler interface
-func (jsonValue JSONValue) MarshalJSON() ([]byte, error) {
-	if len(jsonValue) == 0 {
-		return []byte("null"), nil
-	}
-	return jsonValue, nil
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface
-func (jsonValue *JSONValue) UnmarshalJSON(data []byte) error {
-	if jsonValue == nil {
-		return fmt.Errorf("JSONValue: UnmarshalJSON on nil pointer")
-	}
-	*jsonValue = append((*jsonValue)[0:0], data...)
-	return nil
-}
-
-// ConsentElement represents a consent element entity
-type ConsentElement struct {
-	ID          string            `json:"id" db:"ID"`
+// ElementVersion represents one version of a consent element — one row in the ELEMENT table.
+// All versions sharing the same ID belong to the same logical element.
+// Version numbers start at 1 and increment monotonically; they are never reused.
+type ElementVersion struct {
+	VersionID   string            `json:"-" db:"VERSION_ID"`
+	ID          string            `json:"elementId" db:"ID"`
 	Name        string            `json:"name" db:"NAME"`
-	Description *string           `json:"description,omitempty" db:"DESCRIPTION"`
+	Namespace   string            `json:"namespace" db:"NAMESPACE"`
 	Type        string            `json:"type" db:"TYPE"`
+	Version     int               `json:"version" db:"VERSION"`
+	DisplayName *string           `json:"displayName,omitempty" db:"DISPLAY_NAME"`
+	Description *string           `json:"description,omitempty" db:"DESCRIPTION"`
+	Schema      *string           `json:"schema,omitempty" db:"ELEMENT_SCHEMA"`
+	CreatedTime int64             `json:"createdTime" db:"CREATED_TIME"`
+	OrgID       string            `json:"-" db:"ORG_ID"`
 	Properties  map[string]string `json:"properties,omitempty" db:"-"`
-	OrgID       string            `json:"orgId" db:"ORG_ID"`
 }
 
-// ConsentElementMapping represents the CONSENT_PURPOSE_ELEMENT_MAPPING table
-type ConsentElementMapping struct {
-	ConsentID      string      `db:"CONSENT_ID" json:"consentId"`
-	OrgID          string      `db:"ORG_ID" json:"orgId"`
-	ElementID      string      `db:"ELEMENT_ID" json:"elementId"`
-	Value          interface{} `db:"VALUE" json:"value,omitempty"`
-	IsUserApproved bool        `db:"IS_USER_APPROVED" json:"isUserApproved"`
-	IsMandatory    bool        `db:"IS_MANDATORY" json:"isMandatory"`
-	Name           string      `db:"-" json:"name"` // Element name for convenience (not in mapping table)
+// ElementVersionProperty is one row in the ELEMENT_PROPERTY table.
+// It is used internally by the store; callers see properties on ElementVersion.Properties.
+type ElementVersionProperty struct {
+	ElementVersionID string `db:"ELEMENT_VERSION_ID"`
+	Key              string `db:"ATT_KEY"`
+	Value            string `db:"ATT_VALUE"`
+	OrgID            string `db:"ORG_ID"`
 }
 
-// ConsentElementCreateRequest represents the request to create a consent element
+// ElementListFilters holds query parameters for GET /consent-elements.
+type ElementListFilters struct {
+	Name      string
+	Namespace string
+	Type      string
+	Version   *int
+	Details   bool // when true, populate Schema and Properties
+	Limit     int
+	Offset    int
+}
+
+// ConsentElementCreateRequest is one item in the POST /consent-elements batch request body.
 type ConsentElementCreateRequest struct {
-	Name        string            `json:"name" binding:"required"`
-	Description string            `json:"description,omitempty"`
-	Type        string            `json:"type" binding:"required"`
-	Properties  map[string]string `json:"properties,omitempty"`
-}
-
-// ConsentElementUpdateRequest represents the request to update a consent element
-// All fields are required - no partial updates allowed
-type ConsentElementUpdateRequest struct {
-	Name        string            `json:"name" binding:"required,max=255"`
-	Description *string           `json:"description,omitempty" binding:"omitempty,max=1024"`
-	Type        string            `json:"type" binding:"required"`
-	Properties  map[string]string `json:"properties,omitempty"`
-}
-
-// ConsentElementResponse represents the response for consent element operations
-type ConsentElementResponse struct {
-	ID          string            `json:"id"`
 	Name        string            `json:"name"`
+	Namespace   string            `json:"namespace,omitempty"`
+	DisplayName *string           `json:"displayName,omitempty"`
 	Description *string           `json:"description,omitempty"`
 	Type        string            `json:"type"`
+	Schema      *string           `json:"schema,omitempty"`
 	Properties  map[string]string `json:"properties,omitempty"`
 }
 
-// ListResponse represents a list of consent elements
+// ElementVersionCreateRequest is the body for POST /consent-elements/{elementId}/versions.
+// Name, Namespace, and Type are immutable identifiers inherited from the element — they cannot
+// change across versions and are not accepted in this request.
+type ElementVersionCreateRequest struct {
+	DisplayName *string           `json:"displayName,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Schema      *string           `json:"schema,omitempty"`
+	Properties  map[string]string `json:"properties,omitempty"`
+}
+
+// BulkCreateResultItem is one entry in the BulkCreateResponse.Results slice.
+type BulkCreateResultItem struct {
+	Status  string          `json:"status"` // "SUCCESS" or "FAILED"
+	Element *ElementVersion `json:"element,omitempty"`
+	Error   *string         `json:"error,omitempty"`
+}
+
+// BulkCreateResponse is the response body for POST /consent-elements (HTTP 200).
+type BulkCreateResponse struct {
+	Results []BulkCreateResultItem `json:"results"`
+}
+
+// ListResponse is the response body for GET /consent-elements.
 type ListResponse struct {
-	Elements []ConsentElementResponse `json:"elements"`
-	Total    int                      `json:"total"`
+	Elements []ElementVersion `json:"elements"`
+	Total    int              `json:"total"`
 }
 
-// ToConsentElementResponse converts ConsentElement to ConsentElementResponse
-func (cp *ConsentElement) ToConsentElementResponse() *ConsentElementResponse {
-	return &ConsentElementResponse{
-		ID:          cp.ID,
-		Name:        cp.Name,
-		Description: cp.Description,
-		Type:        cp.Type,
-		Properties:  cp.Properties,
-	}
-}
-
-// ValidateElementType validates that the element type is registered in the handler registry
-func ValidateElementType(typeVal string) error {
-	_, err := validators.GetHandler(typeVal)
-	if err != nil {
-		// Get all registered types for helpful error message
-		registeredTypes := validators.GetAllHandlerTypes()
-		return fmt.Errorf("invalid element type '%s': must be one of %v", typeVal, registeredTypes)
-	}
-	return nil
-}
-
-// ConsentElementProperty represents properties for consent elements
-type ConsentElementProperty struct {
-	ElementID string `db:"ELEMENT_ID"`
-	Key       string `db:"ATT_KEY"`
-	Value     string `db:"ATT_VALUE"`
-	OrgID     string `db:"ORG_ID"`
+// VersionListResponse is the response body for GET /consent-elements/{elementId}/versions.
+type VersionListResponse struct {
+	ElementID string           `json:"elementId"`
+	Versions  []ElementVersion `json:"versions"`
 }
