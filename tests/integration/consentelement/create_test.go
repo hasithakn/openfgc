@@ -19,570 +19,281 @@
 package consentelement
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
-
-	"github.com/wso2/openfgc/tests/integration/testutils"
 )
 
-// TestCreateElement_StringType_WithValue creates a string type element with value property
-func (ts *ElementAPITestSuite) TestCreateElement_StringType_WithValue() {
-	element := ConsentElementCreateRequest{
-		Name:        "test_license_read",
-		Description: "Allows accessing driving license API",
-		Type:        "basic",
-		Properties: map[string]string{
-			"value": "license:read",
+// TestBatchCreate covers POST /consent-elements scenarios that return HTTP 200
+// with per-item results. Validation failures (missing fields, bad type, schema
+// errors, name conflicts) appear as FAILED items in the results array — not as
+// HTTP-level errors.
+//
+// Each sub-test uses its own freshOrgID() for full isolation — no cleanup needed.
+func (ts *ElementAPITestSuite) TestBatchCreate() {
+	type testCase struct {
+		name        string
+		elements    []CreateElementRequest
+		checkResult func(results []BatchResultItem)
+	}
+
+	cases := []testCase{
+		// -------------------------------------------------------------------------
+		// Success paths
+		// -------------------------------------------------------------------------
+		{
+			name:     "basic element — created as v1 with default namespace",
+			elements: []CreateElementRequest{{Name: "user-email", Type: "basic"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchSuccess(results[0], "user-email", "basic")
+				ts.Equal("v1", results[0].Element.Version)
+				ts.Equal("default", results[0].Element.Namespace)
+			},
+		},
+		{
+			name: "json element with schema — schema preserved in response",
+			elements: []CreateElementRequest{{
+				Name:   "account-payload",
+				Type:   "json",
+				Schema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}}}`),
+			}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchSuccess(results[0], "account-payload", "json")
+				ts.Require().NotNil(results[0].Element.Schema, "schema must be returned for json type")
+			},
+		},
+		{
+			name: "xml element with schema — success",
+			elements: []CreateElementRequest{{
+				Name:   "account-xml",
+				Type:   "xml",
+				Schema: json.RawMessage(`"<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"/>"`),
+			}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchSuccess(results[0], "account-xml", "xml")
+			},
+		},
+		{
+			name: "explicit namespace — stored and returned",
+			elements: []CreateElementRequest{{
+				Name:      "salary-amount",
+				Type:      "basic",
+				Namespace: "finance",
+			}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchSuccess(results[0], "salary-amount", "basic")
+				ts.Equal("finance", results[0].Element.Namespace)
+			},
+		},
+		{
+			name: "all optional fields — displayName, description, properties stored and returned",
+			elements: []CreateElementRequest{{
+				Name:        "annotated-elem",
+				Type:        "basic",
+				DisplayName: ptr("Annotated Element"),
+				Description: ptr("Has all optional fields"),
+				Properties:  map[string]string{"env": "prod", "owner": "team-a"},
+			}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchSuccess(results[0], "annotated-elem", "basic")
+				e := results[0].Element
+				ts.Require().NotNil(e.DisplayName)
+				ts.Equal("Annotated Element", *e.DisplayName)
+				ts.Require().NotNil(e.Description)
+				ts.Equal("Has all optional fields", *e.Description)
+				ts.Equal("prod", e.Properties["env"])
+				ts.Equal("team-a", e.Properties["owner"])
+			},
+		},
+		{
+			name: "batch of three — each succeeds independently with a unique elementId",
+			elements: []CreateElementRequest{
+				{Name: "first-name", Type: "basic"},
+				{Name: "last-name", Type: "basic"},
+				{Name: "date-of-birth", Type: "basic"},
+			},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 3)
+				ts.assertBatchSuccess(results[0], "first-name", "basic")
+				ts.assertBatchSuccess(results[1], "last-name", "basic")
+				ts.assertBatchSuccess(results[2], "date-of-birth", "basic")
+				// Swagger contract: every element gets a unique UUID
+				ts.NotEqual(results[0].Element.ElementID, results[1].Element.ElementID)
+				ts.NotEqual(results[1].Element.ElementID, results[2].Element.ElementID)
+			},
+		},
+
+		// -------------------------------------------------------------------------
+		// Per-item validation failures (HTTP 200, item.Status = "FAILED")
+		// -------------------------------------------------------------------------
+		{
+			name:     "missing name — FAILED",
+			elements: []CreateElementRequest{{Type: "basic"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchFailed(results[0], "name is required")
+			},
+		},
+		{
+			name:     "missing type — FAILED",
+			elements: []CreateElementRequest{{Name: "no-type-elem"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchFailed(results[0], "type is required")
+			},
+		},
+		{
+			name:     "invalid type value — FAILED",
+			elements: []CreateElementRequest{{Name: "bad-type-elem", Type: "INVALID"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchFailed(results[0], "invalid element type")
+			},
+		},
+		{
+			name:     "old type 'json-payload' is rejected — FAILED",
+			elements: []CreateElementRequest{{Name: "legacy-json", Type: "json-payload"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchFailed(results[0], "invalid element type")
+			},
+		},
+		{
+			name:     "old type 'resource-field' is rejected — FAILED",
+			elements: []CreateElementRequest{{Name: "legacy-rf", Type: "resource-field"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchFailed(results[0], "invalid element type")
+			},
+		},
+		{
+			name:     "name exceeds 255 chars — FAILED",
+			elements: []CreateElementRequest{{Name: strings.Repeat("a", 256), Type: "basic"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchFailed(results[0], "255")
+			},
+		},
+		{
+			name: "description exceeds 1024 chars — FAILED",
+			elements: []CreateElementRequest{{
+				Name:        "long-desc-elem",
+				Type:        "basic",
+				Description: ptr(strings.Repeat("x", 1025)),
+			}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.assertBatchFailed(results[0], "1024")
+			},
+		},
+		{
+			name:     "json type without schema — FAILED",
+			elements: []CreateElementRequest{{Name: "json-no-schema", Type: "json"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.Equal("FAILED", results[0].Status)
+			},
+		},
+		{
+			name:     "xml type without schema — FAILED",
+			elements: []CreateElementRequest{{Name: "xml-no-schema", Type: "xml"}},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 1)
+				ts.Equal("FAILED", results[0].Status)
+			},
+		},
+		{
+			name: "same name twice in one batch — first SUCCESS, second FAILED (name already exists)",
+			elements: []CreateElementRequest{
+				{Name: "dupe-elem", Type: "basic"},
+				{Name: "dupe-elem", Type: "basic"},
+			},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 2)
+				ts.assertBatchSuccess(results[0], "dupe-elem", "basic")
+				ts.assertBatchFailed(results[1], "already exists")
+			},
+		},
+		{
+			name: "valid and invalid interleaved — failure does not block sibling items",
+			elements: []CreateElementRequest{
+				{Name: "interleaved-a", Type: "basic"},
+				{Type: "basic"}, // missing name
+				{Name: "interleaved-b", Type: "basic"},
+			},
+			checkResult: func(results []BatchResultItem) {
+				ts.Require().Len(results, 3)
+				ts.assertBatchSuccess(results[0], "interleaved-a", "basic")
+				ts.assertBatchFailed(results[1], "name is required")
+				ts.assertBatchSuccess(results[2], "interleaved-b", "basic")
+			},
 		},
 	}
 
-	// Create element
-	resp, body := ts.createElement([]ConsentElementCreateRequest{element})
-	defer resp.Body.Close()
-
-	ts.Require().Equal(http.StatusCreated, resp.StatusCode)
-
-	var createResp ElementCreateResponse
-	err := json.Unmarshal(body, &createResp)
-	ts.Require().NoError(err)
-	ts.Require().Len(createResp.Data, 1)
-
-	created := createResp.Data[0]
-	ts.Require().Equal(element.Name, created.Name)
-	ts.Require().Equal(element.Type, created.Type)
-	ts.Require().Equal(element.Properties["value"], created.Properties["value"])
-	ts.Require().NotEmpty(created.ID)
-
-	// Track for suite cleanup
-	ts.trackElement(created.ID)
-}
-
-// TestCreateElement_StringType_NoProperties creates a string type element with no properties
-func (ts *ElementAPITestSuite) TestCreateElement_StringType_NoProperties() {
-	element := ConsentElementCreateRequest{
-		Name:        "test_basic_string",
-		Description: "String type with no properties",
-		Type:        "basic",
-		Properties:  map[string]string{},
-	}
-
-	resp, body := ts.createElement([]ConsentElementCreateRequest{element})
-	defer resp.Body.Close()
-
-	ts.Require().Equal(http.StatusCreated, resp.StatusCode)
-
-	var createResp ElementCreateResponse
-	err := json.Unmarshal(body, &createResp)
-	ts.Require().NoError(err)
-	ts.Require().Len(createResp.Data, 1)
-	ts.Require().Equal(element.Name, createResp.Data[0].Name)
-	ts.trackElement(createResp.Data[0].ID) // Track for suite cleanup
-}
-
-// TestCreateElement_JsonPayloadType_WithValidationSchema creates a json-payload element
-func (ts *ElementAPITestSuite) TestCreateElement_JsonPayloadType_WithValidationSchema() {
-	element := ConsentElementCreateRequest{
-		Name:        "test_account_schema",
-		Description: "Account access schema validation",
-		Type:        "json-payload",
-		Properties: map[string]string{
-			"validationSchema": "{}",
-		},
-	}
-
-	resp, body := ts.createElement([]ConsentElementCreateRequest{element})
-	defer resp.Body.Close()
-
-	ts.Require().Equal(http.StatusCreated, resp.StatusCode)
-
-	var createResp ElementCreateResponse
-	err := json.Unmarshal(body, &createResp)
-	ts.Require().NoError(err)
-	ts.Require().Len(createResp.Data, 1)
-
-	created := createResp.Data[0]
-	ts.Require().Equal(element.Name, created.Name)
-	ts.Require().Equal("json-payload", created.Type)
-	ts.Require().NotEmpty(created.Properties["validationSchema"])
-	ts.trackElement(created.ID) // Track for suite cleanup
-}
-
-// TestCreateElement_ResourceFieldType_FirstName creates a resource-field element with jsonPath and resourcePath
-func (ts *ElementAPITestSuite) TestCreateElement_ResourceFieldType_FirstName() {
-	element := ConsentElementCreateRequest{
-		Name:        "test_first_name",
-		Description: "Allows access to the user's first name",
-		Type:        "resource-field",
-		Properties: map[string]string{
-			"jsonPath":     "$.personal.firstName",
-			"resourcePath": "/user/{nic}",
-		},
-	}
-
-	resp, body := ts.createElement([]ConsentElementCreateRequest{element})
-	defer resp.Body.Close()
-
-	ts.Require().Equal(http.StatusCreated, resp.StatusCode)
-
-	var createResp ElementCreateResponse
-	err := json.Unmarshal(body, &createResp)
-	ts.Require().NoError(err)
-	ts.Require().Len(createResp.Data, 1)
-
-	created := createResp.Data[0]
-	ts.Require().Equal(element.Name, created.Name)
-	ts.Require().Equal("resource-field", created.Type)
-	ts.Require().Equal("$.personal.firstName", created.Properties["jsonPath"])
-	ts.Require().Equal("/user/{nic}", created.Properties["resourcePath"])
-	ts.trackElement(created.ID) // Track for suite cleanup
-}
-
-// TestCreateElement_Batch_ThreeResourceFieldTypeElements creates 3 resource-field elements in one request
-func (ts *ElementAPITestSuite) TestCreateElement_Batch_ThreeResourceFieldTypeElements() {
-	elements := []ConsentElementCreateRequest{
-		{
-			Name:        "test_batch_first_name",
-			Description: "Allows access to the user's first name",
-			Type:        "resource-field",
-			Properties: map[string]string{
-				"jsonPath":     "$.personal.firstName",
-				"resourcePath": "/user/{nic}",
-			},
-		},
-		{
-			Name:        "test_batch_last_name",
-			Description: "Allows access to the user's last name",
-			Type:        "resource-field",
-			Properties: map[string]string{
-				"jsonPath":     "$.personal.lastName",
-				"resourcePath": "/user/{nic}",
-			},
-		},
-		{
-			Name:        "test_batch_full_name",
-			Description: "Allows access to the user's full name",
-			Type:        "resource-field",
-			Properties: map[string]string{
-				"jsonPath":     "$.personal.fullName",
-				"resourcePath": "/user/{nic}",
-			},
-		},
-	}
-
-	resp, body := ts.createElement(elements)
-	defer resp.Body.Close()
-
-	ts.Require().Equal(http.StatusCreated, resp.StatusCode)
-
-	var createResp ElementCreateResponse
-	err := json.Unmarshal(body, &createResp)
-	ts.Require().NoError(err)
-	ts.Require().Len(createResp.Data, 3)
-
-	// Verify all three were created
-	for i, element := range elements {
-		ts.Require().Equal(element.Name, createResp.Data[i].Name)
-		ts.Require().Equal("resource-field", createResp.Data[i].Type)
-		ts.Require().NotEmpty(createResp.Data[i].ID)
-	}
-
-	// Track all for cleanup
-	for _, e := range createResp.Data {
-		ts.trackElement(e.ID)
-	}
-}
-
-// TestCreateElement_Batch_MixedTypes creates elements with different types in one batch
-func (ts *ElementAPITestSuite) TestCreateElement_Batch_MixedTypes() {
-	elements := []ConsentElementCreateRequest{
-		{
-			Name:        "test_mixed_string",
-			Description: "String type",
-			Type:        "basic",
-			Properties: map[string]string{
-				"value": "api:resource:read",
-			},
-		},
-		{
-			Name:        "test_mixed_json_payload",
-			Description: "JSON Payload type",
-			Type:        "json-payload",
-			Properties: map[string]string{
-				"validationSchema": "{}",
-			},
-		},
-		{
-			Name:        "test_mixed_resource_field",
-			Description: "Resource Field type",
-			Type:        "resource-field",
-			Properties: map[string]string{
-				"jsonPath":     "$.data.field",
-				"resourcePath": "/resource/{id}",
-			},
-		},
-	}
-
-	resp, body := ts.createElement(elements)
-	defer resp.Body.Close()
-
-	ts.Require().Equal(http.StatusCreated, resp.StatusCode)
-
-	var createResp ElementCreateResponse
-	err := json.Unmarshal(body, &createResp)
-	ts.Require().NoError(err)
-	ts.Require().Len(createResp.Data, 3)
-
-	// Verify types
-	ts.Require().Equal("basic", createResp.Data[0].Type)
-	ts.Require().Equal("json-payload", createResp.Data[1].Type)
-	ts.Require().Equal("resource-field", createResp.Data[2].Type)
-
-	// Track all for cleanup
-	for _, e := range createResp.Data {
-		ts.trackElement(e.ID)
-	}
-}
-
-// TestCreateElement_RetrieveAndVerifyAllFields creates an element and verifies all fields via GET
-func (ts *ElementAPITestSuite) TestCreateElement_RetrieveAndVerifyAllFields() {
-	element := ConsentElementCreateRequest{
-		Name:        "test_verify_all_fields",
-		Description: "Test element for field verification",
-		Type:        "resource-field",
-		Properties: map[string]string{
-			"jsonPath":     "$.user.email",
-			"resourcePath": "/user/{id}",
-		},
-	}
-
-	// Create
-	createHttpResp, createBody := ts.createElement([]ConsentElementCreateRequest{element})
-	defer createHttpResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createHttpResp.StatusCode)
-
-	var createResp ElementCreateResponse
-	err := json.Unmarshal(createBody, &createResp)
-	ts.Require().NoError(err)
-	ts.Require().Len(createResp.Data, 1)
-
-	elementID := createResp.Data[0].ID
-	ts.trackElement(elementID) // Track for suite cleanup
-
-	// Retrieve
-	getResp, getBody := ts.getElement(elementID)
-	defer getResp.Body.Close()
-	ts.Require().Equal(http.StatusOK, getResp.StatusCode)
-
-	var retrieved ElementResponse
-	err = json.Unmarshal(getBody, &retrieved)
-	ts.Require().NoError(err)
-
-	// Verify all fields match
-	ts.Require().Equal(elementID, retrieved.ID)
-	ts.Require().Equal(element.Name, retrieved.Name)
-	ts.Require().NotNil(retrieved.Description)
-	ts.Require().Equal(element.Description, *retrieved.Description)
-	ts.Require().Equal(element.Type, retrieved.Type)
-	ts.Require().Equal(element.Properties["jsonPath"], retrieved.Properties["jsonPath"])
-	ts.Require().Equal(element.Properties["resourcePath"], retrieved.Properties["resourcePath"])
-}
-
-// TestCreateElement_ErrorCases tests various error scenarios
-func (ts *ElementAPITestSuite) TestCreateElement_ErrorCases() {
-	validElement := ConsentElementCreateRequest{
-		Name:        "test_error_valid",
-		Description: "Valid element",
-		Type:        "basic",
-		Properties:  map[string]string{},
-	}
-
-	testCases := []struct {
-		name            string
-		payload         interface{}
-		setHeaders      bool
-		expectedStatus  int
-		expectedCode    string
-		messageContains string
-	}{
-		// Header validation
-		{
-			name:            "MissingOrgID_ReturnsValidationError",
-			payload:         []ConsentElementCreateRequest{validElement},
-			setHeaders:      false,
-			expectedStatus:  http.StatusNotFound, // Missing route/org returns 404
-			expectedCode:    "",                  // No structured error for 404
-			messageContains: "",
-		},
-
-		// Request body validation
-		{
-			name:            "MalformedJSON_ReturnsBadRequest",
-			payload:         "invalid{{{json",
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1001",
-			messageContains: "invalid character",
-		},
-		{
-			name:            "EmptyArray_RequiresAtLeastOneElement",
-			payload:         []ConsentElementCreateRequest{},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1002",
-			messageContains: "at least one element must be provided",
-		},
-
-		// Name validation
-		{
-			name: "MissingNameField_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Description: "Missing name",
-					Type:        "basic",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1004",
-			messageContains: "element name is required",
-		},
-		{
-			name: "NameExceeds255Chars_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        strings.Repeat("a", 256),
-					Description: "Name too long",
-					Type:        "basic",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1006",
-			messageContains: "name must not exceed 255 characters",
-		},
-		{
-			name: "DuplicateNameInBatch_ReturnsConflict",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_duplicate",
-					Description: "First",
-					Type:        "basic",
-					Properties:  map[string]string{},
-				},
-				{
-					Name:        "test_error_duplicate",
-					Description: "Duplicate",
-					Type:        "basic",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusConflict,
-			expectedCode:    "CE-1012",
-			messageContains: "duplicate element name 'test_error_duplicate' in request batch",
-		},
-
-		// Type validation
-		{
-			name: "MissingTypeField_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_no_type",
-					Description: "Missing type",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1005",
-			messageContains: "element type is required",
-		},
-		{
-			name: "InvalidTypeValue_STANDARD_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_invalid_type",
-					Description: "Invalid type",
-					Type:        "STANDARD",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1010",
-			messageContains: "invalid element type",
-		},
-		{
-			name: "InvalidTypeValue_OldString_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_old_string_type",
-					Description: "Old string type value",
-					Type:        "string", // Old type value
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1010",
-			messageContains: "invalid element type",
-		},
-		{
-			name: "InvalidTypeValue_OldAttribute_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_old_attribute_type",
-					Description: "Old attribute type value",
-					Type:        "attribute", // Old type value
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1010",
-			messageContains: "invalid element type",
-		},
-
-		// Type-specific property validation
-		{
-			name: "JsonPayloadType_MissingValidationSchema_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_json_no_schema",
-					Description: "JSON payload without validationSchema",
-					Type:        "json-payload",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusInternalServerError,
-			expectedCode:    "CE-5010",
-			messageContains: "property validation failed",
-		},
-		{
-			name: "ResourceFieldType_MissingResourcePath_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_resource_no_path",
-					Description: "Resource field without resourcePath",
-					Type:        "resource-field",
-					Properties: map[string]string{
-						"jsonPath": "$.data",
-					},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusInternalServerError,
-			expectedCode:    "CE-5010",
-			messageContains: "resourcePath is required for resource-field",
-		},
-		{
-			name: "ResourceFieldType_MissingJsonPath_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_resource_no_json",
-					Description: "Resource field without jsonPath",
-					Type:        "resource-field",
-					Properties: map[string]string{
-						"resourcePath": "/resource/{id}",
-					},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusInternalServerError,
-			expectedCode:    "CE-5010",
-			messageContains: "property validation failed",
-		},
-		{
-			name: "ResourceFieldType_MissingBothPaths_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_resource_no_paths",
-					Description: "Resource field without any paths",
-					Type:        "resource-field",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusInternalServerError,
-			expectedCode:    "CE-5010",
-			messageContains: "resourcePath is required for resource-field",
-		},
-
-		// Description validation
-		{
-			name: "DescriptionExceeds1024Chars_ReturnsValidationError",
-			payload: []ConsentElementCreateRequest{
-				{
-					Name:        "test_error_desc_1025",
-					Description: strings.Repeat("x", 1025), // Exceeds 1024 char limit
-					Type:        "basic",
-					Properties:  map[string]string{},
-				},
-			},
-			setHeaders:      true,
-			expectedStatus:  http.StatusBadRequest,
-			expectedCode:    "CE-1008",
-			messageContains: "description must not exceed 1024 characters",
-		},
-	}
-
-	for _, tc := range testCases {
+	for _, tc := range cases {
+		tc := tc
 		ts.Run(tc.name, func() {
-			var resp *http.Response
-			var body []byte
+			orgID := freshOrgID() // isolated per sub-test — no cleanup needed
+			status, resp := ts.doBatchCreate(orgID, tc.elements)
+			ts.Require().Equal(http.StatusOK, status,
+				"batch create must always return HTTP 200 (per-item failures are in results[])")
+			ts.Require().NotNil(resp)
+			tc.checkResult(resp.Results)
+		})
+	}
+}
 
-			if tc.setHeaders {
-				resp, body = ts.createElement(tc.payload)
-			} else {
-				// Create request without headers
-				var jsonData []byte
-				var err error
+// TestBatchCreateHTTPErrors covers requests rejected before batch processing begins.
+// These return a non-200 status with a structured error body — the entire request
+// fails, not individual items.
+func (ts *ElementAPITestSuite) TestBatchCreateHTTPErrors() {
+	type testCase struct {
+		name          string
+		omitOrgID     bool
+		body          any // string → sent as-is; []CreateElementRequest → JSON-marshalled
+		wantStatus    int
+		wantErrorCode string
+	}
 
-				if str, ok := tc.payload.(string); ok {
-					jsonData = []byte(str)
-				} else {
-					jsonData, err = json.Marshal(tc.payload)
-					ts.Require().NoError(err)
-				}
+	orgID := freshOrgID()
 
-				req, err := http.NewRequest(http.MethodPost, testServerURL+"/consent-elements", bytes.NewBuffer(jsonData))
-				ts.Require().NoError(err)
-				req.Header.Set(testutils.HeaderContentType, "application/json")
-				// Deliberately not setting org-id and client-id headers
+	cases := []testCase{
+		{
+			name:          "missing org-id header — 400 CE-1003",
+			omitOrgID:     true,
+			body:          []CreateElementRequest{{Name: "x", Type: "basic"}},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CE-1003",
+		},
+		{
+			name:          "malformed JSON body — 400 CE-1001",
+			body:          `{not valid json`,
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CE-1001",
+		},
+		{
+			name:          "empty array — 400 CE-1002",
+			body:          []CreateElementRequest{},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CE-1002",
+		},
+	}
 
-				client := &http.Client{}
-				resp, err = client.Do(req)
-				ts.Require().NoError(err)
-				body, err = io.ReadAll(resp.Body)
-				ts.Require().NoError(err)
+	for _, tc := range cases {
+		tc := tc
+		ts.Run(tc.name, func() {
+			requestOrgID := orgID
+			if tc.omitOrgID {
+				requestOrgID = ""
 			}
-			defer resp.Body.Close()
-
-			// Verify status code
-			ts.Require().Equal(tc.expectedStatus, resp.StatusCode, "Test case: %s", tc.name)
-
-			// Skip error response validation for 404 (no structured error)
-			if tc.expectedStatus == http.StatusNotFound {
-				return
-			}
-
-			// Parse error response
-			var errResp ErrorResponse
-			err := json.Unmarshal(body, &errResp)
-			ts.Require().NoError(err, "Test case: %s", tc.name)
-
-			// Verify error code and message
-			ts.Require().Equal(tc.expectedCode, errResp.Code, "Test case: %s", tc.name)
-			if tc.messageContains != "" {
-				ts.Require().Contains(strings.ToLower(errResp.Description), strings.ToLower(tc.messageContains), "Test case: %s - Description: %s", tc.name, errResp.Description)
-			}
-			ts.Require().NotEmpty(errResp.TraceID, "Test case: %s", tc.name)
+			status, body := ts.doRequest(http.MethodPost, "/api/v1/consent-elements", requestOrgID, tc.body)
+			ts.Require().Equal(tc.wantStatus, status)
+			ts.assertAPIError(body, tc.wantErrorCode)
 		})
 	}
 }

@@ -79,11 +79,18 @@ func SendError(w http.ResponseWriter, r *http.Request, err *serviceerror.Service
 		)
 	}
 
+	// For server errors, never expose internal details (DB errors, stack traces, etc.) to the client.
+	// The full description is already logged above with the traceId for server-side debugging.
+	clientDescription := err.Description
+	if err.Type == serviceerror.ServerErrorType {
+		clientDescription = "An internal server error occurred. Please reference the traceId for support."
+	}
+
 	// Create error response with new format
 	errorResponse := apierror.NewErrorResponse(
 		err.Code,
 		err.Message,
-		err.Description,
+		clientDescription,
 		traceID,
 	)
 
