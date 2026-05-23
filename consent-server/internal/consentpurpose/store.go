@@ -78,6 +78,12 @@ var (
 		PostgresQuery: "SELECT COUNT(*) AS cnt FROM PURPOSE WHERE ID = $1 AND ORG_ID = $2 LIMIT 1",
 	}
 
+	QueryGetPurposeByNameAndGroupID = dbmodel.DBQuery{
+		ID:            "GET_PURPOSE_BY_NAME_AND_GROUP_ID",
+		Query:         "SELECT " + purposeColumns + " FROM PURPOSE WHERE NAME = ? AND GROUP_ID = ? AND ORG_ID = ? ORDER BY VERSION DESC LIMIT 1",
+		PostgresQuery: "SELECT " + purposeColumns + " FROM PURPOSE WHERE NAME = $1 AND GROUP_ID = $2 AND ORG_ID = $3 ORDER BY VERSION DESC LIMIT 1",
+	}
+
 	QueryDeletePurposeVersion = dbmodel.DBQuery{
 		ID:            "DELETE_PURPOSE_VERSION",
 		Query:         "DELETE FROM PURPOSE WHERE VERSION_ID = ? AND ORG_ID = ?",
@@ -284,6 +290,23 @@ func (s *store) PurposeExists(ctx context.Context, purposeID, orgID string) (boo
 		return false, nil
 	}
 	return getInt64(rows[0], "cnt") > 0, nil
+}
+
+// GetByNameAndGroupID returns the latest version of a purpose with the given name and groupID,
+// or nil if not found. Used to check for name uniqueness before creating a new purpose.
+func (s *store) GetByNameAndGroupID(ctx context.Context, name, groupID, orgID string) (*model.PurposeVersion, error) {
+	dbClient, err := s.getDBClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database client: %w", err)
+	}
+	rows, err := dbClient.Query(QueryGetPurposeByNameAndGroupID, name, groupID, orgID)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return mapToPurposeVersion(rows[0]), nil
 }
 
 // GetPurposeVersionElements returns all element refs for a specific purpose version.

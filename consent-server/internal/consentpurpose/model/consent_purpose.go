@@ -158,10 +158,10 @@ type PurposeVersionListOutput struct {
 
 // ElementRefRequest identifies an element within a purpose create or version request body.
 type ElementRefRequest struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace,omitempty"` // defaults to "default" when absent
-	Version   *int   `json:"version,omitempty"`   // nil = use latest version
-	Mandatory bool   `json:"mandatory"`
+	Name      string  `json:"name"`
+	Namespace string  `json:"namespace,omitempty"` // defaults to "default" when absent
+	Version   *string `json:"version,omitempty"`   // nil = use latest; accepted formats: "v1", "v2", …
+	Mandatory bool    `json:"mandatory"`
 }
 
 // CreatePurposeRequest is the body for POST /consent-purposes.

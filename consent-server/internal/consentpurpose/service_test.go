@@ -335,6 +335,8 @@ func TestCreatePurpose_EmptyElements(t *testing.T) {
 	ps := interfacesmock.NewConsentPurposeStore(t)
 	svc := newSvc(t, ps, nil)
 
+	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", "", svcOrgID).Return(nil, nil)
+
 	input := purposemodel.CreatePurposeInput{Name: "Marketing", Elements: nil}
 	out, svcErr := svc.CreatePurpose(context.Background(), input, svcOrgID)
 	require.Nil(t, out)
@@ -347,6 +349,7 @@ func TestCreatePurpose_ElementNotFound(t *testing.T) {
 	es := interfacesmock.NewConsentElementStore(t)
 	svc := newSvc(t, ps, es)
 
+	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", "", svcOrgID).Return(nil, nil)
 	es.On("GetByNameAndNamespace", mock.Anything, "email", "default", svcOrgID).Return(nil, nil)
 
 	input := purposemodel.CreatePurposeInput{
@@ -357,6 +360,34 @@ func TestCreatePurpose_ElementNotFound(t *testing.T) {
 	require.Nil(t, out)
 	require.NotNil(t, svcErr)
 	require.Contains(t, svcErr.Description, "does not exist")
+}
+
+func TestCreatePurpose_NameAlreadyExists(t *testing.T) {
+	ps := interfacesmock.NewConsentPurposeStore(t)
+	svc := newSvc(t, ps, nil)
+
+	existing := &purposemodel.PurposeVersion{ID: "existing-id", Name: "Marketing", GroupID: svcOrgID}
+	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", svcOrgID, svcOrgID).Return(existing, nil)
+
+	input := purposemodel.CreatePurposeInput{Name: "Marketing", GroupID: svcOrgID}
+	out, svcErr := svc.CreatePurpose(context.Background(), input, svcOrgID)
+	require.Nil(t, out)
+	require.NotNil(t, svcErr)
+	require.Equal(t, ErrorPurposeNameExists.Code, svcErr.Code)
+	require.Contains(t, svcErr.Description, "Marketing")
+}
+
+func TestCreatePurpose_NameCheckStoreError(t *testing.T) {
+	ps := interfacesmock.NewConsentPurposeStore(t)
+	svc := newSvc(t, ps, nil)
+
+	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", svcOrgID, svcOrgID).Return(nil, errors.New("db error"))
+
+	input := purposemodel.CreatePurposeInput{Name: "Marketing", GroupID: svcOrgID}
+	out, svcErr := svc.CreatePurpose(context.Background(), input, svcOrgID)
+	require.Nil(t, out)
+	require.NotNil(t, svcErr)
+	require.Equal(t, ErrorCheckNameExistence.Code, svcErr.Code)
 }
 
 // Note: CreatePurpose success and transaction-failure paths require a real DB connection

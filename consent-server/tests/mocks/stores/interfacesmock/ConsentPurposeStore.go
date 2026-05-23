@@ -71,6 +71,36 @@ func (_m *ConsentPurposeStore) DeleteVersion(tx model.TxInterface, purposeVersio
 	return r0
 }
 
+// GetByNameAndGroupID provides a mock function with given fields: ctx, name, groupID, orgID
+func (_m *ConsentPurposeStore) GetByNameAndGroupID(ctx context.Context, name string, groupID string, orgID string) (*consentpurposemodel.PurposeVersion, error) {
+	ret := _m.Called(ctx, name, groupID, orgID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByNameAndGroupID")
+	}
+
+	var r0 *consentpurposemodel.PurposeVersion
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (*consentpurposemodel.PurposeVersion, error)); ok {
+		return rf(ctx, name, groupID, orgID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *consentpurposemodel.PurposeVersion); ok {
+		r0 = rf(ctx, name, groupID, orgID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*consentpurposemodel.PurposeVersion)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, name, groupID, orgID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetLatestVersion provides a mock function with given fields: ctx, purposeID, orgID
 func (_m *ConsentPurposeStore) GetLatestVersion(ctx context.Context, purposeID string, orgID string) (*consentpurposemodel.PurposeVersion, error) {
 	ret := _m.Called(ctx, purposeID, orgID)

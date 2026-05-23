@@ -20,9 +20,11 @@ package consentpurpose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/wso2/openfgc/internal/consentpurpose/model"
 	dbmodel "github.com/wso2/openfgc/internal/system/database/model"
 	"github.com/wso2/openfgc/internal/system/error/serviceerror"
@@ -84,6 +86,16 @@ func (s *consentPurposeService) CreatePurpose(ctx context.Context, input model.C
 		return nil, svcErr
 	}
 
+	existing, err := s.stores.ConsentPurpose.GetByNameAndGroupID(ctx, input.Name, input.GroupID, orgID)
+	if err != nil {
+		logger.Error("Failed to check purpose name existence", log.Error(err))
+		return nil, &ErrorCheckNameExistence
+	}
+	if existing != nil {
+		return nil, serviceerror.CustomServiceError(ErrorPurposeNameExists,
+			fmt.Sprintf("a purpose named '%s' already exists for this group", input.Name))
+	}
+
 	resolvedElements, svcErr := s.validateAndResolveElements(ctx, input.Elements, orgID)
 	if svcErr != nil {
 		return nil, svcErr
@@ -108,6 +120,10 @@ func (s *consentPurposeService) CreatePurpose(ctx context.Context, input model.C
 	}
 
 	if err := s.stores.ExecuteTransaction(s.buildCreateVersionTx(pv, resolvedElements)); err != nil {
+		if isMySQLDuplicateKeyError(err) {
+			return nil, serviceerror.CustomServiceError(ErrorPurposeNameExists,
+				fmt.Sprintf("a purpose named '%s' already exists for this group", input.Name))
+		}
 		logger.Error("Failed to create consent purpose", log.Error(err))
 		return nil, &ErrorCreatePurpose
 	}
@@ -158,6 +174,10 @@ func (s *consentPurposeService) CreatePurposeVersion(ctx context.Context, purpos
 	}
 
 	if err := s.stores.ExecuteTransaction(s.buildCreateVersionTx(pv, resolvedElements)); err != nil {
+		if isMySQLDuplicateKeyError(err) {
+			return nil, serviceerror.CustomServiceError(ErrorPurposeNameExists,
+				fmt.Sprintf("a purpose named '%s' already exists for this group", latest.Name))
+		}
 		logger.Error("Failed to create purpose version", log.Error(err))
 		return nil, &ErrorCreatePurpose
 	}
@@ -473,6 +493,12 @@ func (s *consentPurposeService) validateAndResolveElements(ctx context.Context, 
 	}
 
 	return resolved, nil
+}
+
+// isMySQLDuplicateKeyError reports whether err is a MySQL unique-constraint violation (error 1062).
+func isMySQLDuplicateKeyError(err error) bool {
+	var mysqlErr *mysql.MySQLError
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
 }
 
 // pvToOutput maps a DB-layer PurposeVersion to the service-layer PurposeOutput.

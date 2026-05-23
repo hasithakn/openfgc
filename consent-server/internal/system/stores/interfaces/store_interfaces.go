@@ -129,6 +129,10 @@ type ConsentPurposeStore interface {
 	// PurposeExists reports whether any version of the purpose exists.
 	PurposeExists(ctx context.Context, purposeID, orgID string) (bool, error)
 
+	// GetByNameAndGroupID returns the latest version of a purpose with the given name and groupID,
+	// or nil if no such purpose exists. Used to enforce name uniqueness within a group before insert.
+	GetByNameAndGroupID(ctx context.Context, name, groupID, orgID string) (*purposeModel.PurposeVersion, error)
+
 	// DeleteVersion deletes a specific version row.
 	// PURPOSE_PROPERTY and PURPOSE_ELEMENT_MAPPING rows cascade automatically.
 	DeleteVersion(tx dbmodel.TxInterface, purposeVersionID, orgID string) error

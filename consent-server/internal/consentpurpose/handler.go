@@ -65,13 +65,19 @@ func (h *consentPurposeHandler) createPurpose(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	elementRefs, err := toElementRefs(req.Elements)
+	if err != nil {
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, err.Error()))
+		return
+	}
+
 	input := model.CreatePurposeInput{
 		Name:        req.Name,
 		GroupID:     groupID,
 		DisplayName: req.DisplayName,
 		Description: req.Description,
 		Properties:  req.Properties,
-		Elements:    toElementRefs(req.Elements),
+		Elements:    elementRefs,
 	}
 
 	pv, svcErr := h.service.CreatePurpose(r.Context(), input, orgID)
@@ -127,14 +133,14 @@ func (h *consentPurposeHandler) listPurposes(w http.ResponseWriter, r *http.Requ
 
 	var purposeVersion *int
 	if raw := q.Get("purposeVersion"); raw != "" {
-		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+		if v, err := strconv.Atoi(strings.TrimPrefix(raw, "v")); err == nil && v > 0 {
 			purposeVersion = &v
 		}
 	}
 
 	var elementVersion *int
 	if raw := q.Get("elementVersion"); raw != "" {
-		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+		if v, err := strconv.Atoi(strings.TrimPrefix(raw, "v")); err == nil && v > 0 {
 			elementVersion = &v
 		}
 	}
@@ -254,11 +260,17 @@ func (h *consentPurposeHandler) createPurposeVersion(w http.ResponseWriter, r *h
 		return
 	}
 
+	elementRefs, err := toElementRefs(req.Elements)
+	if err != nil {
+		utils.SendError(w, r, serviceerror.CustomServiceError(ErrorInvalidRequestBody, err.Error()))
+		return
+	}
+
 	input := model.CreatePurposeVersionInput{
 		DisplayName: req.DisplayName,
 		Description: req.Description,
 		Properties:  req.Properties,
-		Elements:    toElementRefs(req.Elements),
+		Elements:    elementRefs,
 	}
 
 	pv, svcErr := h.service.CreatePurposeVersion(r.Context(), purposeID, input, orgID)
@@ -397,17 +409,22 @@ func purposeToItem(p *model.PurposeOutput) model.PurposeVersionItem {
 }
 
 // toElementRefs converts API request element refs to service input element refs.
-func toElementRefs(reqs []model.ElementRefRequest) []model.ElementRef {
+// Returns an error if any version string is not in the expected "vN" format.
+func toElementRefs(reqs []model.ElementRefRequest) ([]model.ElementRef, error) {
 	refs := make([]model.ElementRef, 0, len(reqs))
 	for _, r := range reqs {
+		v, err := parseVersionString(r.Version)
+		if err != nil {
+			return nil, err
+		}
 		refs = append(refs, model.ElementRef{
 			Name:      r.Name,
 			Namespace: r.Namespace,
-			Version:   r.Version,
+			Version:   v,
 			Mandatory: r.Mandatory,
 		})
 	}
-	return refs
+	return refs, nil
 }
 
 // parseVersionParam parses a version path segment (e.g. "v2") and returns the integer value.
@@ -421,4 +438,21 @@ func parseVersionParam(v string) (int, error) {
 		return 0, fmt.Errorf("version must be in the format vN (e.g. v1, v2), got '%s'", v)
 	}
 	return n, nil
+}
+
+// parseVersionString converts a version string in "vN" format (e.g. "v1") to its integer value.
+// Returns nil if s is nil, and an error if the format is unrecognised.
+func parseVersionString(s *string) (*int, error) {
+	if s == nil {
+		return nil, nil
+	}
+	v := *s
+	if len(v) < 2 || v[0] != 'v' {
+		return nil, fmt.Errorf("version must be in the format vN (e.g. v1, v2), got '%s'", v)
+	}
+	n, err := strconv.Atoi(v[1:])
+	if err != nil || n < 1 {
+		return nil, fmt.Errorf("version must be in the format vN (e.g. v1, v2), got '%s'", v)
+	}
+	return &n, nil
 }

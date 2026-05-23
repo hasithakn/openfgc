@@ -804,7 +804,7 @@ func TestCreatePurpose_WithElements(t *testing.T) {
 	mockSvc.On("CreatePurpose", mock.Anything, mock.Anything, testOrgID).Return(pv, nil)
 
 	handler := newConsentPurposeHandler(mockSvc)
-	v := 1
+	v := "v1"
 	body, _ := json.Marshal(model.CreatePurposeRequest{
 		Name: "Marketing",
 		Elements: []model.ElementRefRequest{
