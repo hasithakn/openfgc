@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -810,3 +811,43 @@ func TestDeletePurpose_VersionInUse(t *testing.T) {
 }
 
 // Note: DeletePurpose transaction path is covered by integration tests.
+
+// =============================================================================
+// isMySQLDuplicateKeyError
+// =============================================================================
+
+func TestIsMySQLDuplicateKeyError(t *testing.T) {
+	// nil is never a MySQL error
+	require.False(t, isMySQLDuplicateKeyError(nil))
+
+	// plain Go error — not a MySQL error at all
+	require.False(t, isMySQLDuplicateKeyError(errors.New("something went wrong")))
+
+	// MySQL error 1062 → duplicate key
+	require.True(t, isMySQLDuplicateKeyError(&mysql.MySQLError{Number: 1062}))
+
+	// MySQL error with a different number → not a duplicate key
+	require.False(t, isMySQLDuplicateKeyError(&mysql.MySQLError{Number: 1054}))
+}
+
+// =============================================================================
+// buildCreateVersionTx
+// =============================================================================
+
+func TestBuildCreateVersionTx_QueryCount(t *testing.T) {
+	ps := interfacesmock.NewConsentPurposeStore(t)
+	svc := newSvc(t, ps, nil)
+	pv := makePV(svcPurposeID, "vid-1", "Marketing", 1)
+
+	// No elements → one query: CreateVersion only.
+	queries := svc.buildCreateVersionTx(pv, nil)
+	require.Len(t, queries, 1)
+
+	// Two elements → three queries: CreateVersion + two LinkElementVersion calls.
+	elems := []purposemodel.PurposeMappedElement{
+		{ElementVersionID: "ev-1"},
+		{ElementVersionID: "ev-2"},
+	}
+	queries = svc.buildCreateVersionTx(pv, elems)
+	require.Len(t, queries, 3)
+}

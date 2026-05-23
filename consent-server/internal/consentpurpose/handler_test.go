@@ -819,3 +819,90 @@ func TestCreatePurpose_WithElements(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, rr.Code)
 }
+
+// parseVersionString nil branch: element without a version field → handler passes it through as nil ref.
+func TestCreatePurpose_ElementWithNilVersion(t *testing.T) {
+	mockSvc := NewMockConsentPurposeService(t)
+	pv := &model.PurposeOutput{ID: testPurposeID, Name: "Marketing", GroupID: testOrgID, VersionNum: 1}
+	mockSvc.On("CreatePurpose", mock.Anything, mock.Anything, testOrgID).Return(pv, nil)
+
+	handler := newConsentPurposeHandler(mockSvc)
+	body, _ := json.Marshal(model.CreatePurposeRequest{
+		Name: "Marketing",
+		Elements: []model.ElementRefRequest{
+			{Name: "email", Mandatory: true}, // Version omitted → nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/consent-purposes", bytes.NewBuffer(body))
+	req.Header.Set(constants.HeaderOrgID, testOrgID)
+	rr := httptest.NewRecorder()
+
+	handler.createPurpose(rr, req)
+
+	require.Equal(t, http.StatusCreated, rr.Code)
+}
+
+// parseVersionString format error: "abc" has no leading "v".
+func TestCreatePurpose_InvalidElementVersionString(t *testing.T) {
+	mockSvc := NewMockConsentPurposeService(t)
+	handler := newConsentPurposeHandler(mockSvc)
+
+	bad := "abc"
+	body, _ := json.Marshal(model.CreatePurposeRequest{
+		Name: "Marketing",
+		Elements: []model.ElementRefRequest{
+			{Name: "email", Version: &bad},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/consent-purposes", bytes.NewBuffer(body))
+	req.Header.Set(constants.HeaderOrgID, testOrgID)
+	rr := httptest.NewRecorder()
+
+	handler.createPurpose(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	mockSvc.AssertNotCalled(t, "CreatePurpose")
+}
+
+// parseVersionString n<1 error: "v0" has valid prefix but version number is zero.
+func TestCreatePurpose_ElementVersionZero(t *testing.T) {
+	mockSvc := NewMockConsentPurposeService(t)
+	handler := newConsentPurposeHandler(mockSvc)
+
+	v0 := "v0"
+	body, _ := json.Marshal(model.CreatePurposeRequest{
+		Name: "Marketing",
+		Elements: []model.ElementRefRequest{
+			{Name: "email", Version: &v0},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/consent-purposes", bytes.NewBuffer(body))
+	req.Header.Set(constants.HeaderOrgID, testOrgID)
+	rr := httptest.NewRecorder()
+
+	handler.createPurpose(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	mockSvc.AssertNotCalled(t, "CreatePurpose")
+}
+
+// Same invalid version path for createPurposeVersion.
+func TestCreatePurposeVersion_InvalidElementVersionString(t *testing.T) {
+	mockSvc := NewMockConsentPurposeService(t)
+	handler := newConsentPurposeHandler(mockSvc)
+
+	bad := "bad"
+	body, _ := json.Marshal(model.CreatePurposeVersionRequest{
+		Elements: []model.ElementRefRequest{
+			{Name: "email", Version: &bad},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/consent-purposes/"+testPurposeID+"/versions", bytes.NewBuffer(body))
+	req.Header.Set(constants.HeaderOrgID, testOrgID)
+	rr := httptest.NewRecorder()
+
+	handler.createPurposeVersion(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	mockSvc.AssertNotCalled(t, "CreatePurposeVersion")
+}
