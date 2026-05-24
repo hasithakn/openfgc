@@ -390,6 +390,34 @@ func (_m *ConsentPurposeStore) PurposeExists(ctx context.Context, purposeID stri
 	return r0, r1
 }
 
+// ExistsByNameInOrg provides a mock function with given fields: ctx, name, orgID
+func (_m *ConsentPurposeStore) ExistsByNameInOrg(ctx context.Context, name string, orgID string) (bool, error) {
+	ret := _m.Called(ctx, name, orgID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExistsByNameInOrg")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (bool, error)); ok {
+		return rf(ctx, name, orgID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) bool); ok {
+		r0 = rf(ctx, name, orgID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, name, orgID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewConsentPurposeStore creates a new instance of ConsentPurposeStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewConsentPurposeStore(t interface {

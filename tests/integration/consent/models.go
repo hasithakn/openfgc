@@ -18,58 +18,76 @@
 
 package consent
 
-// ConsentPurposeItem represents a consent purpose (logical grouping of elements) in the request/response
-type ConsentPurposeItem struct {
-	Name     string                       `json:"name"`
-	Elements []ConsentPurposeApprovalItem `json:"elements"`
-}
+// =============================================================================
+// Request types — what we send to the server.
+// These mirror the server's internal/consent/model/consent.go API types exactly.
+// GroupID is NOT in the body; it is sent as the "group-id" request header.
+// =============================================================================
 
-// ConsentPurposeApprovalItem represents an element approval within a purpose
-type ConsentPurposeApprovalItem struct {
-	Name           string      `json:"name"`
-	Value          interface{} `json:"value,omitempty"`
-	IsUserApproved bool        `json:"isUserApproved"`
-}
-
-// AuthorizationRequest represents authorization data in consent creation/update
-type AuthorizationRequest struct {
-	UserID         string   `json:"userId"`
-	Type           string   `json:"type"`
-	Status         string   `json:"status"`
-	Resources      []string `json:"resources,omitempty"`
-	Permissions    []string `json:"permissions,omitempty"`
-	ExpirationDate string   `json:"expirationDate,omitempty"`
-}
-
-// ConsentCreateRequest represents the payload for creating a consent
+// ConsentCreateRequest is the body for POST /consents.
 type ConsentCreateRequest struct {
-	Type               string                 `json:"type"`
-	Purposes           []ConsentPurposeItem   `json:"purposes,omitempty"`
-	Authorizations     []AuthorizationRequest `json:"authorizations"`
-	Attributes         map[string]string      `json:"attributes,omitempty"`
-	ValidityTime       int64                  `json:"validityTime,omitempty"`
-	RecurringIndicator bool                   `json:"recurringIndicator,omitempty"`
-	Frequency          int                    `json:"frequency,omitempty"`
+	Type                       string                     `json:"type"`
+	ExpirationTime             *int64                     `json:"expirationTime,omitempty"`
+	Frequency                  *int                       `json:"frequency,omitempty"`
+	RecurringIndicator         *bool                      `json:"recurringIndicator,omitempty"`
+	DataAccessValidityDuration *int64                     `json:"dataAccessValidityDuration,omitempty"`
+	Attributes                 map[string]string          `json:"attributes,omitempty"`
+	Purposes                   []PurposeRefRequest        `json:"purposes,omitempty"`
+	Authorizations             []AuthorizationRequest     `json:"authorizations,omitempty"`
 }
 
-// ConsentUpdateRequest represents the payload for updating a consent
+// ConsentUpdateRequest is the body for PUT /consents/{consentId}.
+// Authorizations, Purposes, and Attributes intentionally omit omitempty — sending
+// an explicit empty value removes all existing entries of that type.
 type ConsentUpdateRequest struct {
-	Type               string                 `json:"type,omitempty"`
-	Purposes           []ConsentPurposeItem   `json:"purposes"`       // Remove omitempty to allow empty arrays for removal
-	Authorizations     []AuthorizationRequest `json:"authorizations"` // Remove omitempty to allow empty arrays for removal
-	Attributes         map[string]string      `json:"attributes"`     // Remove omitempty to allow empty maps for removal
-	ValidityTime       *int64                 `json:"validityTime,omitempty"`
-	RecurringIndicator *bool                  `json:"recurringIndicator,omitempty"`
-	Frequency          *int                   `json:"frequency,omitempty"`
+	Type                       string                     `json:"type,omitempty"`
+	ExpirationTime             *int64                     `json:"expirationTime,omitempty"`
+	Frequency                  *int                       `json:"frequency,omitempty"`
+	RecurringIndicator         *bool                      `json:"recurringIndicator,omitempty"`
+	DataAccessValidityDuration *int64                     `json:"dataAccessValidityDuration,omitempty"`
+	Attributes                 map[string]string          `json:"attributes"`
+	Purposes                   []PurposeRefRequest        `json:"purposes"`
+	Authorizations             []AuthorizationRequest     `json:"authorizations"`
 }
 
-// ConsentRevokeRequest represents the payload for revoking a consent
+// ConsentRevokeRequest is the body for PUT /consents/{consentId}/revoke.
 type ConsentRevokeRequest struct {
-	Reason   string `json:"reason,omitempty"`
-	ActionBy string `json:"actionBy"`
+	ActionBy         string `json:"actionBy"`
+	RevocationReason string `json:"revocationReason,omitempty"`
 }
 
-// AuthorizationResponse represents authorization data in consent response
+// PurposeRefRequest references a purpose by name in a consent body.
+// Version follows "v1", "v2", … format; omit to use the latest version.
+type PurposeRefRequest struct {
+	Name     string                   `json:"name"`
+	Version  *string                  `json:"version,omitempty"`
+	Elements []ElementApprovalRequest `json:"elements"`
+}
+
+// ElementApprovalRequest is one element approval within a purpose reference.
+// Namespace defaults to "default" on the server when absent.
+type ElementApprovalRequest struct {
+	Name      string      `json:"name"`
+	Namespace string      `json:"namespace,omitempty"`
+	Approved  bool        `json:"approved"`
+	Value     interface{} `json:"value,omitempty"`
+}
+
+// AuthorizationRequest is one authorization entry in a consent body.
+// Type defaults to "default" and Status defaults to "APPROVED" when absent.
+type AuthorizationRequest struct {
+	UserID    string      `json:"userId,omitempty"`
+	Type      string      `json:"type,omitempty"`
+	Status    string      `json:"status,omitempty"`
+	Resources interface{} `json:"resources,omitempty"`
+}
+
+// =============================================================================
+// Response types — what we receive from the server.
+// Field names mirror the server's JSON tags exactly.
+// =============================================================================
+
+// AuthorizationResponse is one authorization entry in a consent response.
 type AuthorizationResponse struct {
 	ID          string      `json:"id"`
 	UserID      *string     `json:"userId,omitempty"`
@@ -79,79 +97,139 @@ type AuthorizationResponse struct {
 	Resources   interface{} `json:"resources,omitempty"`
 }
 
-// ConsentResponse represents the API response for a consent
+// ElementApprovalResponse is one element within a purpose in a consent response.
+type ElementApprovalResponse struct {
+	ElementID string      `json:"elementId"`
+	Name      string      `json:"name"`
+	Namespace string      `json:"namespace"`
+	Version   string      `json:"version"`
+	Mandatory bool        `json:"mandatory"`
+	Approved  bool        `json:"approved"`
+	Value     interface{} `json:"value,omitempty"`
+}
+
+// PurposeResponse is one purpose entry in a consent response.
+type PurposeResponse struct {
+	PurposeID string                    `json:"purposeId"`
+	Name      string                    `json:"name"`
+	Version   string                    `json:"version"`
+	Elements  []ElementApprovalResponse `json:"elements"`
+}
+
+// ConsentResponse is returned by POST, GET, and PUT /consents.
 type ConsentResponse struct {
 	ID                         string                  `json:"id"`
-	ClientID                   string                  `json:"clientId"`
+	GroupID                    string                  `json:"groupId"`
 	Type                       string                  `json:"type"`
 	Status                     string                  `json:"status"`
-	Purposes                   []ConsentPurposeItem    `json:"purposes"`
-	Authorizations             []AuthorizationResponse `json:"authorizations"`
-	Attributes                 map[string]string       `json:"attributes"`
-	ValidityTime               *int64                  `json:"validityTime,omitempty"`
-	RecurringIndicator         *bool                   `json:"recurringIndicator,omitempty"`
-	Frequency                  *int                    `json:"frequency,omitempty"`
-	DataAccessValidityDuration *int64                  `json:"dataAccessValidityDuration,omitempty"`
 	CreatedTime                int64                   `json:"createdTime"`
 	UpdatedTime                int64                   `json:"updatedTime"`
+	ExpirationTime             *int64                  `json:"expirationTime,omitempty"`
+	Frequency                  *int                    `json:"frequency,omitempty"`
+	RecurringIndicator         *bool                   `json:"recurringIndicator,omitempty"`
+	DataAccessValidityDuration *int64                  `json:"dataAccessValidityDuration,omitempty"`
+	Attributes                 map[string]string       `json:"attributes"`
+	Purposes                   []PurposeResponse       `json:"purposes"`
+	Authorizations             []AuthorizationResponse `json:"authorizations"`
 }
 
-// ConsentListResponse represents the API response for listing consents
+// ConsentListResponse is returned by GET /consents.
 type ConsentListResponse struct {
-	Data []ConsentResponse `json:"data"`
-	Meta struct {
-		Total  int `json:"total"`
-		Offset int `json:"offset"`
-		Limit  int `json:"limit"`
-		Count  int `json:"count"`
-	} `json:"meta"`
+	Data     []ConsentResponse `json:"data"`
+	Metadata PageMetadata      `json:"metadata"`
 }
 
-// ErrorResponse represents error responses from the API
-type ErrorResponse struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
+// PageMetadata carries pagination state in all list responses.
+type PageMetadata struct {
+	Total  int `json:"total"`
+	Offset int `json:"offset"`
+	Count  int `json:"count"`
+	Limit  int `json:"limit"`
 }
 
-// ConsentValidateRequest represents the payload for validating a consent
+// ConsentRevokeResponse is returned by PUT /consents/{consentId}/revoke.
+type ConsentRevokeResponse struct {
+	ActionTime       int64  `json:"actionTime"`
+	ActionBy         string `json:"actionBy"`
+	RevocationReason string `json:"revocationReason,omitempty"`
+}
+
+// ConsentAttributeSearchResponse is returned by GET /consents/attributes.
+type ConsentAttributeSearchResponse struct {
+	ConsentIDs []string `json:"consentIds"`
+	Count      int      `json:"count"`
+}
+
+// =============================================================================
+// Validate request / response types — POST /consents/validate
+// =============================================================================
+
+// ConsentValidateRequest is the body for POST /consents/validate.
 type ConsentValidateRequest struct {
-	Headers         map[string]interface{} `json:"headers,omitempty"`
-	Payload         map[string]interface{} `json:"payload,omitempty"`
-	ElectedResource string                 `json:"electedResource,omitempty"`
-	ConsentID       string                 `json:"consentId"`
-	UserID          string                 `json:"userId,omitempty"`
-	ClientID        string                 `json:"clientId,omitempty"`
-	ResourceParams  *struct {
-		Resource   string `json:"resource,omitempty"`
-		HTTPMethod string `json:"httpMethod,omitempty"`
-		Context    string `json:"context,omitempty"`
-	} `json:"resourceParams,omitempty"`
+	ConsentID string `json:"consentId"`
+	GroupID   string `json:"groupId,omitempty"`
+	UserID    string `json:"userId,omitempty"`
 }
 
-// ConsentValidateResponse represents the API response for consent validation
+// ConsentValidatePurposeElementResponse is one element inside the validate response's
+// consentInformation. It extends the regular element with enriched definition fields.
+type ConsentValidatePurposeElementResponse struct {
+	ElementID   string            `json:"elementId"`
+	Name        string            `json:"name"`
+	Namespace   string            `json:"namespace"`
+	Version     string            `json:"version"`
+	Mandatory   bool              `json:"mandatory"`
+	Approved    bool              `json:"approved"`
+	Value       interface{}       `json:"value,omitempty"`
+	Type        string            `json:"type,omitempty"`
+	DisplayName *string           `json:"displayName,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Properties  map[string]string `json:"properties,omitempty"`
+}
+
+// ConsentValidatePurposeResponse is one purpose inside the validate response's
+// consentInformation. It extends the regular purpose with enriched definition fields.
+type ConsentValidatePurposeResponse struct {
+	PurposeID   string                                  `json:"purposeId"`
+	Name        string                                  `json:"name"`
+	Version     string                                  `json:"version"`
+	DisplayName *string                                 `json:"displayName,omitempty"`
+	Description *string                                 `json:"description,omitempty"`
+	Properties  map[string]string                       `json:"properties,omitempty"`
+	Elements    []ConsentValidatePurposeElementResponse `json:"elements"`
+}
+
+// ConsentValidateInfo is the consent payload embedded inside ConsentValidateResponse.
+type ConsentValidateInfo struct {
+	ID                         string                           `json:"id"`
+	GroupID                    string                           `json:"groupId"`
+	Type                       string                           `json:"type"`
+	Status                     string                           `json:"status"`
+	CreatedTime                int64                            `json:"createdTime"`
+	UpdatedTime                int64                            `json:"updatedTime"`
+	ExpirationTime             *int64                           `json:"expirationTime,omitempty"`
+	Frequency                  *int                             `json:"frequency,omitempty"`
+	RecurringIndicator         *bool                            `json:"recurringIndicator,omitempty"`
+	DataAccessValidityDuration *int64                           `json:"dataAccessValidityDuration,omitempty"`
+	Attributes                 map[string]string                `json:"attributes"`
+	Purposes                   []ConsentValidatePurposeResponse `json:"purposes"`
+	Authorizations             []AuthorizationResponse          `json:"authorizations"`
+}
+
+// ConsentValidateResponse is returned by POST /consents/validate.
+// The HTTP status is always 200 when the consent exists — check isValid.
 type ConsentValidateResponse struct {
-	IsValid            bool                   `json:"isValid"`
-	ModifiedPayload    interface{}            `json:"modifiedPayload,omitempty"`
-	ErrorCode          int                    `json:"errorCode,omitempty"`
-	ErrorMessage       string                 `json:"errorMessage,omitempty"`
-	ErrorDescription   string                 `json:"errorDescription,omitempty"`
-	ConsentInformation *ConsentValidateDetail `json:"consentInformation,omitempty"`
+	IsValid          bool                 `json:"isValid"`
+	ErrorCode        int                  `json:"errorCode,omitempty"`
+	ErrorMessage     string               `json:"errorMessage,omitempty"`
+	ErrorDescription string               `json:"errorDescription,omitempty"`
+	ConsentInfo      *ConsentValidateInfo `json:"consentInformation,omitempty"`
 }
 
-// ConsentValidateDetail represents consent information in validate response
-type ConsentValidateDetail struct {
-	ID                         string                  `json:"id"`
-	Type                       string                  `json:"type"`
-	ClientID                   string                  `json:"clientId"`
-	Status                     string                  `json:"status"`
-	CreatedTime                int64                   `json:"createdTime"`
-	UpdatedTime                int64                   `json:"updatedTime"`
-	Purposes                   []ConsentPurposeItem    `json:"purposes"`
-	Authorizations             []AuthorizationResponse `json:"authorizations"`
-	Attributes                 map[string]string       `json:"attributes"`
-	ValidityTime               *int64                  `json:"validityTime,omitempty"`
-	RecurringIndicator         *bool                   `json:"recurringIndicator,omitempty"`
-	Frequency                  *int                    `json:"frequency,omitempty"`
-	DataAccessValidityDuration *int64                  `json:"dataAccessValidityDuration,omitempty"`
+// ErrorResponse is the structured error body the server returns on HTTP 4xx/5xx.
+type ErrorResponse struct {
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+	Description string `json:"description"`
+	TraceID     string `json:"traceId"`
 }

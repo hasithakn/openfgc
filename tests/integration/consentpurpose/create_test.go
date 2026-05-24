@@ -281,6 +281,52 @@ func (ts *PurposeAPITestSuite) TestCreatePurpose() {
 			wantErrorCode: "CP-4003",
 		},
 		{
+			// Element was created in "finance" namespace.
+			// A purpose reference without an explicit namespace defaults to "default".
+			// Since no element named "cp-ns-elem" exists in the "default" namespace,
+			// the server must return CP-4003.
+			name: "element exists in non-default namespace — omitting namespace defaults to 'default', not found → 400 CP-4003",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementWith(orgID, map[string]any{
+					"name":      "cp-ns-elem",
+					"type":      "basic",
+					"namespace": "finance",
+				})
+				return CreatePurposeRequest{
+					Name: "cp-ns-default-fail",
+					Elements: []ElementRefRequest{
+						{Name: "cp-ns-elem"}, // no Namespace → server defaults to "default"
+					},
+				}
+			},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CP-4003",
+		},
+		{
+			// Same element in "finance" namespace, but this time the reference includes
+			// namespace: "finance" explicitly — the server should accept it.
+			name: "element exists in non-default namespace — reference includes correct namespace → 201",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementWith(orgID, map[string]any{
+					"name":      "cp-ns-explicit-elem",
+					"type":      "basic",
+					"namespace": "finance",
+				})
+				return CreatePurposeRequest{
+					Name: "cp-ns-explicit",
+					Elements: []ElementRefRequest{
+						{Name: "cp-ns-explicit-elem", Namespace: "finance"},
+					},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_ string, resp *PurposeResponse) {
+				ts.assertPurposeResponse(resp, "cp-ns-explicit")
+				ts.Require().Len(resp.Elements, 1)
+				ts.assertPurposeElement(resp.Elements[0], "cp-ns-explicit-elem", "finance", "v1", false)
+			},
+		},
+		{
 			name:          "element version in invalid format → 400 CP-4001",
 			rawBody:       `{"name":"cp-bad-ver","elements":[{"name":"e","version":"abc"}]}`,
 			wantStatus:    http.StatusBadRequest,

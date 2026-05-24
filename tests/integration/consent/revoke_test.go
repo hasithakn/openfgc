@@ -23,220 +23,202 @@ import (
 	"net/http"
 )
 
-// ============================
-// PUT /consents/{id}/revoke - Revoke Consent Tests
-// ============================
+// TestRevokeConsent covers PUT /consents/{consentId}/revoke.
+//
+// Key semantics:
+//   - actionBy is required; revocationReason is optional.
+//   - After revoke, consent status → SYS_REVOKED; all auth resources → SYS_REVOKED.
+//   - Revoking an already-revoked consent → 409 CS-4041.
+//   - actionTime in the response is a Unix millisecond timestamp.
+func (ts *ConsentAPITestSuite) TestRevokeConsent() {
+	type testCase struct {
+		name string
 
-// TestRevokeConsent_ActiveConsent_Succeeds revokes an ACTIVE consent
-func (ts *ConsentAPITestSuite) TestRevokeConsent_ActiveConsent_Succeeds() {
-	// Create ACTIVE consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "auth", Status: "APPROVED"},
+		// setup creates the consent to revoke and returns the consentID.
+		setup func(orgID string) string
+
+		req       ConsentRevokeRequest
+		rawBody   string // for parse errors
+		consentID string // override for static error cases
+		omitOrgID bool
+
+		wantStatus  int
+		wantError   string
+		checkResult func(orgID, consentID string, resp *ConsentRevokeResponse)
+	}
+
+	cases := []testCase{
+		// -----------------------------------------------------------------------
+		// Happy paths
+		// -----------------------------------------------------------------------
+		{
+			name: "revoke with actionBy only — response contains actionBy and actionTime",
+			setup: func(orgID string) string {
+				c := ts.mustCreateConsent(orgID, "grp-rev-basic", ConsentCreateRequest{Type: "accounts"})
+				return c.ID
+			},
+			req:        ConsentRevokeRequest{ActionBy: "admin-user"},
+			wantStatus: http.StatusOK,
+			checkResult: func(_, _ string, resp *ConsentRevokeResponse) {
+				ts.Equal("admin-user", resp.ActionBy)
+				ts.Greater(resp.ActionTime, int64(946684800000),
+					"actionTime must be a Unix millisecond timestamp")
+				ts.Empty(resp.RevocationReason)
+			},
+		},
+		{
+			name: "revoke with actionBy and revocationReason — reason is returned",
+			setup: func(orgID string) string {
+				c := ts.mustCreateConsent(orgID, "grp-rev-reason", ConsentCreateRequest{Type: "accounts"})
+				return c.ID
+			},
+			req: ConsentRevokeRequest{
+				ActionBy:         "consent-owner",
+				RevocationReason: "user-requested",
+			},
+			wantStatus: http.StatusOK,
+			checkResult: func(_, _ string, resp *ConsentRevokeResponse) {
+				ts.Equal("consent-owner", resp.ActionBy)
+				ts.Equal("user-requested", resp.RevocationReason)
+				ts.Greater(resp.ActionTime, int64(946684800000))
+			},
+		},
+		{
+			name: "after revoke, GET consent shows status REVOKED",
+			setup: func(orgID string) string {
+				c := ts.mustCreateConsent(orgID, "grp-rev-status", ConsentCreateRequest{Type: "accounts"})
+				return c.ID
+			},
+			req:        ConsentRevokeRequest{ActionBy: "admin"},
+			wantStatus: http.StatusOK,
+			checkResult: func(orgID, consentID string, _ *ConsentRevokeResponse) {
+				_, got := ts.doGetConsent(orgID, consentID)
+				ts.Require().NotNil(got)
+				// Consent status uses the configured revoked_status ("REVOKED").
+				// Auth resources use the configured system_revoked_state ("SYS_REVOKED") — see next test.
+				ts.Equal("REVOKED", got.Status)
+			},
+		},
+		{
+			name: "after revoke, all auth resources get SYS_REVOKED status",
+			setup: func(orgID string) string {
+				c := ts.mustCreateConsent(orgID, "grp-rev-auth-status", ConsentCreateRequest{
+					Type: "accounts",
+					Authorizations: []AuthorizationRequest{
+						{Type: "accounts", Status: "APPROVED"},
+						{Type: "savings", Status: "CREATED"},
+					},
+				})
+				return c.ID
+			},
+			req:        ConsentRevokeRequest{ActionBy: "admin"},
+			wantStatus: http.StatusOK,
+			checkResult: func(orgID, consentID string, _ *ConsentRevokeResponse) {
+				_, got := ts.doGetConsent(orgID, consentID)
+				ts.Require().NotNil(got)
+				for _, a := range got.Authorizations {
+					ts.Equal("SYS_REVOKED", a.Status,
+						"all auth resources must be cascaded to SYS_REVOKED on revoke")
+				}
+			},
+		},
+
+		// -----------------------------------------------------------------------
+		// Already revoked
+		// -----------------------------------------------------------------------
+		{
+			name: "revoking an already-revoked consent → 409 CS-4041",
+			setup: func(orgID string) string {
+				c := ts.mustCreateConsent(orgID, "grp-rev-twice", ConsentCreateRequest{Type: "accounts"})
+				// First revoke
+				status, _ := ts.doRequest(http.MethodPost, "/api/v1/consents/"+c.ID+"/revoke",
+					orgID, "", ConsentRevokeRequest{ActionBy: "admin"})
+				ts.Require().Equal(http.StatusOK, status, "first revoke should succeed")
+				return c.ID
+			},
+			req:        ConsentRevokeRequest{ActionBy: "admin"},
+			wantStatus: http.StatusConflict,
+			wantError:  "CS-4041",
+		},
+
+		// -----------------------------------------------------------------------
+		// Not-found / header / body errors
+		// -----------------------------------------------------------------------
+		{
+			name:       "non-existent consent ID → 404 CS-4040",
+			consentID:  "00000000-0000-0000-0000-000000000000",
+			req:        ConsentRevokeRequest{ActionBy: "admin"},
+			wantStatus: http.StatusNotFound,
+			wantError:  "CS-4040",
+		},
+		{
+			name:       "missing org-id header → 400 CS-4002",
+			consentID:  "00000000-0000-0000-0000-000000000001",
+			omitOrgID:  true,
+			req:        ConsentRevokeRequest{ActionBy: "admin"},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "CS-4002",
+		},
+		{
+			name:       "malformed consent ID → 400 CS-4002",
+			consentID:  "not-a-uuid",
+			req:        ConsentRevokeRequest{ActionBy: "admin"},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "CS-4002",
+		},
+		{
+			name:       "malformed JSON body → 400 CS-4001",
+			consentID:  "00000000-0000-0000-0000-000000000000",
+			rawBody:    `{bad json`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "CS-4001",
+		},
+		{
+			name: "missing actionBy → 400 CS-4002",
+			setup: func(orgID string) string {
+				c := ts.mustCreateConsent(orgID, "grp-rev-no-actionby", ConsentCreateRequest{Type: "accounts"})
+				return c.ID
+			},
+			req:        ConsentRevokeRequest{}, // actionBy is empty
+			wantStatus: http.StatusBadRequest,
+			wantError:  "CS-4002",
 		},
 	}
 
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
+	for _, tc := range cases {
+		tc := tc
+		ts.Run(tc.name, func() {
+			orgID := freshOrgID()
 
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-	ts.Equal("ACTIVE", created.Status)
+			consentID := tc.consentID
+			if tc.setup != nil {
+				consentID = tc.setup(orgID)
+			}
 
-	// Revoke the consent
-	revokeResp, _ := ts.revokeConsent(created.ID, "Customer requested revocation")
-	defer revokeResp.Body.Close()
+			revokeOrgID := orgID
+			if tc.omitOrgID {
+				revokeOrgID = ""
+			}
 
-	ts.Equal(http.StatusOK, revokeResp.StatusCode)
+			var body any = tc.req
+			if tc.rawBody != "" {
+				body = tc.rawBody
+			}
 
-	// Verify by fetching the consent
-	getResp, getBody := ts.getConsent(created.ID)
-	defer getResp.Body.Close()
+			status, respBody := ts.doRequest(http.MethodPost, "/api/v1/consents/"+consentID+"/revoke",
+				revokeOrgID, "", body)
+			ts.Require().Equal(tc.wantStatus, status, "unexpected status; body: %s", respBody)
 
-	var revoked ConsentResponse
-	ts.NoError(json.Unmarshal(getBody, &revoked))
-	ts.Equal("REVOKED", revoked.Status)
-}
+			if tc.wantError != "" {
+				ts.assertAPIError(respBody, tc.wantError)
+				return
+			}
 
-// TestRevokeConsent_WithReason_Succeeds revokes with a reason
-func (ts *ConsentAPITestSuite) TestRevokeConsent_WithReason_Succeeds() {
-	// Create consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "auth", Status: "APPROVED"},
-		},
+			var resp ConsentRevokeResponse
+			ts.Require().NoError(json.Unmarshal(respBody, &resp), "unmarshal ConsentRevokeResponse: %s", respBody)
+			if tc.checkResult != nil {
+				tc.checkResult(orgID, consentID, &resp)
+			}
+		})
 	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Revoke with reason
-	reason := "User requested account closure"
-	revokeResp, _ := ts.revokeConsent(created.ID, reason)
-	defer revokeResp.Body.Close()
-
-	ts.Equal(http.StatusOK, revokeResp.StatusCode)
-
-	// Verify by fetching the consent
-	getResp, getBody := ts.getConsent(created.ID)
-	defer getResp.Body.Close()
-
-	var revoked ConsentResponse
-	ts.NoError(json.Unmarshal(getBody, &revoked))
-	ts.Equal("REVOKED", revoked.Status)
-}
-
-// TestRevokeConsent_WithoutReason_Succeeds revokes without a reason
-func (ts *ConsentAPITestSuite) TestRevokeConsent_WithoutReason_Succeeds() {
-	// Create consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "auth", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Revoke without reason (empty string)
-	revokeResp, _ := ts.revokeConsent(created.ID, "")
-	defer revokeResp.Body.Close()
-
-	ts.Equal(http.StatusOK, revokeResp.StatusCode)
-
-	// Verify by fetching the consent
-	getResp, getBody := ts.getConsent(created.ID)
-	defer getResp.Body.Close()
-
-	var revoked ConsentResponse
-	ts.NoError(json.Unmarshal(getBody, &revoked))
-	ts.Equal("REVOKED", revoked.Status)
-}
-
-// TestRevokeConsent_VerifyStatusChange_Succeeds verifies status changes to REVOKED
-func (ts *ConsentAPITestSuite) TestRevokeConsent_VerifyStatusChange_Succeeds() {
-	// Create consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "auth", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-	ts.Equal("ACTIVE", created.Status)
-
-	// Revoke
-	revokeResp, _ := ts.revokeConsent(created.ID, "Test revocation")
-	defer revokeResp.Body.Close()
-	ts.Equal(http.StatusOK, revokeResp.StatusCode)
-
-	// Verify by getting the consent again
-	getResp, getBody := ts.getConsent(created.ID)
-	defer getResp.Body.Close()
-	ts.Equal(http.StatusOK, getResp.StatusCode)
-
-	var fetched ConsentResponse
-	ts.NoError(json.Unmarshal(getBody, &fetched))
-	ts.Equal("REVOKED", fetched.Status)
-}
-
-// ============================
-// Error Tests
-// ============================
-
-// TestRevokeConsent_MissingOrgID_ReturnsValidationError verifies missing org-id returns 400
-func (ts *ConsentAPITestSuite) TestRevokeConsent_MissingOrgID_ReturnsValidationError() {
-	// Create consent first
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "auth", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Try to revoke without org-id header
-	resp, _ := ts.revokeConsentWithHeaders(created.ID, "Test revocation", "", testClientID)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusBadRequest, resp.StatusCode)
-}
-
-// TestRevokeConsent_NonExistentConsent_ReturnsNotFound verifies non-existent ID returns 404
-func (ts *ConsentAPITestSuite) TestRevokeConsent_NonExistentConsent_ReturnsNotFound() {
-	nonExistentID := "00000000-0000-0000-0000-000000000000"
-
-	resp, _ := ts.revokeConsent(nonExistentID, "Test revocation")
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusNotFound, resp.StatusCode)
-}
-
-// TestRevokeConsent_AlreadyRevoked_ReturnsConflict verifies already revoked returns 409
-func (ts *ConsentAPITestSuite) TestRevokeConsent_AlreadyRevoked_ReturnsConflict() {
-	// Create consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "auth", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Revoke once
-	revokeResp1, _ := ts.revokeConsent(created.ID, "First revocation")
-	defer revokeResp1.Body.Close()
-	ts.Equal(http.StatusOK, revokeResp1.StatusCode)
-
-	// Try to revoke again - should return 409 Conflict
-	revokeResp2, _ := ts.revokeConsent(created.ID, "Second revocation")
-	defer revokeResp2.Body.Close()
-
-	ts.Equal(http.StatusConflict, revokeResp2.StatusCode)
-}
-
-// TestRevokeConsent_InvalidConsentID_ReturnsBadRequest verifies invalid UUID returns 400
-func (ts *ConsentAPITestSuite) TestRevokeConsent_InvalidConsentID_ReturnsBadRequest() {
-	invalidID := "not-a-uuid"
-
-	resp, _ := ts.revokeConsent(invalidID, "Test revocation")
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusBadRequest, resp.StatusCode)
 }

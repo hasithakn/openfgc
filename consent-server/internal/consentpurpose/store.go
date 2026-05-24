@@ -84,6 +84,12 @@ var (
 		PostgresQuery: "SELECT " + purposeColumns + " FROM PURPOSE WHERE NAME = $1 AND GROUP_ID = $2 AND ORG_ID = $3 ORDER BY VERSION DESC LIMIT 1",
 	}
 
+	QueryExistsPurposeByNameInOrg = dbmodel.DBQuery{
+		ID:            "EXISTS_PURPOSE_BY_NAME_IN_ORG",
+		Query:         "SELECT COUNT(*) AS cnt FROM PURPOSE WHERE NAME = ? AND ORG_ID = ? LIMIT 1",
+		PostgresQuery: "SELECT COUNT(*) AS cnt FROM PURPOSE WHERE NAME = $1 AND ORG_ID = $2 LIMIT 1",
+	}
+
 	QueryDeletePurposeVersion = dbmodel.DBQuery{
 		ID:            "DELETE_PURPOSE_VERSION",
 		Query:         "DELETE FROM PURPOSE WHERE VERSION_ID = ? AND ORG_ID = ?",
@@ -307,6 +313,34 @@ func (s *store) GetByNameAndGroupID(ctx context.Context, name, groupID, orgID st
 		return nil, nil
 	}
 	return mapToPurposeVersion(rows[0]), nil
+}
+
+// ExistsByNameInOrg reports whether any purpose with the given name exists in the org,
+// across all groups. Used to block name reuse regardless of group scope.
+func (s *store) ExistsByNameInOrg(ctx context.Context, name, orgID string) (bool, error) {
+	dbClient, err := s.getDBClient()
+	if err != nil {
+		return false, fmt.Errorf("failed to get database client: %w", err)
+	}
+	rows, err := dbClient.Query(QueryExistsPurposeByNameInOrg, name, orgID)
+	if err != nil {
+		return false, err
+	}
+	if len(rows) == 0 {
+		return false, nil
+	}
+	cnt, ok := rows[0]["cnt"]
+	if !ok {
+		return false, nil
+	}
+	switch v := cnt.(type) {
+	case int64:
+		return v > 0, nil
+	case []byte:
+		return string(v) != "0", nil
+	default:
+		return false, nil
+	}
 }
 
 // GetPurposeVersionElements returns all element refs for a specific purpose version.

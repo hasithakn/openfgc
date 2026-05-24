@@ -21,536 +21,331 @@ package consent
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
-// ============================
-// POST /consents/validate - Validate Consent Tests
-// ============================
+// TestValidateConsent covers POST /consents/validate.
+//
+// Contract:
+//   - The endpoint always returns HTTP 200 when the consent is found.
+//     The isValid field in the body indicates success or failure.
+//   - consentInformation is always present in the response body, regardless of validity.
+//   - ACTIVE consent with all mandatory elements approved → isValid=true.
+//   - Non-ACTIVE status (CREATED, REVOKED, EXPIRED) → isValid=false, errorCode=401.
+//   - Mandatory element not approved → isValid=false, errorCode=403.
+//   - Expired consent → auto-expired on validate, then isValid=false, errorCode=401.
+//   - consentInformation elements include enriched fields: type.
+//   - Missing or bad input → 400 CS-4002 / CS-4001.
+//   - Non-existent consentId → 404 CS-4040.
+func (ts *ConsentAPITestSuite) TestValidateConsent() {
+	type testCase struct {
+		name string
 
-// TestValidateConsent_ValidConsent_ReturnsSuccess validates a valid active consent
-func (ts *ConsentAPITestSuite) TestValidateConsent_ValidConsent_ReturnsSuccess() {
-	// Create an active consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "payment", Status: "APPROVED"},
-		},
+		// setup creates the consent and returns (consentID, orgID used for validate call).
+		// orgID is the freshOrgID created for this test; setup may use a different org for
+		// isolation tests.
+		setup func(orgID string) (consentID, validateOrgID string)
+
+		// rawBody is used for static error-cases that skip setup.
+		rawBody   string
+		omitOrgID bool
+
+		wantStatus  int
+		wantError   string
+		checkResult func(resp *ConsentValidateResponse)
 	}
 
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Validate the consent
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-		UserID:    "user1",
-		ClientID:  testClientID,
-	}
-
-	resp, body := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusOK, resp.StatusCode)
-
-	var validateResp ConsentValidateResponse
-	ts.NoError(json.Unmarshal(body, &validateResp))
-	ts.True(validateResp.IsValid)
-	ts.NotNil(validateResp.ConsentInformation)
-	if validateResp.ConsentInformation != nil {
-		ts.Equal(created.ID, validateResp.ConsentInformation.ID)
-	}
-}
-
-// TestValidateConsent_RevokedConsent_ReturnsInvalid validates a revoked consent returns invalid
-func (ts *ConsentAPITestSuite) TestValidateConsent_RevokedConsent_ReturnsInvalid() {
-	// Create and revoke a consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "payment", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Revoke the consent
-	revokeResp, _ := ts.revokeConsent(created.ID, "Testing validation")
-	defer revokeResp.Body.Close()
-	ts.Require().Equal(http.StatusOK, revokeResp.StatusCode)
-
-	// Validate the revoked consent
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-		UserID:    "user1",
-		ClientID:  testClientID,
-	}
-
-	resp, body := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusOK, resp.StatusCode)
-
-	var validateResp ConsentValidateResponse
-	ts.NoError(json.Unmarshal(body, &validateResp))
-	ts.False(validateResp.IsValid, "Revoked consent should be invalid")
-	if validateResp.ConsentInformation != nil {
-		ts.Equal(created.ID, validateResp.ConsentInformation.ID)
-	}
-}
-
-// TestValidateConsent_NonExistentConsent_ReturnsInvalid validates non-existent consent returns invalid
-func (ts *ConsentAPITestSuite) TestValidateConsent_NonExistentConsent_ReturnsInvalid() {
-	validatePayload := ConsentValidateRequest{
-		ConsentID: "00000000-0000-0000-0000-000000000000",
-		UserID:    "user1",
-		ClientID:  testClientID,
-	}
-
-	resp, body := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	// Validate API may return 200 with isValid=false or 404
-	if resp.StatusCode == http.StatusOK {
-		var validateResp ConsentValidateResponse
-		ts.NoError(json.Unmarshal(body, &validateResp))
-		ts.False(validateResp.IsValid, "Non-existent consent should be invalid")
-	} else {
-		ts.Equal(http.StatusNotFound, resp.StatusCode)
-	}
-}
-
-// TestValidateConsent_InvalidConsentID_ReturnsBadRequest validates non-existent consent ID returns 404
-func (ts *ConsentAPITestSuite) TestValidateConsent_InvalidConsentID_ReturnsBadRequest() {
-	validatePayload := ConsentValidateRequest{
-		ConsentID: "not-a-valid-uuid",
-	}
-
-	resp, _ := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	// Validate API returns 404 for non-existent consent ID
-	ts.Equal(http.StatusNotFound, resp.StatusCode)
-}
-
-// TestValidateConsent_MissingConsentID_ReturnsBadRequest validates missing consent ID returns 400
-func (ts *ConsentAPITestSuite) TestValidateConsent_MissingConsentID_ReturnsBadRequest() {
-	validatePayload := ConsentValidateRequest{
-		ConsentID: "",
-	}
-
-	resp, _ := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusBadRequest, resp.StatusCode)
-}
-
-// TestValidateConsent_MissingOrgID_ReturnsBadRequest validates missing org-id header returns 400
-func (ts *ConsentAPITestSuite) TestValidateConsent_MissingOrgID_ReturnsBadRequest() {
-	// Create a consent first
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "payment", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Validate without org-id header
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-	}
-
-	resp, _ := ts.validateConsentWithHeaders(validatePayload, "", testClientID)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusBadRequest, resp.StatusCode)
-}
-
-// TestValidateConsent_MissingClientID_ReturnsBadRequest validates that client-id header is not required for validation
-func (ts *ConsentAPITestSuite) TestValidateConsent_MissingClientID_ReturnsBadRequest() {
-	// Create a consent first
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "payment", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Validate without client-id header - should succeed since client-id is not required for validation
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-	}
-
-	resp, body := ts.validateConsentWithHeaders(validatePayload, testOrgID, "")
-	defer resp.Body.Close()
-
-	// Validate endpoint doesn't require client-id header
-	ts.Equal(http.StatusOK, resp.StatusCode)
-
-	var validateResp ConsentValidateResponse
-	ts.NoError(json.Unmarshal(body, &validateResp))
-	ts.True(validateResp.IsValid, "Valid consent should pass validation even without client-id header")
-}
-
-// TestValidateConsent_ExpiredConsent_ReturnsInvalid validates expired consent returns invalid
-func (ts *ConsentAPITestSuite) TestValidateConsent_ExpiredConsent_ReturnsInvalid() {
-	// Create a consent with very short validity (1 second)
-	createPayload := ConsentCreateRequest{
-		Type:         "accounts",
-		ValidityTime: 1,
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "payment", Status: "APPROVED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Wait for consent to expire
-	// Note: This test may be flaky depending on timing
-	// Consider using a negative validityTime if the API supports it
-	// or adjusting the business logic to accept a custom current time for testing
-
-	// Validate the potentially expired consent
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-	}
-
-	resp, body := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusOK, resp.StatusCode)
-
-	var validateResp ConsentValidateResponse
-	ts.NoError(json.Unmarshal(body, &validateResp))
-	// Note: Test may pass or fail depending on timing
-	// This test documents the expected behavior but may need adjustment
-}
-
-// TestValidateConsent_RejectedConsent_ReturnsInvalid validates consent with rejected auth returns invalid
-func (ts *ConsentAPITestSuite) TestValidateConsent_RejectedConsent_ReturnsInvalid() {
-	// Create a rejected consent
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "payment", Status: "REJECTED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-	ts.Equal("REJECTED", created.Status)
-
-	// Validate the rejected consent
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-		UserID:    "user1",
-		ClientID:  testClientID,
-	}
-
-	resp, body := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusOK, resp.StatusCode)
-
-	var validateResp ConsentValidateResponse
-	ts.NoError(json.Unmarshal(body, &validateResp))
-	ts.False(validateResp.IsValid, "Rejected consent should be invalid")
-	if validateResp.ConsentInformation != nil {
-		ts.Equal(created.ID, validateResp.ConsentInformation.ID)
-	}
-}
-
-// TestValidateConsent_CreatedConsent_ReturnsInvalid validates consent in CREATED state returns invalid
-func (ts *ConsentAPITestSuite) TestValidateConsent_CreatedConsent_ReturnsInvalid() {
-	// Create a consent in CREATED state
-	createPayload := ConsentCreateRequest{
-		Type: "accounts",
-		Authorizations: []AuthorizationRequest{
-			{UserID: "user1", Type: "payment", Status: "CREATED"},
-		},
-	}
-
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
-
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-	ts.Equal("CREATED", created.Status)
-
-	// Validate the consent in CREATED state
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-		UserID:    "user1",
-		ClientID:  testClientID,
-	}
-
-	resp, body := ts.validateConsent(validatePayload)
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusOK, resp.StatusCode)
-
-	var validateResp ConsentValidateResponse
-	ts.NoError(json.Unmarshal(body, &validateResp))
-	ts.False(validateResp.IsValid, "CREATED consent should be invalid")
-	if validateResp.ConsentInformation != nil {
-		ts.Equal(created.ID, validateResp.ConsentInformation.ID)
-	}
-}
-
-// TestValidateConsent_MalformedJSON_ReturnsBadRequest validates malformed JSON returns 400
-func (ts *ConsentAPITestSuite) TestValidateConsent_MalformedJSON_ReturnsBadRequest() {
-	resp, _ := ts.validateConsent("{invalid json")
-	defer resp.Body.Close()
-
-	ts.Equal(http.StatusBadRequest, resp.StatusCode)
-}
-
-// TestValidateConsent_FullConsentInformation_ReturnsCompleteData validates that validate endpoint returns full consent details
-func (ts *ConsentAPITestSuite) TestValidateConsent_FullConsentInformation_ReturnsCompleteData() {
-	// Create consent with comprehensive data
-	// Use far future timestamp to avoid expiry
-	validityTime := int64(9999999999999) // Far future
-	frequency := 5
-	recurringIndicator := true
-
-	createPayload := ConsentCreateRequest{
-		Type:               "accounts",
-		ValidityTime:       validityTime,
-		Frequency:          frequency,
-		RecurringIndicator: recurringIndicator,
-		Purposes: []ConsentPurposeItem{
-			{
-				Name: "marketing-purpose",
-				Elements: []ConsentPurposeApprovalItem{
-					{
-						Name:           "marketing-purpose",
-						Value:          "Marketing consent value",
-						IsUserApproved: true,
+	cases := []testCase{
+		// -----------------------------------------------------------------------
+		// Valid — ACTIVE consent
+		// -----------------------------------------------------------------------
+		{
+			name: "ACTIVE consent → isValid=true, consentInformation present",
+			setup: func(orgID string) (string, string) {
+				c := ts.mustCreateConsent(orgID, "grp-val-active", ConsentCreateRequest{
+					Type: "accounts",
+					Authorizations: []AuthorizationRequest{
+						{Type: "accounts", Status: "APPROVED"},
 					},
-				},
+				})
+				return c.ID, orgID
 			},
-			{
-				Name: "analytics-purpose",
-				Elements: []ConsentPurposeApprovalItem{
-					{
-						Name:           "analytics-purpose",
-						Value:          "Analytics consent value",
-						IsUserApproved: true,
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.True(resp.IsValid, "ACTIVE consent must be valid")
+				ts.Equal(0, resp.ErrorCode, "no errorCode for valid consent")
+				ts.Empty(resp.ErrorMessage)
+				ts.Require().NotNil(resp.ConsentInfo, "consentInformation must always be present")
+				ts.Equal("ACTIVE", resp.ConsentInfo.Status)
+			},
+		},
+		{
+			name: "consentInformation contains all top-level consent fields",
+			setup: func(orgID string) (string, string) {
+				c := ts.mustCreateConsent(orgID, "grp-val-fields", ConsentCreateRequest{
+					Type:                       "payments",
+					Frequency:                  intPtr(5),
+					RecurringIndicator:         boolPtr(true),
+					DataAccessValidityDuration: int64Ptr(3600000),
+					Attributes:                 map[string]string{"k": "v"},
+					Authorizations:             []AuthorizationRequest{{Status: "APPROVED"}},
+				})
+				return c.ID, orgID
+			},
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.True(resp.IsValid)
+				ts.Require().NotNil(resp.ConsentInfo)
+				info := resp.ConsentInfo
+				ts.Equal("payments", info.Type)
+				ts.Equal("ACTIVE", info.Status)
+				ts.Require().NotNil(info.Frequency)
+				ts.Equal(5, *info.Frequency)
+				ts.Require().NotNil(info.RecurringIndicator)
+				ts.True(*info.RecurringIndicator)
+				ts.Require().NotNil(info.DataAccessValidityDuration)
+				ts.Equal(int64(3600000), *info.DataAccessValidityDuration)
+				ts.Equal("v", info.Attributes["k"])
+			},
+		},
+
+		// -----------------------------------------------------------------------
+		// Enriched element data in consentInformation
+		// -----------------------------------------------------------------------
+		{
+			name: "consentInformation includes enriched element fields (type)",
+			setup: func(orgID string) (string, string) {
+				ts.mustCreateElement(orgID, "val-enrich-elem", "basic")
+				ts.mustCreatePurpose(orgID, "val-enrich-purp", "val-enrich-elem")
+				c := ts.mustCreateConsent(orgID, "grp-val-enrich", ConsentCreateRequest{
+					Type: "accounts",
+					Authorizations: []AuthorizationRequest{{Status: "APPROVED"}},
+					Purposes: []PurposeRefRequest{
+						{
+							Name:     "val-enrich-purp",
+							Elements: []ElementApprovalRequest{{Name: "val-enrich-elem", Approved: true}},
+						},
 					},
-				},
+				})
+				return c.ID, orgID
+			},
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.True(resp.IsValid)
+				ts.Require().NotNil(resp.ConsentInfo)
+				ts.Require().Len(resp.ConsentInfo.Purposes, 1)
+				ts.Require().Len(resp.ConsentInfo.Purposes[0].Elements, 1)
+				elem := resp.ConsentInfo.Purposes[0].Elements[0]
+				ts.Equal("val-enrich-elem", elem.Name)
+				ts.NotEmpty(elem.Type, "validate response must include the element type")
+				ts.Equal("basic", elem.Type)
 			},
 		},
-		Attributes: map[string]string{
-			"customerId":  "CUST-12345",
-			"accountId":   "ACC-67890",
-			"environment": "production",
-		},
-		Authorizations: []AuthorizationRequest{
-			{
-				UserID:      "user1",
-				Type:        "authorization",
-				Status:      "APPROVED",
-				Resources:   []string{"123456", "789012"},
-				Permissions: []string{"read", "write"},
+
+		// -----------------------------------------------------------------------
+		// Invalid — wrong status
+		// -----------------------------------------------------------------------
+		{
+			name: "CREATED consent (no auths) → isValid=false, errorCode=401, errorMessage=invalid_consent_status",
+			setup: func(orgID string) (string, string) {
+				// No authorizations → status remains CREATED
+				c := ts.mustCreateConsent(orgID, "grp-val-created", ConsentCreateRequest{
+					Type: "accounts",
+				})
+				return c.ID, orgID
 			},
-			{
-				UserID:    "user2",
-				Type:      "authorization",
-				Status:    "APPROVED",
-				Resources: []string{"345678"},
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.False(resp.IsValid)
+				ts.Equal(401, resp.ErrorCode)
+				ts.Equal("invalid_consent_status", resp.ErrorMessage)
+				ts.Require().NotNil(resp.ConsentInfo, "consentInformation must be present even on failure")
+				ts.Equal("CREATED", resp.ConsentInfo.Status)
 			},
+		},
+		{
+			name: "REVOKED consent → isValid=false, errorCode=401",
+			setup: func(orgID string) (string, string) {
+				c := ts.mustCreateConsent(orgID, "grp-val-rev", ConsentCreateRequest{
+					Type:           "accounts",
+					Authorizations: []AuthorizationRequest{{Status: "APPROVED"}},
+				})
+				ts.doRevokeConsent(orgID, c.ID, ConsentRevokeRequest{ActionBy: "tester"})
+				return c.ID, orgID
+			},
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.False(resp.IsValid)
+				ts.Equal(401, resp.ErrorCode)
+				ts.Equal("invalid_consent_status", resp.ErrorMessage)
+				ts.Require().NotNil(resp.ConsentInfo)
+				ts.Equal("REVOKED", resp.ConsentInfo.Status)
+			},
+		},
+		{
+			name: "EXPIRED consent → isValid=false, errorCode=401, auto-expired during validate",
+			setup: func(orgID string) (string, string) {
+				// expirationTime 1 ms ago → consent expires on create (and again on validate if needed)
+				past := time.Now().Add(-1*time.Second).UnixMilli()
+				c := ts.mustCreateConsent(orgID, "grp-val-exp", ConsentCreateRequest{
+					Type:           "accounts",
+					ExpirationTime: &past,
+					Authorizations: []AuthorizationRequest{{Status: "APPROVED"}},
+				})
+				return c.ID, orgID
+			},
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.False(resp.IsValid)
+				ts.Equal(401, resp.ErrorCode)
+				ts.Equal("invalid_consent_status", resp.ErrorMessage)
+				ts.Require().NotNil(resp.ConsentInfo)
+				ts.Equal("EXPIRED", resp.ConsentInfo.Status)
+			},
+		},
+
+		// -----------------------------------------------------------------------
+		// Mandatory elements
+		// -----------------------------------------------------------------------
+		{
+			name: "mandatory element approved → isValid=true",
+			setup: func(orgID string) (string, string) {
+				ts.mustCreateElement(orgID, "val-mand-elem", "basic")
+				// Create purpose with element marked mandatory=true
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "val-mand-purp",
+					"elements": []map[string]any{{"name": "val-mand-elem", "mandatory": true}},
+				})
+				c := ts.mustCreateConsent(orgID, "grp-mand-ok", ConsentCreateRequest{
+					Type:           "accounts",
+					Authorizations: []AuthorizationRequest{{Status: "APPROVED"}},
+					Purposes: []PurposeRefRequest{
+						{
+							Name:     "val-mand-purp",
+							Elements: []ElementApprovalRequest{{Name: "val-mand-elem", Approved: true}},
+						},
+					},
+				})
+				return c.ID, orgID
+			},
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.True(resp.IsValid, "all mandatory elements approved → must be valid")
+				ts.Equal(0, resp.ErrorCode)
+			},
+		},
+		{
+			name: "mandatory element NOT approved → isValid=false, errorCode=403, errorMessage=mandatory_elements_not_approved",
+			setup: func(orgID string) (string, string) {
+				ts.mustCreateElement(orgID, "val-mand2-elem", "basic")
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "val-mand2-purp",
+					"elements": []map[string]any{{"name": "val-mand2-elem", "mandatory": true}},
+				})
+				c := ts.mustCreateConsent(orgID, "grp-mand-fail", ConsentCreateRequest{
+					Type:           "accounts",
+					Authorizations: []AuthorizationRequest{{Status: "APPROVED"}},
+					Purposes: []PurposeRefRequest{
+						{
+							Name: "val-mand2-purp",
+							// approved=false (default) — mandatory element not approved
+							Elements: []ElementApprovalRequest{{Name: "val-mand2-elem", Approved: false}},
+						},
+					},
+				})
+				return c.ID, orgID
+			},
+			wantStatus: http.StatusOK,
+			checkResult: func(resp *ConsentValidateResponse) {
+				ts.False(resp.IsValid)
+				ts.Equal(403, resp.ErrorCode)
+				ts.Equal("mandatory_elements_not_approved", resp.ErrorMessage)
+				ts.NotEmpty(resp.ErrorDescription,
+					"errorDescription must name the unapproved element")
+				ts.Require().NotNil(resp.ConsentInfo)
+			},
+		},
+
+		// -----------------------------------------------------------------------
+		// Org isolation
+		// -----------------------------------------------------------------------
+		{
+			name: "consent exists in org-A — validate with org-B → 404 CS-4040",
+			setup: func(orgID string) (string, string) {
+				c := ts.mustCreateConsent(orgID, "grp-val-iso", ConsentCreateRequest{
+					Type: "accounts",
+				})
+				differentOrg := freshOrgID()
+				return c.ID, differentOrg // validate with wrong org
+			},
+			wantStatus: http.StatusNotFound,
+			wantError:  "CS-4040",
+		},
+
+		// -----------------------------------------------------------------------
+		// Error cases — HTTP-level failures (not isValid=false)
+		// -----------------------------------------------------------------------
+		{
+			name:       "missing consentId in body → 400 CS-4002",
+			rawBody:    `{}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "CS-4002",
+		},
+		{
+			name:       "non-existent consentId → 404 CS-4040",
+			rawBody:    `{"consentId":"00000000-0000-0000-0000-000000000000"}`,
+			wantStatus: http.StatusNotFound,
+			wantError:  "CS-4040",
+		},
+		{
+			name:       "malformed JSON body → 400 CS-4001",
+			rawBody:    `{bad json`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "CS-4001",
+		},
+		{
+			name:       "missing org-id header → 400 CS-4002",
+			rawBody:    `{"consentId":"00000000-0000-0000-0000-000000000001"}`,
+			omitOrgID:  true,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "CS-4002",
 		},
 	}
 
-	createResp, createBody := ts.createConsent(createPayload)
-	defer createResp.Body.Close()
-	ts.Require().Equal(http.StatusCreated, createResp.StatusCode)
+	for _, tc := range cases {
+		tc := tc
+		ts.Run(tc.name, func() {
+			orgID := freshOrgID()
 
-	var created ConsentResponse
-	ts.NoError(json.Unmarshal(createBody, &created))
-	ts.trackConsent(created.ID)
-
-	// Get consent via GET endpoint for comparison
-	getResp, getBody := ts.getConsent(created.ID)
-	defer getResp.Body.Close()
-	ts.Require().Equal(http.StatusOK, getResp.StatusCode)
-
-	var getResponse ConsentResponse
-	ts.NoError(json.Unmarshal(getBody, &getResponse))
-
-	// Validate the consent
-	validatePayload := ConsentValidateRequest{
-		ConsentID: created.ID,
-		UserID:    "user1",
-		ClientID:  testClientID,
-	}
-
-	validateResp, validateBody := ts.validateConsent(validatePayload)
-	defer validateResp.Body.Close()
-	ts.Equal(http.StatusOK, validateResp.StatusCode)
-
-	var validateResponse ConsentValidateResponse
-	ts.NoError(json.Unmarshal(validateBody, &validateResponse))
-
-	// Verify validation succeeded
-	ts.True(validateResponse.IsValid, "Validation should succeed")
-	ts.Require().NotNil(validateResponse.ConsentInformation, "ConsentInformation should be present")
-
-	consentInfo := validateResponse.ConsentInformation
-
-	// ========== COMPREHENSIVE FIELD VALIDATION ==========
-
-	// 1. Core required fields
-	ts.Equal(getResponse.ID, consentInfo.ID, "ID must match")
-	ts.Equal(getResponse.Type, consentInfo.Type, "Type must match")
-	ts.Equal("ACTIVE", consentInfo.Status, "Status should be ACTIVE")
-	ts.Equal(getResponse.ClientID, consentInfo.ClientID, "ClientID must match")
-
-	// 2. Timestamps - validate endpoint may update timestamps, so just verify they exist
-	ts.NotZero(consentInfo.CreatedTime, "CreatedTime must be present")
-	ts.NotZero(consentInfo.UpdatedTime, "UpdatedTime must be present")
-
-	// 3. Optional fields that were provided
-	ts.Require().NotNil(consentInfo.ValidityTime, "ValidityTime should be present")
-	ts.Require().NotNil(getResponse.ValidityTime, "GET response ValidityTime should be present")
-	ts.Equal(*getResponse.ValidityTime, *consentInfo.ValidityTime, "ValidityTime must match")
-
-	ts.Require().NotNil(consentInfo.Frequency, "Frequency should be present")
-	ts.Require().NotNil(getResponse.Frequency, "GET response Frequency should be present")
-	ts.Equal(*getResponse.Frequency, *consentInfo.Frequency, "Frequency must match")
-
-	ts.Require().NotNil(consentInfo.RecurringIndicator, "RecurringIndicator should be present")
-	ts.Require().NotNil(getResponse.RecurringIndicator, "GET response RecurringIndicator should be present")
-	ts.Equal(*getResponse.RecurringIndicator, *consentInfo.RecurringIndicator, "RecurringIndicator must match")
-
-	// 4. Attributes - verify all attributes match
-	ts.Require().Len(consentInfo.Attributes, len(getResponse.Attributes), "Attributes count must match")
-	ts.Equal(3, len(consentInfo.Attributes), "Should have 3 attributes")
-	for key, expectedValue := range getResponse.Attributes {
-		actualValue, exists := consentInfo.Attributes[key]
-		ts.True(exists, "Attribute '%s' should exist in validate response", key)
-		ts.Equal(expectedValue, actualValue, "Attribute '%s' value must match", key)
-	}
-
-	// 5. Consent Purposes - comprehensive validation
-	ts.Require().Len(consentInfo.Purposes, len(getResponse.Purposes), "ConsentPurpose count must match")
-	ts.Equal(2, len(consentInfo.Purposes), "Should have 2 consent purposes")
-
-	// Create map for easier comparison
-	validatePurposeMap := make(map[string]ConsentPurposeItem)
-	for _, cp := range consentInfo.Purposes {
-		validatePurposeMap[cp.Name] = cp
-	}
-
-	getPurposeMap := make(map[string]ConsentPurposeItem)
-	for _, cp := range getResponse.Purposes {
-		getPurposeMap[cp.Name] = cp
-	}
-
-	for purposeName, getCP := range getPurposeMap {
-		validateCP, exists := validatePurposeMap[purposeName]
-		ts.True(exists, "Purpose '%s' should exist in validate response", purposeName)
-
-		ts.Equal(getCP.Name, validateCP.Name, "Purpose name must match")
-
-		// Verify elements array
-		ts.Require().Len(validateCP.Elements, len(getCP.Elements), "Elements count must match for purpose %s", purposeName)
-		if len(getCP.Elements) > 0 && len(validateCP.Elements) > 0 {
-			// Check first element (in these tests, each purpose has one element)
-			getElem := getCP.Elements[0]
-			validateElem := validateCP.Elements[0]
-
-			ts.Equal(getElem.Name, validateElem.Name, "Element name must match for %s", purposeName)
-			ts.Equal(getElem.IsUserApproved, validateElem.IsUserApproved, "Element IsUserApproved must match for %s", purposeName)
-
-			// Verify value matches if present
-			if getElem.Value != nil {
-				ts.NotNil(validateElem.Value, "Element value should be present for %s", purposeName)
-				ts.Equal(getElem.Value, validateElem.Value, "Element value must match for %s", purposeName)
+			var consentID string
+			validateOrgID := orgID
+			if tc.setup != nil {
+				consentID, validateOrgID = tc.setup(orgID)
 			}
-		}
+			if tc.omitOrgID {
+				validateOrgID = ""
+			}
+
+			var reqBody any
+			if tc.rawBody != "" {
+				reqBody = tc.rawBody
+			} else if consentID != "" {
+				reqBody = ConsentValidateRequest{ConsentID: consentID}
+			}
+
+			status, body := ts.doValidateConsent(validateOrgID, reqBody)
+			ts.Require().Equal(tc.wantStatus, status, "unexpected status; body: %s", body)
+
+			if tc.wantError != "" {
+				ts.assertAPIError(body, tc.wantError)
+				return
+			}
+
+			var resp ConsentValidateResponse
+			ts.Require().NoError(json.Unmarshal(body, &resp), "unmarshal ConsentValidateResponse: %s", body)
+			if tc.checkResult != nil {
+				tc.checkResult(&resp)
+			}
+		})
 	}
-
-	// 6. Authorizations - comprehensive validation
-	ts.Require().Len(consentInfo.Authorizations, len(getResponse.Authorizations), "Authorizations count must match")
-	ts.Equal(2, len(consentInfo.Authorizations), "Should have 2 authorizations")
-
-	// Create map for easier comparison
-	validateAuthMap := make(map[string]AuthorizationResponse)
-	for _, auth := range consentInfo.Authorizations {
-		validateAuthMap[auth.ID] = auth
-	}
-
-	getAuthMap := make(map[string]AuthorizationResponse)
-	for _, auth := range getResponse.Authorizations {
-		getAuthMap[auth.ID] = auth
-	}
-
-	for authID, getAuth := range getAuthMap {
-		validateAuth, exists := validateAuthMap[authID]
-		ts.True(exists, "Authorization '%s' should exist in validate response", authID)
-
-		ts.Equal(getAuth.ID, validateAuth.ID, "Auth ID must match")
-		ts.Equal(getAuth.Type, validateAuth.Type, "Auth type must match")
-		// Auth status may be updated by validate endpoint, so just verify it exists
-		ts.NotEmpty(validateAuth.Status, "Auth status should be present")
-
-		// UserID comparison
-		if getAuth.UserID != nil {
-			ts.Require().NotNil(validateAuth.UserID, "Auth UserID should be present")
-			ts.Equal(*getAuth.UserID, *validateAuth.UserID, "Auth UserID must match")
-		}
-
-		// UpdatedTime may change during validation, just verify it exists
-		ts.NotZero(validateAuth.UpdatedTime, "Auth UpdatedTime should be present")
-
-		// Verify resources if present
-		if getAuth.Resources != nil {
-			ts.NotNil(validateAuth.Resources, "Auth resources should be present for %s", authID)
-		}
-	}
-}
-
-// Helper function for creating bool pointers
-func boolPtr(b bool) *bool {
-	return &b
 }

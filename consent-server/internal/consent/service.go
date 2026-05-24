@@ -673,7 +673,7 @@ func (s *consentService) RevokeConsent(ctx context.Context, consentID, orgID str
 		log.String("new_status", revokedStatus))
 
 	return &model.ConsentRevokeOutput{
-		ActionTime: currentTime / 1000, // Unix seconds
+		ActionTime: currentTime,
 		ActionBy:   input.ActionBy,
 		Reason:     input.Reason,
 	}, nil
@@ -860,10 +860,10 @@ func (s *consentService) expireConsent(ctx context.Context, consent *model.Conse
 // For each purpose in the request:
 //  1. Looks up the logical purpose by name+groupID.
 //  2. Resolves the target version (specific or latest).
-//  3. Validates that any element names provided in the request belong to that version.
+//  3. Validates that any element (name, namespace) pairs provided in the request belong to that version.
 //  4. Builds ConsentElementApproval rows for every element in the version,
 //     using request values where provided and defaulting to approved=false otherwise.
-//  5. Guards against the same element version appearing in multiple purposes.
+//     The same element may appear in multiple purposes; each purpose stores its own approval row.
 func (s *consentService) validatePurposesAndResolve(
 	ctx context.Context,
 	purposes []model.ConsentPurposeInput,
@@ -890,7 +890,7 @@ func (s *consentService) validatePurposesAndResolve(
 			}
 		}
 		if pv == nil {
-			return nil, fmt.Errorf("purpose %q is not accessible: not found in group %q or as an org-level purpose", purposeName, groupID)
+			return nil, fmt.Errorf("purpose '%s' is not accessible: not found in group '%s' or as an org-level purpose", purposeName, groupID)
 		}
 
 		// 2. Resolve the target version (specific version or latest)
@@ -902,7 +902,7 @@ func (s *consentService) validatePurposesAndResolve(
 					*pi.PurposeRef.Version, purposeName, err)
 			}
 			if resolvedPV == nil {
-				return nil, fmt.Errorf("version %d of purpose %q not found",
+				return nil, fmt.Errorf("version %d of purpose '%s' not found",
 					*pi.PurposeRef.Version, purposeName)
 			}
 		} else {
@@ -911,7 +911,7 @@ func (s *consentService) validatePurposesAndResolve(
 				return nil, fmt.Errorf("failed to fetch latest version of purpose %q: %w", purposeName, err)
 			}
 			if resolvedPV == nil {
-				return nil, fmt.Errorf("purpose %q has no versions", purposeName)
+				return nil, fmt.Errorf("purpose '%s' has no versions", purposeName)
 			}
 		}
 
@@ -920,20 +920,23 @@ func (s *consentService) validatePurposesAndResolve(
 			log.String("version_id", resolvedPV.VersionID),
 			log.Int("version_num", resolvedPV.VersionNum))
 
-		// 3. Build element name lookup from the request
-		requestedElements := make(map[string]model.ElementApprovalInput, len(pi.Elements))
+		// 3. Build element (name, namespace) lookup from the request.
+		// The handler guarantees Namespace is always non-empty (defaults to "default").
+		type elemKey struct{ name, namespace string }
+		requestedElements := make(map[elemKey]model.ElementApprovalInput, len(pi.Elements))
 		for _, e := range pi.Elements {
-			requestedElements[e.Name] = e
+			requestedElements[elemKey{e.Name, e.Namespace}] = e
 		}
 
-		// 4. Validate that requested element names belong to this purpose version
-		validElementNames := make(map[string]bool, len(resolvedPV.Elements))
+		// 4. Validate that every requested (name, namespace) pair belongs to this purpose version.
+		validElements := make(map[elemKey]bool, len(resolvedPV.Elements))
 		for _, elem := range resolvedPV.Elements {
-			validElementNames[elem.Name] = true
+			validElements[elemKey{elem.Name, elem.Namespace}] = true
 		}
-		for name := range requestedElements {
-			if !validElementNames[name] {
-				return nil, fmt.Errorf("element %q does not belong to purpose %q", name, purposeName)
+		for k := range requestedElements {
+			if !validElements[k] {
+				return nil, fmt.Errorf("element '%s' in namespace '%s' does not belong to purpose '%s'",
+					k.name, k.namespace, purposeName)
 			}
 		}
 
@@ -942,12 +945,12 @@ func (s *consentService) validatePurposesAndResolve(
 		for _, elem := range resolvedPV.Elements {
 			approved := false
 			var value *string
-			if reqElem, found := requestedElements[elem.Name]; found {
+			if reqElem, found := requestedElements[elemKey{elem.Name, elem.Namespace}]; found {
 				approved = reqElem.Approved
 				if reqElem.Value != nil {
 					strVal := valueToString(reqElem.Value)
 					if err := validateElementValue(ctx, elem.ElementType, elem.Schema, strVal); err != nil {
-						return nil, fmt.Errorf("element %q in purpose %q: %w", elem.Name, purposeName, err)
+						return nil, fmt.Errorf("element '%s' in purpose '%s': %w", elem.Name, purposeName, err)
 					}
 					value = &strVal
 				}
@@ -1131,11 +1134,11 @@ func authResourceToOutput(ar authmodel.AuthResource) authmodel.AuthResourceOutpu
 // and returns the integer version number.
 func parseVersionString(s string) (int, error) {
 	if len(s) < 2 || s[0] != 'v' {
-		return 0, fmt.Errorf("invalid version format %q: expected \"v<N>\"", s)
+		return 0, fmt.Errorf("invalid version format '%s': expected 'v<N>'", s)
 	}
 	n, err := strconv.Atoi(s[1:])
 	if err != nil || n < 1 {
-		return 0, fmt.Errorf("invalid version %q: version number must be a positive integer", s)
+		return 0, fmt.Errorf("invalid version '%s': version number must be a positive integer", s)
 	}
 	return n, nil
 }

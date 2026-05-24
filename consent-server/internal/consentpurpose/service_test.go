@@ -336,7 +336,7 @@ func TestCreatePurpose_EmptyElements(t *testing.T) {
 	ps := interfacesmock.NewConsentPurposeStore(t)
 	svc := newSvc(t, ps, nil)
 
-	// GroupID is empty → service also checks for an org-level purpose with groupID = orgID.
+	// GroupID = "" (group-scoped path): check (name, groupID) then check org-level.
 	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", "", svcOrgID).Return(nil, nil)
 	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", svcOrgID, svcOrgID).Return(nil, nil)
 
@@ -352,7 +352,7 @@ func TestCreatePurpose_ElementNotFound(t *testing.T) {
 	es := interfacesmock.NewConsentElementStore(t)
 	svc := newSvc(t, ps, es)
 
-	// GroupID is empty → service also checks for an org-level purpose with groupID = orgID.
+	// GroupID = "" (group-scoped path): check (name, groupID) then check org-level.
 	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", "", svcOrgID).Return(nil, nil)
 	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", svcOrgID, svcOrgID).Return(nil, nil)
 	es.On("GetByNameAndNamespace", mock.Anything, "email", "default", svcOrgID).Return(nil, nil)
@@ -365,6 +365,39 @@ func TestCreatePurpose_ElementNotFound(t *testing.T) {
 	require.Nil(t, out)
 	require.NotNil(t, svcErr)
 	require.Contains(t, svcErr.Description, "does not exist")
+}
+
+// TestCreatePurpose_OrgLevelBlockedByGroupScoped verifies that creating an org-level purpose
+// is rejected when a group-scoped purpose with the same name already exists anywhere in the org.
+func TestCreatePurpose_OrgLevelBlockedByGroupScoped(t *testing.T) {
+	ps := interfacesmock.NewConsentPurposeStore(t)
+	svc := newSvc(t, ps, nil)
+
+	// Org-level path (GroupID = orgID): no same-name org-level exists, but a group-scoped does.
+	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", svcOrgID, svcOrgID).Return(nil, nil)
+	ps.On("ExistsByNameInOrg", mock.Anything, "Marketing", svcOrgID).Return(true, nil)
+
+	input := purposemodel.CreatePurposeInput{Name: "Marketing", GroupID: svcOrgID}
+	out, svcErr := svc.CreatePurpose(context.Background(), input, svcOrgID)
+	require.Nil(t, out)
+	require.NotNil(t, svcErr)
+	require.Equal(t, ErrorPurposeNameExists.Code, svcErr.Code)
+	require.Contains(t, svcErr.Description, "Marketing")
+}
+
+// TestCreatePurpose_OrgLevelExistsByNameInOrgStoreError verifies the error path for ExistsByNameInOrg.
+func TestCreatePurpose_OrgLevelExistsByNameInOrgStoreError(t *testing.T) {
+	ps := interfacesmock.NewConsentPurposeStore(t)
+	svc := newSvc(t, ps, nil)
+
+	ps.On("GetByNameAndGroupID", mock.Anything, "Marketing", svcOrgID, svcOrgID).Return(nil, nil)
+	ps.On("ExistsByNameInOrg", mock.Anything, "Marketing", svcOrgID).Return(false, errors.New("db error"))
+
+	input := purposemodel.CreatePurposeInput{Name: "Marketing", GroupID: svcOrgID}
+	out, svcErr := svc.CreatePurpose(context.Background(), input, svcOrgID)
+	require.Nil(t, out)
+	require.NotNil(t, svcErr)
+	require.Equal(t, ErrorCheckNameExistence.Code, svcErr.Code)
 }
 
 func TestCreatePurpose_NameAlreadyExists(t *testing.T) {

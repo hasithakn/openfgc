@@ -182,6 +182,11 @@ type ConsentPurposeStore interface {
 	// or nil if no such purpose exists. Used to enforce name uniqueness within a group before insert.
 	GetByNameAndGroupID(ctx context.Context, name, groupID, orgID string) (*purposeModel.PurposeVersion, error)
 
+	// ExistsByNameInOrg reports whether any purpose with the given name exists in the org,
+	// regardless of which group owns it. Used to enforce that no two purposes (org-level or
+	// group-scoped) share the same name within an org.
+	ExistsByNameInOrg(ctx context.Context, name, orgID string) (bool, error)
+
 	// DeleteVersion deletes a specific version row.
 	// PURPOSE_PROPERTY and PURPOSE_ELEMENT_MAPPING rows cascade automatically.
 	DeleteVersion(tx dbmodel.TxInterface, purposeVersionID, orgID string) error

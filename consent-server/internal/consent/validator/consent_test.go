@@ -19,6 +19,7 @@
 package validator
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -85,6 +86,20 @@ func TestValidateConsentCreateRequest_NegativeExpirationTime(t *testing.T) {
 	require.Contains(t, err.Error(), "expirationTime must be non-negative")
 }
 
+func TestValidateConsentCreateRequest_ExpirationTimeTooSmall(t *testing.T) {
+	// Values with too few digits are not valid Unix timestamps in either seconds
+	// or milliseconds format and must be rejected.
+	for _, v := range []int64{1, 123, 999_999_999} {
+		v := v
+		t.Run(fmt.Sprintf("value=%d", v), func(t *testing.T) {
+			req := model.ConsentCreateRequest{Type: "accounts", ExpirationTime: &v}
+			err := ValidateConsentCreateRequest(req, "grp-1", "org-1")
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "expirationTime is not a valid Unix timestamp")
+		})
+	}
+}
+
 func TestValidateConsentCreateRequest_NegativeFrequency(t *testing.T) {
 	neg := -5
 	req := model.ConsentCreateRequest{Type: "accounts", Frequency: &neg}
@@ -123,6 +138,14 @@ func TestValidateConsentUpdateRequest_NegativeExpirationTime(t *testing.T) {
 	err := ValidateConsentUpdateRequest(req)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "expirationTime must be non-negative")
+}
+
+func TestValidateConsentUpdateRequest_ExpirationTimeTooSmall(t *testing.T) {
+	small := int64(123)
+	req := model.ConsentUpdateRequest{ExpirationTime: &small}
+	err := ValidateConsentUpdateRequest(req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expirationTime is not a valid Unix timestamp")
 }
 
 func TestValidateConsentUpdateRequest_NegativeFrequency(t *testing.T) {

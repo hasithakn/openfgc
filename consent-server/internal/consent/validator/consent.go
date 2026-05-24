@@ -28,6 +28,12 @@ import (
 	"github.com/wso2/openfgc/internal/system/config"
 )
 
+// minExpirationTimestamp is the smallest raw value accepted for expirationTime.
+// It equals 10^9 (September 9, 2001 in Unix seconds).
+// Values below this threshold are not valid Unix timestamps in either the seconds
+// or milliseconds format that the server accepts, so they are rejected outright.
+const minExpirationTimestamp = int64(1_000_000_000)
+
 // ValidateConsentCreateRequest validates a consent creation request.
 // groupID is read from the group-id request header, not the body.
 // Authorization type is optional — the service defaults it to "default" when absent.
@@ -47,6 +53,9 @@ func ValidateConsentCreateRequest(req model.ConsentCreateRequest, groupID, orgID
 
 	if req.ExpirationTime != nil && *req.ExpirationTime < 0 {
 		return fmt.Errorf("expirationTime must be non-negative")
+	}
+	if req.ExpirationTime != nil && *req.ExpirationTime > 0 && *req.ExpirationTime < minExpirationTimestamp {
+		return fmt.Errorf("expirationTime is not a valid Unix timestamp; provide seconds (10 digits) or milliseconds (13 digits)")
 	}
 	if req.Frequency != nil && *req.Frequency < 0 {
 		return fmt.Errorf("frequency must be non-negative")
@@ -81,6 +90,9 @@ func ValidateConsentUpdateRequest(req model.ConsentUpdateRequest) error {
 	}
 	if req.ExpirationTime != nil && *req.ExpirationTime < 0 {
 		return fmt.Errorf("expirationTime must be non-negative")
+	}
+	if req.ExpirationTime != nil && *req.ExpirationTime > 0 && *req.ExpirationTime < minExpirationTimestamp {
+		return fmt.Errorf("expirationTime is not a valid Unix timestamp; provide seconds (10 digits) or milliseconds (13 digits)")
 	}
 	if req.Frequency != nil && *req.Frequency < 0 {
 		return fmt.Errorf("frequency must be non-negative")

@@ -453,10 +453,15 @@ func parsePurposeRefRequests(reqs []model.ConsentPurposeRefRequest) ([]model.Con
 
 		elements := make([]model.ElementApprovalInput, 0, len(pr.Elements))
 		for _, e := range pr.Elements {
+			ns := e.Namespace
+			if ns == "" {
+				ns = "default"
+			}
 			elements = append(elements, model.ElementApprovalInput{
-				Name:     e.Name,
-				Approved: e.Approved,
-				Value:    e.Value,
+				Name:      e.Name,
+				Namespace: ns,
+				Approved:  e.Approved,
+				Value:     e.Value,
 			})
 		}
 

@@ -125,11 +125,13 @@ type PurposeRef struct {
 }
 
 // ElementApprovalInput captures one element's approval data from the API request.
-// Name matches the element as defined in the purpose version.
+// Name and Namespace together identify the element within the purpose version.
+// Namespace is always set to a non-empty value by the handler (defaults to "default").
 type ElementApprovalInput struct {
-	Name     string
-	Approved bool
-	Value    interface{} // arbitrary user value; service stores as string for basic/xml, JSON-marshals for json elements
+	Name      string
+	Namespace string
+	Approved  bool
+	Value     interface{} // arbitrary user value; service stores as string for basic/xml, JSON-marshals for json elements
 }
 
 // ConsentPurposeInput is the handler→service representation of one purpose in a create/update.
@@ -304,10 +306,12 @@ type ConsentValidateOutput struct {
 // =============================================================================
 
 // ConsentPurposeElementApprovalRequest is one element approval within a consent purpose request body.
+// Namespace defaults to "default" when absent.
 type ConsentPurposeElementApprovalRequest struct {
-	Name     string      `json:"name"`
-	Approved bool        `json:"approved"`
-	Value    interface{} `json:"value,omitempty"`
+	Name      string      `json:"name"`
+	Namespace string      `json:"namespace,omitempty"`
+	Approved  bool        `json:"approved"`
+	Value     interface{} `json:"value,omitempty"`
 }
 
 // ConsentPurposeRefRequest references a purpose version in a consent create/update body.

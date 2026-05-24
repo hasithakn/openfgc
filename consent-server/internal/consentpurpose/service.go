@@ -96,10 +96,10 @@ func (s *consentPurposeService) CreatePurpose(ctx context.Context, input model.C
 			fmt.Sprintf("a purpose named '%s' already exists for this group", input.Name))
 	}
 
-	// If creating a group-specific purpose, also block names already taken by an org-level purpose
-	// (GROUP_ID = orgID). Org-level purposes are visible to all groups, so a same-named
-	// group-specific purpose would be ambiguous when referenced by name in a consent.
 	if input.GroupID != orgID {
+		// Group-scoped creation: also block if an org-level purpose with the same name exists.
+		// Org-level purposes are visible to all groups, so a same-named group-scoped purpose
+		// would be ambiguous when referenced by name in a consent.
 		orgLevel, err := s.stores.ConsentPurpose.GetByNameAndGroupID(ctx, input.Name, orgID, orgID)
 		if err != nil {
 			logger.Error("Failed to check org-level purpose name existence", log.Error(err))
@@ -108,6 +108,19 @@ func (s *consentPurposeService) CreatePurpose(ctx context.Context, input model.C
 		if orgLevel != nil {
 			return nil, serviceerror.CustomServiceError(ErrorPurposeNameExists,
 				fmt.Sprintf("a purpose named '%s' already exists as an org-level purpose", input.Name))
+		}
+	} else {
+		// Org-level creation: block if ANY purpose with the same name exists anywhere in the org
+		// (org-level or group-scoped). An org-level purpose is visible to all groups, so sharing
+		// its name with a group-scoped purpose would cause ambiguous resolution.
+		exists, err := s.stores.ConsentPurpose.ExistsByNameInOrg(ctx, input.Name, orgID)
+		if err != nil {
+			logger.Error("Failed to check purpose name existence across org", log.Error(err))
+			return nil, &ErrorCheckNameExistence
+		}
+		if exists {
+			return nil, serviceerror.CustomServiceError(ErrorPurposeNameExists,
+				fmt.Sprintf("a purpose named '%s' already exists in this org", input.Name))
 		}
 	}
 
