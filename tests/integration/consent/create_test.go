@@ -774,6 +774,524 @@ func (ts *ConsentAPITestSuite) TestCreateConsent() {
 		},
 
 		// -----------------------------------------------------------------------
+		// Element values
+		//
+		// When creating a consent, each element approval may carry a value.
+		// The server validates it against the element's type and optional schema:
+		//   basic → any string, no schema validation.
+		//   json  → must be valid JSON; if element has a schema, must also match it.
+		//   xml   → must be well-formed XML; if element has a schema (XSD), validated against it.
+		// -----------------------------------------------------------------------
+		{
+			name:    "basic element with string value — stored and returned in create response",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElement(orgID, "ev-basic-store", "basic")
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-basic-store",
+					"elements": []map[string]any{{"name": "ev-basic-store"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-basic-store",
+						Elements: []ElementApprovalRequest{{Name: "ev-basic-store", Approved: true, Value: "hello-world"}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes, 1)
+				ts.Require().Len(resp.Purposes[0].Elements, 1)
+				elem := resp.Purposes[0].Elements[0]
+				ts.Equal("ev-basic-store", elem.Name)
+				ts.Require().NotNil(elem.Value, "value must be returned")
+				ts.Equal("hello-world", elem.Value)
+			},
+		},
+		{
+			name:    "basic element without value — value absent in response",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElement(orgID, "ev-basic-nil", "basic")
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-basic-nil",
+					"elements": []map[string]any{{"name": "ev-basic-nil"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-basic-nil",
+						Elements: []ElementApprovalRequest{{Name: "ev-basic-nil", Approved: true}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes[0].Elements, 1)
+				ts.Nil(resp.Purposes[0].Elements[0].Value, "value must be absent when not provided")
+			},
+		},
+		{
+			// create response carries the value; GET response must carry the same value.
+			name:    "basic element value round-trips through GET",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElement(orgID, "ev-basic-rt", "basic")
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-basic-rt",
+					"elements": []map[string]any{{"name": "ev-basic-rt"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-basic-rt",
+						Elements: []ElementApprovalRequest{{Name: "ev-basic-rt", Approved: true, Value: "round-trip-value"}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(orgID, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes[0].Elements, 1)
+				ts.Equal("round-trip-value", resp.Purposes[0].Elements[0].Value,
+					"value must be present in create response")
+				_, got := ts.doGetConsent(orgID, resp.ID)
+				ts.Require().NotNil(got)
+				ts.Require().Len(got.Purposes[0].Elements, 1)
+				ts.Equal("round-trip-value", got.Purposes[0].Elements[0].Value,
+					"value must be the same in GET as in create response")
+			},
+		},
+		{
+			name:    "json element with valid JSON object value matching schema — accepted",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-json-valid",
+					"type":   "json",
+					"schema": json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`),
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-json-valid",
+					"elements": []map[string]any{{"name": "ev-json-valid"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-json-valid",
+						Elements: []ElementApprovalRequest{{Name: "ev-json-valid", Approved: true, Value: map[string]string{"id": "abc-123"}}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes[0].Elements, 1)
+				elem := resp.Purposes[0].Elements[0]
+				ts.NotNil(elem.Value, "json element value must be returned")
+				asMap, ok := elem.Value.(map[string]interface{})
+				ts.Require().True(ok, "json element value must be returned as an object")
+				ts.Equal("abc-123", asMap["id"])
+			},
+		},
+		{
+			name:    "json element value not matching schema (missing required field) → 400 CS-4002",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-json-schema-fail",
+					"type":   "json",
+					"schema": json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`),
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-json-schema-fail",
+					"elements": []map[string]any{{"name": "ev-json-schema-fail"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-json-schema-fail",
+						Elements: []ElementApprovalRequest{{Name: "ev-json-schema-fail", Approved: true, Value: map[string]string{"name": "missing-id"}}},
+					}},
+				}
+			},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CS-4002",
+		},
+		{
+			name:    "json element with invalid (non-JSON) string value → 400 CS-4002",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-json-invalid",
+					"type":   "json",
+					"schema": json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`),
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-json-invalid",
+					"elements": []map[string]any{{"name": "ev-json-invalid"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-json-invalid",
+						Elements: []ElementApprovalRequest{{Name: "ev-json-invalid", Approved: true, Value: "not-valid-json"}},
+					}},
+				}
+			},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CS-4002",
+		},
+		{
+			name:    "json element without value — skips schema validation",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-json-noval",
+					"type":   "json",
+					"schema": json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`),
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-json-noval",
+					"elements": []map[string]any{{"name": "ev-json-noval"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-json-noval",
+						Elements: []ElementApprovalRequest{{Name: "ev-json-noval", Approved: false}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes[0].Elements, 1)
+				ts.Nil(resp.Purposes[0].Elements[0].Value, "value must be nil when not provided")
+			},
+		},
+		{
+			name:    "xml element with valid XML matching XSD — accepted",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-xml-valid",
+					"type":   "xml",
+					"schema": `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="patient" type="xs:string"/></xs:schema>`,
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-xml-valid",
+					"elements": []map[string]any{{"name": "ev-xml-valid"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-xml-valid",
+						Elements: []ElementApprovalRequest{{Name: "ev-xml-valid", Approved: true, Value: "<patient>hello</patient>"}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes[0].Elements, 1)
+				elem := resp.Purposes[0].Elements[0]
+				ts.NotNil(elem.Value, "xml element value must be returned")
+				ts.Equal("<patient>hello</patient>", elem.Value)
+			},
+		},
+		{
+			name:    "xml element with malformed XML → 400 CS-4002",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-xml-bad",
+					"type":   "xml",
+					"schema": `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="patient" type="xs:string"/></xs:schema>`,
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-xml-bad",
+					"elements": []map[string]any{{"name": "ev-xml-bad"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-xml-bad",
+						Elements: []ElementApprovalRequest{{Name: "ev-xml-bad", Approved: true, Value: "<patient>not closed"}},
+					}},
+				}
+			},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CS-4002",
+		},
+		{
+			name:    "xml element without value — skips schema validation",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-xml-noval",
+					"type":   "xml",
+					"schema": `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="patient" type="xs:string"/></xs:schema>`,
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-purp-xml-noval",
+					"elements": []map[string]any{{"name": "ev-xml-noval"}},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-purp-xml-noval",
+						Elements: []ElementApprovalRequest{{Name: "ev-xml-noval", Approved: false}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes[0].Elements, 1)
+				ts.Nil(resp.Purposes[0].Elements[0].Value)
+			},
+		},
+		{
+			name:    "multiple elements with mixed types — values stored independently per element",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElement(orgID, "ev-multi-basic", "basic")
+				ts.mustCreateElementFull(orgID, map[string]any{
+					"name":   "ev-multi-json",
+					"type":   "json",
+					"schema": json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`),
+				})
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name": "ev-purp-multi",
+					"elements": []map[string]any{
+						{"name": "ev-multi-basic"},
+						{"name": "ev-multi-json"},
+					},
+				})
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name: "ev-purp-multi",
+						Elements: []ElementApprovalRequest{
+							{Name: "ev-multi-basic", Approved: true, Value: "basic-value"},
+							{Name: "ev-multi-json", Approved: true, Value: map[string]string{"id": "json-val"}},
+						},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes[0].Elements, 2)
+				byName := make(map[string]ElementApprovalResponse)
+				for _, e := range resp.Purposes[0].Elements {
+					byName[e.Name] = e
+				}
+				ts.Equal("basic-value", byName["ev-multi-basic"].Value)
+				asMap, ok := byName["ev-multi-json"].Value.(map[string]interface{})
+				ts.Require().True(ok, "json element value must be an object")
+				ts.Equal("json-val", asMap["id"])
+			},
+		},
+		{
+			// After creating, validate the consent to confirm the element value appears
+			// in the consentInformation block of the validate response.
+			name:    "element value appears in validate consentInformation",
+			groupID: "grp-ev",
+			buildBody: func(orgID string) any {
+				ts.mustCreateElement(orgID, "ev-val-elem", "basic")
+				ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "ev-val-purp",
+					"elements": []map[string]any{{"name": "ev-val-elem"}},
+				})
+				return ConsentCreateRequest{
+					Type:           "accounts",
+					Authorizations: []AuthorizationRequest{{Status: "APPROVED"}},
+					Purposes: []PurposeRefRequest{{
+						Name:     "ev-val-purp",
+						Elements: []ElementApprovalRequest{{Name: "ev-val-elem", Approved: true, Value: "in-validate"}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(orgID, _ string, resp *ConsentResponse) {
+				_, body := ts.doValidateConsent(orgID, ConsentValidateRequest{ConsentID: resp.ID})
+				var valResp ConsentValidateResponse
+				ts.Require().NoError(json.Unmarshal(body, &valResp))
+				ts.True(valResp.IsValid)
+				ts.Require().NotNil(valResp.ConsentInfo)
+				ts.Require().Len(valResp.ConsentInfo.Purposes, 1)
+				ts.Require().Len(valResp.ConsentInfo.Purposes[0].Elements, 1)
+				ts.Equal("in-validate", valResp.ConsentInfo.Purposes[0].Elements[0].Value,
+					"element value must appear in the validate consentInformation response")
+			},
+		},
+
+		// -----------------------------------------------------------------------
+		// Purpose resolution
+		//
+		// The consent service resolves a purpose name with a two-step lookup:
+		//  1. Purpose owned by the consent's group (group-scoped).
+		//  2. Fallback to org-level purpose (groupId stored as orgId).
+		// Group-scoped purposes shadow org-level ones for the same group.
+		// -----------------------------------------------------------------------
+		{
+			name:    "org-level purpose is accessible to a consent from any group",
+			groupID: "any-group-123",
+			setup: func(orgID string) {
+				ts.mustCreateElement(orgID, "pr-elem-org", "basic")
+				ts.mustCreatePurpose(orgID, "pr-purpose-org", "pr-elem-org")
+			},
+			buildBody: func(_ string) any {
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "pr-purpose-org",
+						Elements: []ElementApprovalRequest{{Name: "pr-elem-org", Approved: true}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes, 1)
+				ts.Equal("pr-purpose-org", resp.Purposes[0].Name)
+			},
+		},
+		{
+			name:    "org-level purpose is accessible to a second, distinct group",
+			groupID: "another-group-456",
+			setup: func(orgID string) {
+				ts.mustCreateElement(orgID, "pr-elem-org2", "basic")
+				ts.mustCreatePurpose(orgID, "pr-purpose-org2", "pr-elem-org2")
+			},
+			buildBody: func(_ string) any {
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "pr-purpose-org2",
+						Elements: []ElementApprovalRequest{{Name: "pr-elem-org2", Approved: false}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes, 1)
+				ts.Equal("pr-purpose-org2", resp.Purposes[0].Name)
+			},
+		},
+		{
+			name:    "group-scoped purpose is accessible to a consent from the same group",
+			groupID: "grp-owner",
+			setup: func(orgID string) {
+				ts.mustCreateElement(orgID, "pr-elem-grp", "basic")
+				ts.mustCreatePurposeWithGroup(orgID, "grp-owner", "pr-purpose-grp", "pr-elem-grp")
+			},
+			buildBody: func(_ string) any {
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "pr-purpose-grp",
+						Elements: []ElementApprovalRequest{{Name: "pr-elem-grp", Approved: true}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes, 1)
+				ts.Equal("pr-purpose-grp", resp.Purposes[0].Name)
+			},
+		},
+		{
+			name:    "group-scoped purpose is NOT accessible to a consent from a different group",
+			groupID: "grp-other",
+			setup: func(orgID string) {
+				ts.mustCreateElement(orgID, "pr-elem-grp-x", "basic")
+				ts.mustCreatePurposeWithGroup(orgID, "grp-owner-x", "pr-purpose-grp-x", "pr-elem-grp-x")
+			},
+			buildBody: func(_ string) any {
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "pr-purpose-grp-x",
+						Elements: []ElementApprovalRequest{{Name: "pr-elem-grp-x", Approved: true}},
+					}},
+				}
+			},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CS-4002",
+		},
+		{
+			name: "cannot create group-scoped purpose when org-level with same name exists",
+			// The conflict is asserted in setup; the consent itself succeeds using the org-level purpose.
+			groupID: "any-group",
+			setup: func(orgID string) {
+				ts.mustCreateElement(orgID, "pr-block-elem", "basic")
+				ts.mustCreatePurpose(orgID, "pr-block-purpose", "pr-block-elem")
+				// Attempting to create a group-scoped purpose with the same name must fail.
+				status, respBody := ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "some-group", map[string]any{
+					"name":     "pr-block-purpose",
+					"elements": []map[string]any{{"name": "pr-block-elem"}},
+				})
+				ts.Require().Equal(http.StatusConflict, status,
+					"expected 409 when creating group-scoped purpose whose name exists at org level; body: %s", respBody)
+			},
+			buildBody: func(_ string) any {
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "pr-block-purpose",
+						Elements: []ElementApprovalRequest{{Name: "pr-block-elem", Approved: true}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes, 1)
+				ts.Equal("pr-block-purpose", resp.Purposes[0].Name)
+			},
+		},
+		{
+			name:    "cannot create org-level purpose when a same-name purpose exists in any group",
+			groupID: "grp-first",
+			setup: func(orgID string) {
+				ts.mustCreateElement(orgID, "pr-block2-elem", "basic")
+				ts.mustCreatePurposeWithGroup(orgID, "grp-first", "pr-block2-purpose", "pr-block2-elem")
+				// Attempting to create an org-level purpose with the same name must also fail.
+				status, respBody := ts.doRequest(http.MethodPost, "/api/v1/consent-purposes", orgID, "", map[string]any{
+					"name":     "pr-block2-purpose",
+					"elements": []map[string]any{{"name": "pr-block2-elem"}},
+				})
+				ts.Require().Equal(http.StatusConflict, status,
+					"expected 409 when creating org-level purpose whose name exists in another group; body: %s", respBody)
+			},
+			buildBody: func(_ string) any {
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "pr-block2-purpose",
+						Elements: []ElementApprovalRequest{{Name: "pr-block2-elem", Approved: true}},
+					}},
+				}
+			},
+			wantStatus: http.StatusCreated,
+			checkResult: func(_, _ string, resp *ConsentResponse) {
+				ts.Require().Len(resp.Purposes, 1)
+				ts.Equal("pr-block2-purpose", resp.Purposes[0].Name)
+			},
+		},
+		{
+			name:    "purpose not found in group or org-level → 400 CS-4002",
+			groupID: "some-group",
+			buildBody: func(_ string) any {
+				return ConsentCreateRequest{
+					Type: "accounts",
+					Purposes: []PurposeRefRequest{{
+						Name:     "does-not-exist-anywhere",
+						Elements: []ElementApprovalRequest{{Name: "any-elem", Approved: true}},
+					}},
+				}
+			},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "CS-4002",
+		},
+
+		// -----------------------------------------------------------------------
 		// Element namespace disambiguation
 		//
 		// An element is uniquely identified by (name, namespace). Two elements can
