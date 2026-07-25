@@ -60,6 +60,10 @@ logs/
 # Configuration overrides (keep examples)
 configs/config.local.yaml
 consent-api-server
-main
+/main
 consent-mgt-v1.code-workspace
 
+/event-framework/event-notification-dao/target/
+/event-framework/event-notification-runner/target/
+/event-framework/event-notification-service/target/
+/event-framework/event-notification-endpoint/target/

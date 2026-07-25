@@ -1,0 +1,297 @@
+{
+	"info": {
+		"_postman_id": "enf-api-collection",
+		"name": "WSO2 DPDP Event Notification Framework (ENF)",
+		"description": "Postman collection for testing WSO2 DPDP ENF JAX-RS Endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "orgId",
+			"value": "org-001",
+			"type": "string"
+		},
+		{
+			"key": "groupId",
+			"value": "group-001",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Topics",
+			"item": [
+				{
+					"name": "Create Topic",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"user-consent-events\",\n  \"description\": \"Topic for user consent updates\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/topics",
+							"host": ["{{baseUrl}}"],
+							"path": ["topics"]
+						}
+					}
+				},
+				{
+					"name": "List Topics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/topics?status=ACTIVE&limit=10&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["topics"],
+							"query": [
+								{ "key": "status", "value": "ACTIVE" },
+								{ "key": "limit", "value": "10" },
+								{ "key": "offset", "value": "0" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Topic",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/topics/:topicId",
+							"host": ["{{baseUrl}}"],
+							"path": ["topics", ":topicId"],
+							"variable": [
+								{ "key": "topicId", "value": "topic-123" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Subscriptions",
+			"item": [
+				{
+					"name": "Create Subscription",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							},
+							{
+								"key": "X-Group-Id",
+								"value": "{{groupId}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topic\": \"user-consent-events\",\n  \"filter\": {\n    \"expression\": \"purpose == 'MARKETING'\"\n  },\n  \"delivery\": {\n    \"mode\": \"POLL\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subscriptions",
+							"host": ["{{baseUrl}}"],
+							"path": ["subscriptions"]
+						}
+					}
+				},
+				{
+					"name": "List Subscriptions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscriptions?status=ACTIVE&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["subscriptions"],
+							"query": [
+								{ "key": "status", "value": "ACTIVE" },
+								{ "key": "limit", "value": "10" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Subscription by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscriptions/:subscriptionId",
+							"host": ["{{baseUrl}}"],
+							"path": ["subscriptions", ":subscriptionId"],
+							"variable": [
+								{ "key": "subscriptionId", "value": "sub-123" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Subscription",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscriptions/:subscriptionId",
+							"host": ["{{baseUrl}}"],
+							"path": ["subscriptions", ":subscriptionId"],
+							"variable": [
+								{ "key": "subscriptionId", "value": "sub-123" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Events",
+			"item": [
+				{
+					"name": "Publish Event",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							},
+							{
+								"key": "X-Group-Id",
+								"value": "{{groupId}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topic\": \"user-consent-events\",\n  \"purposes\": [\"MARKETING\"],\n  \"payload\": {\n    \"userId\": \"user-1001\",\n    \"consentGiven\": false\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/events",
+							"host": ["{{baseUrl}}"],
+							"path": ["events"]
+						}
+					}
+				},
+				{
+					"name": "Poll Events",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							},
+							{
+								"key": "X-Group-Id",
+								"value": "{{groupId}}"
+							},
+							{
+								"key": "X-Event-Signature",
+								"value": "sample-signature-hash"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"returnImmediately\": true,\n  \"maxEvents\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/events/poll",
+							"host": ["{{baseUrl}}"],
+							"path": ["events", "poll"]
+						}
+					}
+				},
+				{
+					"name": "Submit Delivery Completion (ACK)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Org-Id",
+								"value": "{{orgId}}"
+							},
+							{
+								"key": "X-Group-Id",
+								"value": "{{groupId}}"
+							},
+							{
+								"key": "X-Event-Signature",
+								"value": "sample-signature-hash"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"completionStatus\": \"ACK\",\n  \"completionEvidence\": \"Processed successfully\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/deliveries/:deliveryId/completion",
+							"host": ["{{baseUrl}}"],
+							"path": ["deliveries", ":deliveryId", "completion"],
+							"variable": [
+								{ "key": "deliveryId", "value": "deliv-123" }
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}

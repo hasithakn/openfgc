@@ -1,0 +1,9 @@
+# Database Configuration for Event Notification Framework (ENF)
+
+# Set database type: "mysql" or "h2"
+type = "mysql"
+
+# Database Connection Details
+url = "jdbc:mysql://localhost:3306/enf_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+user = "root"
+password = ""
