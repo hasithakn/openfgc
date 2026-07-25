@@ -18,18 +18,18 @@
 
 import { Box, Stack, StatCard, Typography } from '@wso2/oxygen-ui'
 import { AlertTriangle, CheckCircle2, Clock3, Inbox } from '@wso2/oxygen-ui-icons-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import HeaderBreadcrumbs from '../../components/layout/main-layout/HeaderBreadcrumbs'
-import type { GrievanceStatus } from '../../types/grievance'
-import { MOCK_GRIEVANCES } from '../grievances/data/mockGrievances'
-import { getGrievanceSlaState } from '../grievances/utils/grievanceDisplay'
+import { GRIEVANCE_QUEUE_ROWS_PER_PAGE_OPTIONS } from '../grievances/constants'
 import GrievanceQueueFilters from './components/GrievanceQueueFilters'
 import GrievanceQueueTable from './components/GrievanceQueueTable'
+import {
+  useGrievanceQueueQuery,
+  useGrievanceQueueStatsQuery,
+} from './hooks/useGrievanceQueueQueries'
 import type { GrievanceQueueFiltersState } from './types'
-
-const OPEN_STATUSES: GrievanceStatus[] = ['Open', 'Investigation', 'WaitingOnDpo']
 
 const DEFAULT_FILTERS: GrievanceQueueFiltersState = {
   status: 'All',
@@ -37,56 +37,23 @@ const DEFAULT_FILTERS: GrievanceQueueFiltersState = {
   search: '',
 }
 
-const CLOSED_OUT_STATUSES: GrievanceStatus[] = ['Resolved']
-
 function GrievanceQueuePage(): React.JSX.Element {
   const { t } = useTranslation('common')
   const navigate = useNavigate()
   const [filters, setFilters] = useState<GrievanceQueueFiltersState>(DEFAULT_FILTERS)
+  const [page, setPage] = useState<number>(0)
+  const [rowsPerPage, setRowsPerPage] = useState<number>(GRIEVANCE_QUEUE_ROWS_PER_PAGE_OPTIONS[0])
 
-  const stats = useMemo(() => {
-    const openCount = MOCK_GRIEVANCES.filter((grievance) =>
-      OPEN_STATUSES.includes(grievance.status),
-    ).length
-    const awaitingInfoCount = MOCK_GRIEVANCES.filter(
-      (grievance) => grievance.status === 'AwaitingInfo',
-    ).length
-    const resolvedCount = MOCK_GRIEVANCES.filter(
-      (grievance) => grievance.status === 'Resolved',
-    ).length
-    const slaBreachedCount = MOCK_GRIEVANCES.filter(
-      (grievance) =>
-        getGrievanceSlaState(grievance.statutoryDueDate, grievance.status) === 'breached',
-    ).length
-
-    return { openCount, awaitingInfoCount, resolvedCount, slaBreachedCount }
-  }, [])
-
-  const rows = useMemo(() => {
-    const search = filters.search.trim().toLowerCase()
-
-    return MOCK_GRIEVANCES.filter((grievance) => {
-      if (filters.status !== 'All' && grievance.status !== filters.status) {
-        return false
-      }
-
-      if (filters.status === 'All' && CLOSED_OUT_STATUSES.includes(grievance.status)) {
-        return false
-      }
-
-      if (filters.priority !== 'All' && grievance.priority !== filters.priority) {
-        return false
-      }
-
-      return !(
-        search &&
-        !grievance.referenceId.toLowerCase().includes(search) &&
-        !grievance.dataPrincipalName.toLowerCase().includes(search)
-      )
-    }).sort(
-      (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
-    )
-  }, [filters])
+  const statsQuery = useGrievanceQueueStatsQuery()
+  const queueQuery = useGrievanceQueueQuery(filters, page, rowsPerPage)
+  const rows = queueQuery.data?.rows ?? []
+  const total = queueQuery.data?.total ?? 0
+  const stats = {
+    openCount: statsQuery.data?.open ?? 0,
+    awaitingInfoCount: statsQuery.data?.awaitingInfo ?? 0,
+    resolvedCount: statsQuery.data?.resolved ?? 0,
+    slaBreachedCount: statsQuery.data?.slaBreached ?? 0,
+  }
 
   return (
     <Box component="main" sx={{ p: { xs: 2, md: 4 } }}>
@@ -136,18 +103,38 @@ function GrievanceQueuePage(): React.JSX.Element {
 
         <GrievanceQueueFilters
           filters={filters}
-          onFilterChange={setFilters}
-          onClear={() => setFilters(DEFAULT_FILTERS)}
+          onFilterChange={(nextFilters) => {
+            setFilters(nextFilters)
+            setPage(0)
+          }}
+          onClear={() => {
+            setFilters(DEFAULT_FILTERS)
+            setPage(0)
+          }}
         />
 
-        {rows.length === 0 ? (
+        {queueQuery.isError ? (
+          <Typography color="error.main">{t('grievances.management.queue.loadError')}</Typography>
+        ) : null}
+
+        {!queueQuery.isError && !queueQuery.isLoading && rows.length === 0 ? (
           <Typography>{t('grievances.management.queue.empty')}</Typography>
-        ) : (
+        ) : null}
+
+        {!queueQuery.isError && (rows.length > 0 || queueQuery.isLoading) ? (
           <GrievanceQueueTable
             rows={rows}
+            total={total}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={setPage}
+            onRowsPerPageChange={(nextRowsPerPage) => {
+              setRowsPerPage(nextRowsPerPage)
+              setPage(0)
+            }}
             onViewCase={(id) => navigate(`/grievance-management/${encodeURIComponent(id)}`)}
           />
-        )}
+        ) : null}
       </Stack>
     </Box>
   )

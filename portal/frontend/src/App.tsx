@@ -20,6 +20,7 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import MainLayout from './components/layout/main-layout/MainLayout'
 import DemoRoleProvider from './context/DemoRoleContext'
+import { ROLE_HOME_PATH } from './context/demoRole'
 import { ScopeProvider, useScopes } from './context/ScopeContext'
 import ElementDetailsPage from './features/catalog/ElementDetailsPage'
 import ElementListPage from './features/catalog/ElementListPage'
@@ -28,6 +29,11 @@ import PurposeListPage from './features/catalog/PurposeListPage'
 import ConsentDetailsPage from './features/consent-registry/ConsentDetailsPage'
 import ConsentRegistryPage from './features/consent-registry/ConsentRegistryPage'
 import DashboardPage from './features/dashboard/DashboardPage'
+import GrievanceCaseDetailPage from './features/grievance-management/GrievanceCaseDetailPage'
+import GrievanceQueuePage from './features/grievance-management/GrievanceQueuePage'
+import GrievanceDetailPage from './features/grievances/GrievanceDetailPage'
+import GrievanceListPage from './features/grievances/GrievanceListPage'
+import { useDemoRole } from './hooks/useDemoRole'
 import { isAuthenticated, login } from './utils/authClient'
 
 function AuthenticationGate({
@@ -45,27 +51,35 @@ function AuthenticationGate({
 
   return authenticated ? children : null
 }
-import GrievanceCaseDetailPage from './features/grievance-management/GrievanceCaseDetailPage'
-import GrievanceQueuePage from './features/grievance-management/GrievanceQueuePage'
-import GrievanceDetailPage from './features/grievances/GrievanceDetailPage'
-import GrievanceListPage from './features/grievances/GrievanceListPage'
 
 function ScopeGuard({
   canAccess,
+  redirectTo,
   children,
 }: {
   canAccess: boolean
+  redirectTo: string
   children: React.JSX.Element
 }): React.JSX.Element {
   const { isLoading } = useScopes()
   if (isLoading) {
     return <></>
   }
-  return canAccess ? children : <Navigate to="/consents" replace />
+  return canAccess ? children : <Navigate to={redirectTo} replace />
 }
 
 function AppRoutes(): React.JSX.Element {
-  const { canReadElements, canReadPurposes } = useScopes()
+  const { canReadElements, canReadPurposes, canReadGrievancesSelf } = useScopes()
+  const { role } = useDemoRole()
+
+  const canAccessGrievances = role === 'dataPrincipal' && canReadGrievancesSelf
+  const canAccessGrievanceManagement = role === 'grievanceOfficer'
+  const grievancesRedirect = canAccessGrievanceManagement
+    ? ROLE_HOME_PATH.grievanceOfficer
+    : '/consents'
+  const grievanceManagementRedirect = canAccessGrievances
+    ? ROLE_HOME_PATH.dataPrincipal
+    : '/consents'
 
   return (
     <Routes>
@@ -76,7 +90,7 @@ function AppRoutes(): React.JSX.Element {
         <Route
           path="/purposes"
           element={
-            <ScopeGuard canAccess={canReadPurposes}>
+            <ScopeGuard canAccess={canReadPurposes} redirectTo="/consents">
               <PurposeListPage />
             </ScopeGuard>
           }
@@ -84,7 +98,7 @@ function AppRoutes(): React.JSX.Element {
         <Route
           path="/purposes/:id"
           element={
-            <ScopeGuard canAccess={canReadPurposes}>
+            <ScopeGuard canAccess={canReadPurposes} redirectTo="/consents">
               <PurposeDetailsPage />
             </ScopeGuard>
           }
@@ -92,7 +106,7 @@ function AppRoutes(): React.JSX.Element {
         <Route
           path="/elements"
           element={
-            <ScopeGuard canAccess={canReadElements}>
+            <ScopeGuard canAccess={canReadElements} redirectTo="/consents">
               <ElementListPage />
             </ScopeGuard>
           }
@@ -100,15 +114,49 @@ function AppRoutes(): React.JSX.Element {
         <Route
           path="/elements/:id"
           element={
-            <ScopeGuard canAccess={canReadElements}>
+            <ScopeGuard canAccess={canReadElements} redirectTo="/consents">
               <ElementDetailsPage />
             </ScopeGuard>
           }
         />
-        <Route path="/grievances" element={<GrievanceListPage />} />
-        <Route path="/grievances/:id" element={<GrievanceDetailPage />} />
-        <Route path="/grievance-management" element={<GrievanceQueuePage />} />
-        <Route path="/grievance-management/:id" element={<GrievanceCaseDetailPage />} />
+        <Route
+          path="/grievances"
+          element={
+            <ScopeGuard canAccess={canAccessGrievances} redirectTo={grievancesRedirect}>
+              <GrievanceListPage />
+            </ScopeGuard>
+          }
+        />
+        <Route
+          path="/grievances/:id"
+          element={
+            <ScopeGuard canAccess={canAccessGrievances} redirectTo={grievancesRedirect}>
+              <GrievanceDetailPage />
+            </ScopeGuard>
+          }
+        />
+        <Route
+          path="/grievance-management"
+          element={
+            <ScopeGuard
+              canAccess={canAccessGrievanceManagement}
+              redirectTo={grievanceManagementRedirect}
+            >
+              <GrievanceQueuePage />
+            </ScopeGuard>
+          }
+        />
+        <Route
+          path="/grievance-management/:id"
+          element={
+            <ScopeGuard
+              canAccess={canAccessGrievanceManagement}
+              redirectTo={grievanceManagementRedirect}
+            >
+              <GrievanceCaseDetailPage />
+            </ScopeGuard>
+          }
+        />
         <Route path="*" element={<Navigate to="/consents" replace />} />
       </Route>
     </Routes>
@@ -117,13 +165,13 @@ function AppRoutes(): React.JSX.Element {
 
 function App(): React.JSX.Element {
   return (
-    <DemoRoleProvider>
-      <AuthenticationGate>
-        <ScopeProvider>
+    <AuthenticationGate>
+      <ScopeProvider>
+        <DemoRoleProvider>
           <AppRoutes />
-        </ScopeProvider>
-      </AuthenticationGate>
-    </DemoRoleProvider>
+        </DemoRoleProvider>
+      </ScopeProvider>
+    </AuthenticationGate>
   )
 }
 

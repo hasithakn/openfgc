@@ -23,6 +23,12 @@ export type DemoRole = 'dataPrincipal' | 'grievanceOfficer'
 export interface DemoRoleContextValue {
   role: DemoRole
   setRole: (role: DemoRole) => void
+  canOverride: boolean
+}
+
+export const ROLE_HOME_PATH: Record<DemoRole, string> = {
+  dataPrincipal: '/grievances',
+  grievanceOfficer: '/grievance-management',
 }
 
 export const DemoRoleContext = createContext<DemoRoleContextValue | undefined>(undefined)

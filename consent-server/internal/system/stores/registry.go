@@ -33,6 +33,7 @@ type StoreRegistry struct {
 	AuthResource   interfaces.AuthResourceStore
 	ConsentElement interfaces.ConsentElementStore
 	ConsentPurpose interfaces.ConsentPurposeStore
+	Grievance      interfaces.GrievanceStore
 }
 
 // NewStoreRegistry creates a new store registry with all initialized stores
@@ -41,12 +42,14 @@ func NewStoreRegistry(
 	authResourceStore interfaces.AuthResourceStore,
 	consentElementStore interfaces.ConsentElementStore,
 	consentPurposeStore interfaces.ConsentPurposeStore,
+	grievanceStore interfaces.GrievanceStore,
 ) *StoreRegistry {
 	return &StoreRegistry{
 		Consent:        consentStore,
 		AuthResource:   authResourceStore,
 		ConsentElement: consentElementStore,
 		ConsentPurpose: consentPurposeStore,
+		Grievance:      grievanceStore,
 	}
 }
 

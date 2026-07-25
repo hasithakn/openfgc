@@ -26,6 +26,7 @@ import (
 	consentModel "github.com/wso2/openfgc/internal/consent/model"
 	consentElementModel "github.com/wso2/openfgc/internal/consentelement/model"
 	purposeModel "github.com/wso2/openfgc/internal/consentpurpose/model"
+	grievanceModel "github.com/wso2/openfgc/internal/grievance/model"
 	dbmodel "github.com/wso2/openfgc/internal/system/database/model"
 )
 
@@ -239,4 +240,41 @@ type ConsentPurposeStore interface {
 	// List returns the latest version of each purpose matching the filters, with total count for pagination.
 	// When filters.Details is false, Properties and Elements are not populated.
 	List(ctx context.Context, orgID string, filters purposeModel.PurposeListFilter) ([]purposeModel.PurposeVersion, int, error)
+}
+
+// GrievanceStore defines the interface for grievance (complaint) data operations.
+type GrievanceStore interface {
+	// Create inserts a new GRIEVANCE row within a transaction.
+	Create(tx dbmodel.TxInterface, g *grievanceModel.Grievance) error
+	// UpdateStatus changes STATUS and UPDATED_TIME for a grievance within a transaction.
+	UpdateStatus(tx dbmodel.TxInterface, grievanceID, orgID, status string, updatedTime int64) error
+	// TouchUpdatedTime bumps UPDATED_TIME without changing STATUS, within a transaction.
+	TouchUpdatedTime(tx dbmodel.TxInterface, grievanceID, orgID string, updatedTime int64) error
+	// GetByID returns the GRIEVANCE row for the given ID, or nil if not found.
+	GetByID(ctx context.Context, grievanceID, orgID string) (*grievanceModel.Grievance, error)
+	// GetByIDForUpdate returns the GRIEVANCE row and locks it for update within a transaction.
+	GetByIDForUpdate(tx dbmodel.TxInterface, grievanceID, orgID string) (*grievanceModel.Grievance, error)
+	// Search returns grievances matching the filter along with the total match count for pagination.
+	Search(ctx context.Context, filter grievanceModel.SearchFilter) ([]grievanceModel.Grievance, int, error)
+	// CountByStatus returns a count of grievances per DB-vocabulary status value for an org.
+	CountByStatus(ctx context.Context, orgID string) (map[string]int, error)
+	// CountSLABreached returns the count of non-Resolved grievances whose statutory due time has passed.
+	CountSLABreached(ctx context.Context, orgID string, now int64) (int, error)
+
+	// CreateTimelineEntry inserts a GRIEVANCE_TIMELINE_ENTRY row within a transaction.
+	CreateTimelineEntry(tx dbmodel.TxInterface, e *grievanceModel.TimelineEntry) error
+	// GetTimelineByGrievanceID returns timeline entries ordered oldest-first.
+	// When includeInternal is false, INTERNAL-visibility entries are excluded server-side.
+	GetTimelineByGrievanceID(ctx context.Context, grievanceID, orgID string, includeInternal bool) ([]grievanceModel.TimelineEntry, error)
+
+	// CreateAttachment inserts a GRIEVANCE_ATTACHMENT row (including file content) within a transaction.
+	CreateAttachment(tx dbmodel.TxInterface, a *grievanceModel.AttachmentContent) error
+	// GetAttachmentsByGrievanceID returns attachment metadata (no file content) for a grievance.
+	GetAttachmentsByGrievanceID(ctx context.Context, grievanceID, orgID string) ([]grievanceModel.Attachment, error)
+	// GetAttachmentContent returns the full attachment row including file content, or nil if not found.
+	GetAttachmentContent(ctx context.Context, attachmentID, orgID string) (*grievanceModel.AttachmentContent, error)
+
+	// NextReferenceSequence returns the next per-org-per-year sequence number for REFERENCE_ID
+	// generation, creating the counter row on first use. Must run within the caller's transaction.
+	NextReferenceSequence(tx dbmodel.TxInterface, orgID, yearValue string) (int64, error)
 }

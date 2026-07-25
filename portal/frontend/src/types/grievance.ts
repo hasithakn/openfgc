@@ -100,5 +100,71 @@ export interface GrievanceDetail extends GrievanceRecord {
 export interface GrievanceSubmissionInput {
   category: GrievanceCategory
   description: string
-  attachmentNames: string[]
+  attachments: File[]
+}
+
+// =============================================================================
+// API-shape types — raw BFF response/request shapes, consumed only by the
+// api/ and hooks/ layers, which map them into the domain types above.
+// =============================================================================
+
+export interface GrievanceAttachmentAPI {
+  attachmentId: string
+  fileName: string
+  fileSizeBytes: number
+  contentType: string
+}
+
+export interface GrievanceTimelineEntryAPI {
+  entryId: string
+  entryType: GrievanceTimelineEntryType
+  visibility: GrievanceTimelineVisibility
+  actorUserId?: string
+  actorRole: GrievanceActorRole
+  message: string
+  fromStatus?: GrievanceStatus
+  toStatus?: GrievanceStatus
+  createdTime: number
+  attachments?: GrievanceAttachmentAPI[]
+}
+
+export interface GrievanceDetailAPI {
+  grievanceId: string
+  referenceId: string
+  category: GrievanceCategory
+  priority: GrievancePriority
+  status: GrievanceStatus
+  description?: string
+  userId: string
+  submittedTime: number
+  updatedTime: number
+  statutoryDueTime: number
+  timeline?: GrievanceTimelineEntryAPI[]
+  attachments?: GrievanceAttachmentAPI[]
+}
+
+export interface GrievanceListMetadataAPI {
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface GrievanceListResponseAPI {
+  data: GrievanceDetailAPI[]
+  metadata: GrievanceListMetadataAPI
+}
+
+export interface GrievanceStatsAPI {
+  open: number
+  awaitingInfo: number
+  resolved: number
+  slaBreached: number
+}
+
+export interface GrievanceListQueryParams {
+  status?: GrievanceStatus
+  priority?: GrievancePriority
+  q?: string
+  page: number
+  pageSize: number
 }

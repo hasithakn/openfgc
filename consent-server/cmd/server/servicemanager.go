@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/openfgc/internal/consent"
 	"github.com/wso2/openfgc/internal/consentelement"
 	"github.com/wso2/openfgc/internal/consentpurpose"
+	"github.com/wso2/openfgc/internal/grievance"
 	"github.com/wso2/openfgc/internal/system/config"
 	"github.com/wso2/openfgc/internal/system/healthcheck/handler"
 	"github.com/wso2/openfgc/internal/system/log"
@@ -47,6 +48,7 @@ func registerServices(mux *http.ServeMux) {
 		authresource.NewAuthResourceStore(),
 		consentelement.NewConsentElementStore(),
 		consentpurpose.NewPurposeStore(),
+		grievance.NewGrievanceStore(),
 	)
 	logger.Debug("Store Registry initialized with all stores")
 
@@ -62,6 +64,9 @@ func registerServices(mux *http.ServeMux) {
 
 	svc := consent.Initialize(mux, storeRegistry)
 	logger.Debug("Consent module initialized")
+
+	grievance.Initialize(mux, storeRegistry)
+	logger.Debug("Grievance module initialized")
 
 	startConsentExpirationScheduler(svc)
 

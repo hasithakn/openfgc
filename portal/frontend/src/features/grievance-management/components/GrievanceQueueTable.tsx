@@ -22,6 +22,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TableSortLabel,
 } from '@wso2/oxygen-ui'
@@ -30,11 +31,17 @@ import { useTranslation } from 'react-i18next'
 import { GRIEVANCE_PRIORITIES, type GrievanceRecord } from '../../../types/grievance'
 import { formatIsoDateTime } from '../../../utils/dateTime'
 import GrievancePriorityChip from '../../grievances/components/GrievancePriorityChip'
+import { GRIEVANCE_QUEUE_ROWS_PER_PAGE_OPTIONS } from '../../grievances/constants'
 import GrievanceSlaIndicator from '../../grievances/components/GrievanceSlaIndicator'
 import GrievanceStatusChip from '../../grievances/components/GrievanceStatusChip'
 
 interface GrievanceQueueTableProps {
   rows: GrievanceRecord[]
+  total: number
+  page: number
+  rowsPerPage: number
+  onPageChange: (page: number) => void
+  onRowsPerPageChange: (rowsPerPage: number) => void
   onViewCase: (id: string) => void
 }
 
@@ -69,7 +76,15 @@ function sortRows(
   return sortDirection === 'asc' ? sortedRows : sortedRows.reverse()
 }
 
-function GrievanceQueueTable({ rows, onViewCase }: GrievanceQueueTableProps): React.JSX.Element {
+function GrievanceQueueTable({
+  rows,
+  total,
+  page,
+  rowsPerPage,
+  onPageChange,
+  onRowsPerPageChange,
+  onViewCase,
+}: GrievanceQueueTableProps): React.JSX.Element {
   const { t } = useTranslation('common')
   const [sortField, setSortField] = useState<SortableField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -149,6 +164,15 @@ function GrievanceQueueTable({ rows, onViewCase }: GrievanceQueueTableProps): Re
           ))}
         </TableBody>
       </Table>
+      <TablePagination
+        component="div"
+        count={total}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        rowsPerPageOptions={[...GRIEVANCE_QUEUE_ROWS_PER_PAGE_OPTIONS]}
+        onPageChange={(_, nextPage) => onPageChange(nextPage)}
+        onRowsPerPageChange={(event) => onRowsPerPageChange(Number(event.target.value))}
+      />
     </TableContainer>
   )
 }

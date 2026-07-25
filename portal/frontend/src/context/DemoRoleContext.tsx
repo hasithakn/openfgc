@@ -17,6 +17,8 @@
  */
 
 import { useMemo, useState } from 'react'
+import { isAuthEnabled } from '../utils/authClient'
+import { useScopes } from './ScopeContext'
 import { DemoRoleContext, type DemoRole } from './demoRole'
 
 interface DemoRoleProviderProps {
@@ -24,8 +26,24 @@ interface DemoRoleProviderProps {
 }
 
 function DemoRoleProvider({ children }: DemoRoleProviderProps): React.JSX.Element {
-  const [role, setRole] = useState<DemoRole>('dataPrincipal')
-  const value = useMemo(() => ({ role, setRole }), [role])
+  const { isGrievanceOfficer } = useScopes()
+  const [manualRole, setManualRole] = useState<DemoRole | null>(null)
+  const canOverride = !isAuthEnabled()
+  const effectiveRole: DemoRole = isGrievanceOfficer ? 'grievanceOfficer' : 'dataPrincipal'
+  const role = canOverride && manualRole ? manualRole : effectiveRole
+
+  const value = useMemo(
+    () => ({
+      role,
+      canOverride,
+      setRole: (nextRole: DemoRole) => {
+        if (canOverride) {
+          setManualRole(nextRole)
+        }
+      },
+    }),
+    [role, canOverride],
+  )
 
   return <DemoRoleContext.Provider value={value}>{children}</DemoRoleContext.Provider>
 }

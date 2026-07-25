@@ -30,11 +30,12 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   Typography,
 } from '@wso2/oxygen-ui'
 import { Plus } from '@wso2/oxygen-ui-icons-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import HeaderBreadcrumbs from '../../components/layout/main-layout/HeaderBreadcrumbs'
@@ -42,7 +43,8 @@ import { GRIEVANCE_STATUSES, type GrievanceStatus } from '../../types/grievance'
 import { formatIsoDateTime } from '../../utils/dateTime'
 import GrievanceStatusChip from './components/GrievanceStatusChip'
 import GrievanceSubmitDialog from './components/GrievanceSubmitDialog'
-import { CURRENT_DATA_PRINCIPAL_NAME, MOCK_GRIEVANCES } from './data/mockGrievances'
+import { GRIEVANCE_LIST_ROWS_PER_PAGE_OPTIONS } from './constants'
+import { useMyGrievanceListQuery } from './hooks/useGrievanceQueries'
 import { getGrievanceStatusLabelKey } from './utils/grievanceDisplay'
 
 type StatusFilter = GrievanceStatus | 'All'
@@ -58,21 +60,13 @@ function GrievanceListPage(): React.JSX.Element {
   const navigate = useNavigate()
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState<boolean>(false)
   const [submittedReferenceId, setSubmittedReferenceId] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState<number>(0)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
+  const [page, setPage] = useState<number>(0)
+  const [rowsPerPage, setRowsPerPage] = useState<number>(GRIEVANCE_LIST_ROWS_PER_PAGE_OPTIONS[0])
 
-  const rows = useMemo(
-    () =>
-      MOCK_GRIEVANCES.filter(
-        (grievance) =>
-          grievance.dataPrincipalName === CURRENT_DATA_PRINCIPAL_NAME &&
-          (statusFilter === 'All' || grievance.status === statusFilter),
-      ).sort(
-        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshKey forces a re-read of the mutated MOCK_GRIEVANCES module array after a new submission
-    [refreshKey, statusFilter],
-  )
+  const listQuery = useMyGrievanceListQuery(statusFilter, page, rowsPerPage)
+  const rows = listQuery.data?.rows ?? []
+  const total = listQuery.data?.total ?? 0
 
   return (
     <Box component="main" sx={{ p: { xs: 2, md: 4 } }}>
@@ -120,6 +114,7 @@ function GrievanceListPage(): React.JSX.Element {
             label={t('grievances.list.filters.status')}
             onChange={(event) => {
               setStatusFilter(event.target.value as StatusFilter)
+              setPage(0)
             }}
           >
             <MenuItem value="All">{t('grievances.list.filters.all')}</MenuItem>
@@ -133,13 +128,19 @@ function GrievanceListPage(): React.JSX.Element {
           </Select>
         </FormControl>
 
-        {rows.length === 0 ? (
+        {listQuery.isError ? (
+          <Alert severity="error">{t('grievances.list.loadError')}</Alert>
+        ) : null}
+
+        {!listQuery.isError && !listQuery.isLoading && rows.length === 0 ? (
           <Typography>
             {statusFilter === 'All'
               ? t('grievances.list.empty')
               : t('grievances.list.emptyFiltered')}
           </Typography>
-        ) : (
+        ) : null}
+
+        {!listQuery.isError && (rows.length > 0 || listQuery.isLoading) ? (
           <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
             <Table aria-label={t('grievances.list.table.tableAriaLabel')}>
               <TableHead>
@@ -172,8 +173,20 @@ function GrievanceListPage(): React.JSX.Element {
                 ))}
               </TableBody>
             </Table>
+            <TablePagination
+              component="div"
+              count={total}
+              page={page}
+              rowsPerPage={rowsPerPage}
+              rowsPerPageOptions={[...GRIEVANCE_LIST_ROWS_PER_PAGE_OPTIONS]}
+              onPageChange={(_, nextPage) => setPage(nextPage)}
+              onRowsPerPageChange={(event) => {
+                setRowsPerPage(Number(event.target.value))
+                setPage(0)
+              }}
+            />
           </TableContainer>
-        )}
+        ) : null}
       </Stack>
 
       <GrievanceSubmitDialog
@@ -182,7 +195,6 @@ function GrievanceListPage(): React.JSX.Element {
         onSubmitted={(referenceId) => {
           setIsSubmitDialogOpen(false)
           setSubmittedReferenceId(referenceId)
-          setRefreshKey((previousKey) => previousKey + 1)
         }}
       />
     </Box>

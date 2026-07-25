@@ -29,7 +29,6 @@ import {
   Typography,
 } from '@wso2/oxygen-ui'
 import { Paperclip } from '@wso2/oxygen-ui-icons-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import HeaderBreadcrumbs from '../../components/layout/main-layout/HeaderBreadcrumbs'
@@ -38,7 +37,7 @@ import GrievanceActivityFeed from './components/GrievanceActivityFeed'
 import GrievanceReplyComposer from './components/GrievanceReplyComposer'
 import GrievanceSlaIndicator from './components/GrievanceSlaIndicator'
 import GrievanceStatusChip from './components/GrievanceStatusChip'
-import { addMessage, findGrievanceById } from './data/mockGrievances'
+import { useMyGrievanceDetailQuery, useReplyToGrievanceMutation } from './hooks/useGrievanceQueries'
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   month: 'short',
@@ -53,7 +52,17 @@ function GrievanceDetailPage(): React.JSX.Element {
   const { t } = useTranslation('common')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [grievance, setGrievance] = useState(() => findGrievanceById(id))
+  const detailQuery = useMyGrievanceDetailQuery(id)
+  const replyMutation = useReplyToGrievanceMutation()
+  const grievance = detailQuery.data
+
+  if (detailQuery.isLoading) {
+    return (
+      <Box component="main" sx={{ p: { xs: 2, md: 4 } }}>
+        <HeaderBreadcrumbs />
+      </Box>
+    )
+  }
 
   if (!grievance) {
     return (
@@ -155,12 +164,8 @@ function GrievanceDetailPage(): React.JSX.Element {
           <Stack spacing={3}>
             <GrievanceReplyComposer
               canPostInternalNote={false}
-              onSend={(message, attachmentNames) => {
-                const updated = addMessage(grievance.id, message, 'DataPrincipal', attachmentNames)
-
-                if (updated) {
-                  setGrievance({ ...updated })
-                }
+              onSend={(message, attachments) => {
+                replyMutation.mutate({ grievanceId: grievance.id, message, attachments })
               }}
             />
             <GrievanceActivityFeed entries={grievance.timeline} viewerRole="DataPrincipal" />

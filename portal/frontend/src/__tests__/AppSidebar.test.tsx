@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest'
 import { AcrylicOrangeTheme, CssBaseline, OxygenUIThemeProvider } from '@wso2/oxygen-ui'
 import AppSidebar from '../components/layout/sidebar/AppSidebar'
 import DemoRoleProvider from '../context/DemoRoleContext'
+import { ScopeProvider } from '../context/ScopeContext'
 import i18n from '../i18n/i18n'
 
 function LocationProbe(): React.JSX.Element {
@@ -37,21 +38,23 @@ describe('AppSidebar', () => {
       <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
         <CssBaseline />
         <I18nextProvider i18n={i18n}>
-          <DemoRoleProvider>
-            <MemoryRouter initialEntries={['/consents']}>
-              <Routes>
-                <Route
-                  path="*"
-                  element={
-                    <>
-                      <AppSidebar collapsed={false} />
-                      <LocationProbe />
-                    </>
-                  }
-                />
-              </Routes>
-            </MemoryRouter>
-          </DemoRoleProvider>
+          <ScopeProvider>
+            <DemoRoleProvider>
+              <MemoryRouter initialEntries={['/consents']}>
+                <Routes>
+                  <Route
+                    path="*"
+                    element={
+                      <>
+                        <AppSidebar collapsed={false} />
+                        <LocationProbe />
+                      </>
+                    }
+                  />
+                </Routes>
+              </MemoryRouter>
+            </DemoRoleProvider>
+          </ScopeProvider>
         </I18nextProvider>
       </OxygenUIThemeProvider>,
     )

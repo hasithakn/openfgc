@@ -33,11 +33,7 @@ import { MAX_ATTACHMENT_SIZE_BYTES, MAX_ATTACHMENT_SIZE_LABEL } from '../constan
 
 interface GrievanceReplyComposerProps {
   canPostInternalNote: boolean
-  onSend: (
-    message: string,
-    attachmentNames: string[],
-    visibility: GrievanceTimelineVisibility,
-  ) => void
+  onSend: (message: string, attachments: File[], visibility: GrievanceTimelineVisibility) => void
 }
 
 function GrievanceReplyComposer({
@@ -47,7 +43,7 @@ function GrievanceReplyComposer({
   const { t } = useTranslation('common')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState<string>('')
-  const [draftAttachmentNames, setDraftAttachmentNames] = useState<string[]>([])
+  const [draftAttachments, setDraftAttachments] = useState<File[]>([])
   const [attachmentSizeError, setAttachmentSizeError] = useState<string | null>(null)
   const [composerVisibility, setComposerVisibility] =
     useState<GrievanceTimelineVisibility>('shared')
@@ -107,10 +103,7 @@ function GrievanceReplyComposer({
                 })
               : null,
           )
-          setDraftAttachmentNames((previousNames) => [
-            ...previousNames,
-            ...acceptedFiles.map((file) => file.name),
-          ])
+          setDraftAttachments((previousFiles) => [...previousFiles, ...acceptedFiles])
           input.value = ''
         }}
       />
@@ -121,18 +114,18 @@ function GrievanceReplyComposer({
         </Typography>
       ) : null}
 
-      {draftAttachmentNames.length > 0 ? (
+      {draftAttachments.length > 0 ? (
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {draftAttachmentNames.map((fileName, index) => (
+          {draftAttachments.map((file, index) => (
             <Chip
-              key={`${fileName}-${String(index)}`}
+              key={`${file.name}-${String(index)}`}
               size="small"
               variant="outlined"
               icon={<Paperclip size={14} />}
-              label={fileName}
+              label={file.name}
               onDelete={() => {
-                setDraftAttachmentNames((previousNames) =>
-                  previousNames.filter((_, fileIndex) => fileIndex !== index),
+                setDraftAttachments((previousFiles) =>
+                  previousFiles.filter((_, fileIndex) => fileIndex !== index),
                 )
               }}
               deleteIcon={<X size={14} />}
@@ -169,9 +162,9 @@ function GrievanceReplyComposer({
           startIcon={isInternalDraft ? <Lock size={16} /> : <Send size={16} />}
           disabled={!draft.trim()}
           onClick={() => {
-            onSend(draft.trim(), draftAttachmentNames, isInternalDraft ? 'internal' : 'shared')
+            onSend(draft.trim(), draftAttachments, isInternalDraft ? 'internal' : 'shared')
             setDraft('')
-            setDraftAttachmentNames([])
+            setDraftAttachments([])
             setAttachmentSizeError(null)
           }}
         >

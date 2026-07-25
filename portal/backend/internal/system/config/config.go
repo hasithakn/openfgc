@@ -295,10 +295,10 @@ func setDefaults(k *koanf.Koanf) error {
 	if err := k.Set("proxy.openfgc_api_timeout", "10s"); err != nil {
 		return err
 	}
-	if err := k.Set("proxy.max_request_bytes", int64(1048576)); err != nil {
+	if err := k.Set("proxy.max_request_bytes", int64(52428800)); err != nil {
 		return err
 	}
-	if err := k.Set("proxy.max_response_bytes", int64(10485760)); err != nil {
+	if err := k.Set("proxy.max_response_bytes", int64(52428800)); err != nil {
 		return err
 	}
 	if err := k.Set("proxy.placeholder_mode_enabled", false); err != nil {

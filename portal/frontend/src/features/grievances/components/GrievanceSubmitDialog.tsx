@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next'
 import type { GrievanceCategory } from '../../../types/grievance'
 import { GRIEVANCE_CATEGORIES } from '../../../types/grievance'
 import { MAX_ATTACHMENT_SIZE_BYTES, MAX_ATTACHMENT_SIZE_LABEL } from '../constants'
-import { createGrievanceFromSubmission } from '../data/mockGrievances'
+import { useSubmitGrievanceMutation } from '../hooks/useGrievanceQueries'
 
 interface GrievanceSubmitDialogProps {
   open: boolean
@@ -53,17 +53,18 @@ function GrievanceSubmitDialog({
 }: GrievanceSubmitDialogProps): React.JSX.Element {
   const { t } = useTranslation('common')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const submitGrievanceMutation = useSubmitGrievanceMutation()
 
   const [category, setCategory] = useState<GrievanceCategory | ''>('')
   const [description, setDescription] = useState<string>('')
-  const [attachmentNames, setAttachmentNames] = useState<string[]>([])
+  const [attachments, setAttachments] = useState<File[]>([])
   const [attachmentSizeError, setAttachmentSizeError] = useState<string | null>(null)
   const [showValidation, setShowValidation] = useState<boolean>(false)
 
   const resetForm = (): void => {
     setCategory('')
     setDescription('')
-    setAttachmentNames([])
+    setAttachments([])
     setAttachmentSizeError(null)
     setShowValidation(false)
   }
@@ -207,10 +208,7 @@ function GrievanceSubmitDialog({
                       })
                     : null,
                 )
-                setAttachmentNames((previousNames) => [
-                  ...previousNames,
-                  ...acceptedFiles.map((file) => file.name),
-                ])
+                setAttachments((previousFiles) => [...previousFiles, ...acceptedFiles])
                 input.value = ''
               }}
             />
@@ -229,18 +227,18 @@ function GrievanceSubmitDialog({
               </Typography>
             ) : null}
 
-            {attachmentNames.length > 0 ? (
+            {attachments.length > 0 ? (
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                {attachmentNames.map((fileName, index) => (
+                {attachments.map((file, index) => (
                   <Chip
-                    key={`${fileName}-${String(index)}`}
+                    key={`${file.name}-${String(index)}`}
                     size="small"
                     variant="outlined"
                     icon={<Paperclip size={14} />}
-                    label={fileName}
+                    label={file.name}
                     onDelete={() => {
-                      setAttachmentNames((previousNames) =>
-                        previousNames.filter((_, fileIndex) => fileIndex !== index),
+                      setAttachments((previousFiles) =>
+                        previousFiles.filter((_, fileIndex) => fileIndex !== index),
                       )
                     }}
                     deleteIcon={<X size={14} />}
@@ -270,20 +268,26 @@ function GrievanceSubmitDialog({
           autoFocus
           fullWidth
           variant="contained"
+          disabled={submitGrievanceMutation.isPending}
           onClick={() => {
             if (!category || !description.trim()) {
               setShowValidation(true)
               return
             }
 
-            const newGrievance = createGrievanceFromSubmission({
-              category,
-              description: description.trim(),
-              attachmentNames,
-            })
-
-            resetForm()
-            onSubmitted(newGrievance.referenceId)
+            submitGrievanceMutation.mutate(
+              {
+                category,
+                description: description.trim(),
+                attachments,
+              },
+              {
+                onSuccess: (newGrievance) => {
+                  resetForm()
+                  onSubmitted(newGrievance.referenceId)
+                },
+              },
+            )
           }}
         >
           {t('grievances.submit.actions.submit')}

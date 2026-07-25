@@ -43,14 +43,13 @@ import GrievancePriorityChip from '../grievances/components/GrievancePriorityChi
 import GrievanceReplyComposer from '../grievances/components/GrievanceReplyComposer'
 import GrievanceSlaIndicator from '../grievances/components/GrievanceSlaIndicator'
 import GrievanceStatusChip from '../grievances/components/GrievanceStatusChip'
-import {
-  addInternalNote,
-  addMessage,
-  findGrievanceById,
-  updateGrievanceStatus,
-} from '../grievances/data/mockGrievances'
 import { GRIEVANCE_NEXT_STATUSES } from '../grievances/constants'
 import { getGrievanceStatusLabelKey } from '../grievances/utils/grievanceDisplay'
+import {
+  useCaseDetailQuery,
+  useReplyToCaseMutation,
+  useTransitionStatusMutation,
+} from './hooks/useGrievanceQueueQueries'
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   month: 'short',
@@ -65,8 +64,19 @@ function GrievanceCaseDetailPage(): React.JSX.Element {
   const { t } = useTranslation('common')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [grievance, setGrievance] = useState(() => findGrievanceById(id))
+  const detailQuery = useCaseDetailQuery(id)
+  const replyMutation = useReplyToCaseMutation()
+  const transitionStatusMutation = useTransitionStatusMutation()
+  const grievance = detailQuery.data
   const [nextStatus, setNextStatus] = useState<GrievanceStatus | ''>('')
+
+  if (detailQuery.isLoading) {
+    return (
+      <Box component="main" sx={{ p: { xs: 2, md: 4 } }}>
+        <HeaderBreadcrumbs />
+      </Box>
+    )
+  }
 
   if (!grievance) {
     return (
@@ -216,18 +226,16 @@ function GrievanceCaseDetailPage(): React.JSX.Element {
               <Box>
                 <Button
                   variant="contained"
-                  disabled={!nextStatus}
+                  disabled={!nextStatus || transitionStatusMutation.isPending}
                   onClick={() => {
                     if (!nextStatus) {
                       return
                     }
 
-                    const updated = updateGrievanceStatus(grievance.id, nextStatus)
-
-                    if (updated) {
-                      setGrievance({ ...updated })
-                      setNextStatus('')
-                    }
+                    transitionStatusMutation.mutate(
+                      { grievanceId: grievance.id, nextStatus },
+                      { onSuccess: () => setNextStatus('') },
+                    )
                   }}
                 >
                   {t('grievances.management.case.statusUpdate.apply')}
@@ -242,15 +250,8 @@ function GrievanceCaseDetailPage(): React.JSX.Element {
         <CardContent>
           <GrievanceReplyComposer
             canPostInternalNote
-            onSend={(message, attachmentNames, visibility) => {
-              const updated =
-                visibility === 'internal'
-                  ? addInternalNote(grievance.id, message, attachmentNames)
-                  : addMessage(grievance.id, message, 'GrievanceOfficer', attachmentNames)
-
-              if (updated) {
-                setGrievance({ ...updated })
-              }
+            onSend={(message, attachments, visibility) => {
+              replyMutation.mutate({ grievanceId: grievance.id, message, visibility, attachments })
             }}
           />
         </CardContent>

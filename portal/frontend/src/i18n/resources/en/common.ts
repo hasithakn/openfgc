@@ -285,6 +285,7 @@ const commonEn = {
       submitNew: 'Submit New Complaint',
       empty: 'You have not submitted any grievances yet.',
       emptyFiltered: 'No complaints match the selected status.',
+      loadError: 'Failed to load your complaints. Please try again.',
       filters: {
         status: 'Status',
         all: 'All',
@@ -352,6 +353,7 @@ const commonEn = {
         subtitle:
           'Centralized view of all grievances with SLA tracking and linked consent context.',
         empty: 'No grievances match the selected filters.',
+        loadError: 'Failed to load the complaint queue. Please try again.',
         stats: {
           open: 'Open',
           awaitingInfo: 'Awaiting Info',

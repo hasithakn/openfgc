@@ -129,7 +129,9 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
   const { role } = useDemoRole()
-  const { isAdmin, canReadPurposes, canReadElements } = useScopes()
+  const { isAdmin, canReadPurposes, canReadElements, canReadGrievancesSelf } = useScopes()
+  const showGrievances = role === 'dataPrincipal' && canReadGrievancesSelf
+  const showGrievanceManagement = role === 'grievanceOfficer'
 
   const consentItem: SidebarItem = {
     id: 'all-consents',
@@ -146,8 +148,8 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
   const allItems: SidebarItem[] = [
     ...DASHBOARD_ITEMS,
     ...consentItems,
-    ...GRIEVANCE_ITEMS,
-    ...GRIEVANCE_MANAGEMENT_ITEMS,
+    ...(showGrievances ? GRIEVANCE_ITEMS : []),
+    ...(showGrievanceManagement ? GRIEVANCE_MANAGEMENT_ITEMS : []),
     ...catalogItems,
   ]
 
@@ -185,7 +187,7 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
           ))}
         </Sidebar.Category>
 
-        {role === 'dataPrincipal' ? (
+        {showGrievances ? (
           <Sidebar.Category>
             <Sidebar.CategoryLabel>{t('sidebar.grievances')}</Sidebar.CategoryLabel>
             {GRIEVANCE_ITEMS.map((item) => (
@@ -197,7 +199,7 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
           </Sidebar.Category>
         ) : null}
 
-        {role === 'grievanceOfficer' ? (
+        {showGrievanceManagement ? (
           <Sidebar.Category>
             <Sidebar.CategoryLabel>{t('sidebar.grievanceManagement')}</Sidebar.CategoryLabel>
             {GRIEVANCE_MANAGEMENT_ITEMS.map((item) => (

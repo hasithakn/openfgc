@@ -16,22 +16,7 @@
  * under the License.
  */
 
-import type { GrievanceCategory, GrievancePriority, GrievanceStatus } from '../../types/grievance'
-
-export const GRIEVANCE_CATEGORY_PRIORITY: Record<GrievanceCategory, GrievancePriority> = {
-  dataBreachComplaint: 'P0',
-  unauthorizedDataSharing: 'P0',
-  consentWithdrawalIssue: 'P1',
-  purposeViolation: 'P1',
-  dataErasureRequestNotFulfilled: 'P1',
-  dataCorrectionRequestNotFulfilled: 'P2',
-  consentManagerIssue: 'P2',
-  dataAccessRequestDenial: 'P2',
-  excessiveDataCollection: 'P3',
-  other: 'P3',
-}
-
-export const DATA_PROTECTION_OFFICER_NAME = 'Priya Fernando'
+import type { GrievanceStatus } from '../../types/grievance'
 
 export const GRIEVANCE_STATE_MACHINE_ORDER: GrievanceStatus[] = [
   'Open',

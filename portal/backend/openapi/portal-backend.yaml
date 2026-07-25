@@ -543,6 +543,9 @@ components:
             'portal:elements:write': Modify consent elements.
             'portal:purposes:read': Read consent purposes.
             'portal:purposes:write': Modify consent purposes.
+            'portal:grievances:manage': Manage grievances as a Grievance Officer.
+            'portal:grievances:read:self': Read the current user's own grievances.
+            'portal:grievances:write:self': Submit or reply to the current user's own grievances.
     AccessTokenPart2:
       type: apiKey
       in: cookie

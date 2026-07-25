@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/wso2/openfgc/portal/backend/internal/grievance"
 	"github.com/wso2/openfgc/portal/backend/internal/me"
 	"github.com/wso2/openfgc/portal/backend/internal/proxy"
 	"github.com/wso2/openfgc/portal/backend/internal/system/auth"
@@ -53,6 +54,11 @@ func registerServices(mux *http.ServeMux, log *slog.Logger, cfg config.Config) e
 		return err
 	}
 	log.Debug("registered me module")
+
+	if err := grievance.Initialize(mux, cfg, authManager); err != nil {
+		return err
+	}
+	log.Debug("registered grievance module")
 
 	return nil
 }
