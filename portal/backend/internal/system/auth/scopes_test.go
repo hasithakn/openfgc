@@ -50,8 +50,8 @@ func TestCanonicalScopesAreUniqueAndPrefixed(t *testing.T) {
 		}
 		seen[scope] = struct{}{}
 	}
-	if len(seen) != 11 {
-		t.Fatalf("expected eleven canonical scopes, got %d", len(seen))
+	if len(seen) != 12 {
+		t.Fatalf("expected twelve canonical scopes, got %d", len(seen))
 	}
 }
 

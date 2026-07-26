@@ -546,6 +546,7 @@ components:
             'portal:grievances:manage': Manage grievances as a Grievance Officer.
             'portal:grievances:read:self': Read the current user's own grievances.
             'portal:grievances:write:self': Submit or reply to the current user's own grievances.
+            'portal:event-subscriptions:manage': Manage Event Notification Framework subscriptions and inspect event delivery history.
     AccessTokenPart2:
       type: apiKey
       in: cookie

@@ -33,14 +33,14 @@ public class TopicEndpoint {
     }
 
     @POST
-    public Response createTopic(@HeaderParam("X-Org-Id") String orgId, TopicCreateRequestBean request) {
+    public Response createTopic(@HeaderParam("org-id") String orgId, TopicCreateRequestBean request) {
         TopicResponseBean response = topicHandler.createTopic(orgId, request);
         return Response.status(Response.Status.CREATED).entity(response).build();
     }
 
     @GET
     public Response listTopics(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @QueryParam("status") String status,
             @QueryParam("search") String search,
             @QueryParam("limit") Integer limit,
@@ -54,7 +54,7 @@ public class TopicEndpoint {
     @DELETE
     @Path("/{topicId}")
     public Response deleteTopic(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("topicId") String topicId) {
         TopicResponseBean response = topicHandler.deleteTopic(orgId, topicId);
         return Response.ok(response).build();

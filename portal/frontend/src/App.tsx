@@ -29,10 +29,14 @@ import PurposeListPage from './features/catalog/PurposeListPage'
 import ConsentDetailsPage from './features/consent-registry/ConsentDetailsPage'
 import ConsentRegistryPage from './features/consent-registry/ConsentRegistryPage'
 import DashboardPage from './features/dashboard/DashboardPage'
+import EventListPage from './features/event-subscriptions/EventListPage'
+import SubscriptionDetailsPage from './features/event-subscriptions/SubscriptionDetailsPage'
+import SubscriptionListPage from './features/event-subscriptions/SubscriptionListPage'
 import GrievanceCaseDetailPage from './features/grievance-management/GrievanceCaseDetailPage'
 import GrievanceQueuePage from './features/grievance-management/GrievanceQueuePage'
 import GrievanceDetailPage from './features/grievances/GrievanceDetailPage'
 import GrievanceListPage from './features/grievances/GrievanceListPage'
+import ProfilePage from './features/profile/ProfilePage'
 import { useDemoRole } from './hooks/useDemoRole'
 import { isAuthenticated, login } from './utils/authClient'
 
@@ -69,7 +73,8 @@ function ScopeGuard({
 }
 
 function AppRoutes(): React.JSX.Element {
-  const { canReadElements, canReadPurposes, canReadGrievancesSelf } = useScopes()
+  const { canReadElements, canReadPurposes, canReadGrievancesSelf, canManageEventSubscriptions } =
+    useScopes()
   const { role } = useDemoRole()
 
   const canAccessGrievances = role === 'dataPrincipal' && canReadGrievancesSelf
@@ -85,6 +90,7 @@ function AppRoutes(): React.JSX.Element {
     <Routes>
       <Route element={<MainLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/consents" element={<ConsentRegistryPage />} />
         <Route path="/consents/:id" element={<ConsentDetailsPage />} />
         <Route
@@ -154,6 +160,30 @@ function AppRoutes(): React.JSX.Element {
               redirectTo={grievanceManagementRedirect}
             >
               <GrievanceCaseDetailPage />
+            </ScopeGuard>
+          }
+        />
+        <Route
+          path="/subscriptions"
+          element={
+            <ScopeGuard canAccess={canManageEventSubscriptions} redirectTo="/consents">
+              <SubscriptionListPage />
+            </ScopeGuard>
+          }
+        />
+        <Route
+          path="/subscriptions/:id"
+          element={
+            <ScopeGuard canAccess={canManageEventSubscriptions} redirectTo="/consents">
+              <SubscriptionDetailsPage />
+            </ScopeGuard>
+          }
+        />
+        <Route
+          path="/events"
+          element={
+            <ScopeGuard canAccess={canManageEventSubscriptions} redirectTo="/consents">
+              <EventListPage />
             </ScopeGuard>
           }
         />

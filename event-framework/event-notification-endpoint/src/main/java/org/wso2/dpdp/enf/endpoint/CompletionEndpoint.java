@@ -30,8 +30,8 @@ public class CompletionEndpoint {
 
     @POST
     public Response submitCompletion(
-            @HeaderParam("X-Org-Id") String orgId,
-            @HeaderParam("X-Group-Id") String groupId,
+            @HeaderParam("org-id") String orgId,
+            @HeaderParam("group-id") String groupId,
             @HeaderParam("X-Event-Signature") String signature,
             @PathParam("deliveryId") String deliveryId,
             CompletionRequestBean request) {

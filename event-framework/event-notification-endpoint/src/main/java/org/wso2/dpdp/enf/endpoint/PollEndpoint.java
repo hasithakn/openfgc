@@ -29,8 +29,8 @@ public class PollEndpoint {
 
     @POST
     public Response pollEvents(
-            @HeaderParam("X-Org-Id") String orgId,
-            @HeaderParam("X-Group-Id") String groupId,
+            @HeaderParam("org-id") String orgId,
+            @HeaderParam("group-id") String groupId,
             @HeaderParam("X-Event-Signature") String signature,
             PollRequestBean request) {
         // String representation of request body for HMAC verification

@@ -4,8 +4,10 @@
  */
 
 import { Alert, Button, Snackbar, UserMenu } from '@wso2/oxygen-ui'
+import { User } from '@wso2/oxygen-ui-icons-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { getUserProfile, logout } from '../../../utils/authClient'
 
 type UserClaims = Record<string, unknown>
@@ -31,6 +33,7 @@ function displayName(claims: UserClaims, fallback: string): string {
 
 function UserProfileMenu(): React.JSX.Element {
   const { t } = useTranslation('common')
+  const navigate = useNavigate()
   const [logoutFailed, setLogoutFailed] = useState(false)
   const [logoutPending, setLogoutPending] = useState(false)
   const [claims] = useState<UserClaims>(() => getUserProfile() ?? {})
@@ -59,6 +62,12 @@ function UserProfileMenu(): React.JSX.Element {
       <UserMenu>
         <UserMenu.Trigger name={name} avatar={avatar} />
         <UserMenu.Header name={name} email={email} avatar={avatar} />
+        <UserMenu.Divider />
+        <UserMenu.Item
+          icon={<User />}
+          label={t('layout.userMenu.profile')}
+          onClick={() => navigate('/profile')}
+        />
         <UserMenu.Divider />
         <UserMenu.Logout label={t('layout.userMenu.signOut')} onClick={handleLogout} />
       </UserMenu>

@@ -36,8 +36,8 @@ public class SubscriptionEndpoint {
 
     @POST
     public Response createSubscription(
-            @HeaderParam("X-Org-Id") String orgId,
-            @HeaderParam("X-Group-Id") String groupId,
+            @HeaderParam("org-id") String orgId,
+            @HeaderParam("group-id") String groupId,
             SubscriptionCreateRequestBean request) {
         SubscriptionResponseBean response = subscriptionHandler.createSubscription(orgId, groupId, request);
         if (Boolean.TRUE.equals(response.getAlreadyExists())) {
@@ -48,7 +48,7 @@ public class SubscriptionEndpoint {
 
     @GET
     public Response listSubscriptions(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @QueryParam("status") String status,
             @QueryParam("purposes") String purposes,
             @QueryParam("search") String search,
@@ -62,7 +62,7 @@ public class SubscriptionEndpoint {
     @GET
     @Path("/{subscriptionId}")
     public Response getSubscription(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("subscriptionId") String subscriptionId) {
         SubscriptionResponseBean response = subscriptionHandler.getSubscription(orgId, subscriptionId);
         return Response.ok(response).build();
@@ -71,7 +71,7 @@ public class SubscriptionEndpoint {
     @DELETE
     @Path("/{subscriptionId}")
     public Response deleteSubscription(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("subscriptionId") String subscriptionId) {
         subscriptionHandler.deleteSubscription(orgId, subscriptionId);
         return Response.noContent().build();
@@ -80,7 +80,7 @@ public class SubscriptionEndpoint {
     @GET
     @Path("/{subscriptionId}/events")
     public Response listSubscriptionEvents(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("subscriptionId") String subscriptionId,
             @QueryParam("limit") Integer limit,
             @QueryParam("offset") Integer offset) {
@@ -91,7 +91,7 @@ public class SubscriptionEndpoint {
     @GET
     @Path("/{subscriptionId}/events/{deliveryId}/history")
     public Response getSubscriptionEventHistory(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("subscriptionId") String subscriptionId,
             @PathParam("deliveryId") String deliveryId) {
         SubscriptionEventHistoryResponseBean response = subscriptionHandler.getSubscriptionEventHistory(orgId, subscriptionId, deliveryId);
@@ -101,7 +101,7 @@ public class SubscriptionEndpoint {
     @GET
     @Path("/{subscriptionId}/events/{deliveryId}")
     public Response getSubscriptionEventHistoryAlias(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("subscriptionId") String subscriptionId,
             @PathParam("deliveryId") String deliveryId) {
         SubscriptionEventHistoryResponseBean response = subscriptionHandler.getSubscriptionEventHistory(orgId, subscriptionId, deliveryId);

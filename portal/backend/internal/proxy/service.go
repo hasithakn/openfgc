@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/wso2/openfgc/portal/backend/internal/system/config"
 	systemcontext "github.com/wso2/openfgc/portal/backend/internal/system/context"
@@ -82,10 +83,11 @@ var allowedAPIRoutes = []routeSpec{
 	{pathParts: []string{"consent-purposes", "*", "versions", "*"}, methods: toMethodSet("GET", "DELETE")},
 }
 
-// Service proxies requests to consent-server with route-specific transforms.
+// Service proxies requests to an upstream API with route-specific transforms.
 type Service struct {
 	cfg       config.ProxyConfig
 	baseURL   *url.URL
+	timeout   time.Duration
 	http      *http.Client
 	allowlist map[string]struct{}
 }
@@ -97,9 +99,16 @@ type UpstreamResponse struct {
 	Body       []byte
 }
 
-// NewService builds a proxy service from app config.
+// NewService builds a proxy service targeting the consent-server from app config.
 func NewService(cfg config.ProxyConfig) (*Service, error) {
-	parsed, err := config.ValidateOpenFGCAPIURL(cfg.OpenFGCAPIURL)
+	return NewServiceForTarget(cfg, cfg.OpenFGCAPIURL, cfg.OpenFGCAPITimeout)
+}
+
+// NewServiceForTarget builds a proxy service targeting an explicit upstream base URL and
+// timeout, reusing cfg for shared behavior (request/response size limits, passthrough
+// method allowlist). Used to proxy to upstreams other than the consent-server.
+func NewServiceForTarget(cfg config.ProxyConfig, baseURL string, timeout time.Duration) (*Service, error) {
+	parsed, err := config.ValidateOpenFGCAPIURL(baseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +119,9 @@ func NewService(cfg config.ProxyConfig) (*Service, error) {
 	return &Service{
 		cfg:     cfg,
 		baseURL: parsed,
+		timeout: timeout,
 		http: &http.Client{
-			Timeout: cfg.OpenFGCAPITimeout,
+			Timeout: timeout,
 		},
 		allowlist: allow,
 	}, nil
@@ -186,7 +196,7 @@ func (s *Service) ForwardRaw(r *http.Request, upstreamMethod, upstreamPath strin
 
 // ForwardRawWithGroupID sends a transformed request to upstream using the provided trusted group id.
 func (s *Service) ForwardRawWithGroupID(r *http.Request, upstreamMethod, upstreamPath string, queryMutator func(url.Values), body []byte, trustedGroupID string) (*UpstreamResponse, error) {
-	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.OpenFGCAPITimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), s.timeout)
 	defer cancel()
 
 	target := *s.baseURL

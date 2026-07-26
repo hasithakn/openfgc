@@ -178,7 +178,7 @@ func TestCompleteTokenInjectionCannotReplaceMissingPart(t *testing.T) {
 	}}
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Header.Set("Authorization", "Bearer "+strings.Repeat("x", 20))
-	if _, err := manager.authenticate(r); err == nil {
+	if _, _, err := manager.authenticate(r); err == nil {
 		t.Fatal("a complete bearer token without the matching cookie half must be rejected")
 	}
 }

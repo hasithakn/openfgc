@@ -109,7 +109,7 @@ func (m *Manager) RegisterRoutes(mux *http.ServeMux) {
 // Require authenticates a request and optionally enforces scopes.
 func (m *Manager) Require(next http.Handler, requiredScopes ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principal, err := m.authenticate(r)
+		principal, token, err := m.authenticate(r)
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
@@ -122,6 +122,9 @@ func (m *Manager) Require(next http.Handler, requiredScopes ...string) http.Hand
 			}
 		}
 		ctx := systemcontext.WithPrincipal(r.Context(), principal)
+		if token != "" {
+			ctx = systemcontext.WithAccessToken(ctx, token)
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -142,36 +145,42 @@ func (m *Manager) RequireAPI(next http.Handler) http.Handler {
 	})
 }
 
-func (m *Manager) authenticate(r *http.Request) (systemcontext.Principal, error) {
+// authenticate validates the incoming request and returns the derived principal along with
+// the caller's own reconstructed access token (empty in placeholder mode, since there is no
+// real IS-issued token to forward to downstream services like SCIM2).
+func (m *Manager) authenticate(r *http.Request) (systemcontext.Principal, string, error) {
 	if !m.cfg.Enabled {
 		if !m.proxyCfg.PlaceholderModeEnabled {
-			return systemcontext.Principal{}, errInvalidCredentials
+			return systemcontext.Principal{}, "", errInvalidCredentials
 		}
 		userID := strings.TrimSpace(m.proxyCfg.PlaceholderUserID)
 		orgID := strings.TrimSpace(m.proxyCfg.PlaceholderOrgID)
 		if userID == "" || orgID == "" {
-			return systemcontext.Principal{}, errInvalidCredentials
+			return systemcontext.Principal{}, "", errInvalidCredentials
 		}
 		scopes := make(map[string]struct{}, len(AllPortalScopes))
 		for _, scope := range AllPortalScopes {
 			scopes[scope] = struct{}{}
 		}
-		return systemcontext.Principal{UserID: userID, OrgID: orgID, Scopes: scopes}, nil
+		return systemcontext.Principal{UserID: userID, OrgID: orgID, Scopes: scopes}, "", nil
 	}
 	part1, err := bearerPart(r)
 	if err != nil {
-		return systemcontext.Principal{}, err
+		return systemcontext.Principal{}, "", err
 	}
 	part2, err := exactlyOneCookie(r, m.cfg.AccessTokenPart2Cookie)
 	if err != nil {
-		return systemcontext.Principal{}, err
+		return systemcontext.Principal{}, "", err
 	}
 	token, err := reconstructToken(part1, part2, m.cfg)
 	if err != nil {
-		return systemcontext.Principal{}, err
+		return systemcontext.Principal{}, "", err
 	}
 	principal, _, err := m.validateAccessToken(r.Context(), token)
-	return principal, err
+	if err != nil {
+		return systemcontext.Principal{}, "", err
+	}
+	return principal, token, nil
 }
 
 func (m *Manager) validateAccessToken(ctx context.Context, raw string) (systemcontext.Principal, time.Time, error) {

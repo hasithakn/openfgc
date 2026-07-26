@@ -34,8 +34,8 @@ public class EventEndpoint {
 
     @POST
     public Response publishEvent(
-            @HeaderParam("X-Org-Id") String orgId,
-            @HeaderParam("X-Group-Id") String groupId,
+            @HeaderParam("org-id") String orgId,
+            @HeaderParam("group-id") String groupId,
             EventCreateRequestBean request) {
         EventResponseBean response = eventHandler.publishEvent(orgId, groupId, request);
         return Response.status(Response.Status.CREATED).entity(response).build();
@@ -43,7 +43,7 @@ public class EventEndpoint {
 
     @GET
     public Response listOrgEvents(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @QueryParam("status") String status,
             @QueryParam("subscriptionId") String subscriptionId,
             @QueryParam("purposes") String purposes,
@@ -57,7 +57,7 @@ public class EventEndpoint {
     @GET
     @Path("/{deliveryId}/history")
     public Response getOrgEventHistory(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("deliveryId") String deliveryId) {
         SubscriptionEventHistoryResponseBean response = eventHandler.getOrgEventHistory(orgId, deliveryId);
         return Response.ok(response).build();
@@ -66,7 +66,7 @@ public class EventEndpoint {
     @GET
     @Path("/{deliveryId}")
     public Response getOrgEventHistoryAlias(
-            @HeaderParam("X-Org-Id") String orgId,
+            @HeaderParam("org-id") String orgId,
             @PathParam("deliveryId") String deliveryId) {
         SubscriptionEventHistoryResponseBean response = eventHandler.getOrgEventHistory(orgId, deliveryId);
         return Response.ok(response).build();

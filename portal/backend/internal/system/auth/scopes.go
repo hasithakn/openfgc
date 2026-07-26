@@ -27,6 +27,8 @@ const (
 	ScopeGrievancesManage    = ScopePrefix + "grievances:manage"
 	ScopeGrievancesReadSelf  = ScopePrefix + "grievances:read:self"
 	ScopeGrievancesWriteSelf = ScopePrefix + "grievances:write:self"
+
+	ScopeEventSubscriptionsManage = ScopePrefix + "event-subscriptions:manage"
 )
 
 // AllPortalScopes lists every canonical portal authorization scope.
@@ -37,6 +39,7 @@ var AllPortalScopes = []string{
 	ScopePurposesRead, ScopePurposesWrite,
 	ScopeGrievancesManage,
 	ScopeGrievancesReadSelf, ScopeGrievancesWriteSelf,
+	ScopeEventSubscriptionsManage,
 }
 
 type apiScopePolicy struct {

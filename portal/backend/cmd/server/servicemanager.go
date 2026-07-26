@@ -23,8 +23,10 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/wso2/openfgc/portal/backend/internal/eventsubscription"
 	"github.com/wso2/openfgc/portal/backend/internal/grievance"
 	"github.com/wso2/openfgc/portal/backend/internal/me"
+	"github.com/wso2/openfgc/portal/backend/internal/profile"
 	"github.com/wso2/openfgc/portal/backend/internal/proxy"
 	"github.com/wso2/openfgc/portal/backend/internal/system/auth"
 	"github.com/wso2/openfgc/portal/backend/internal/system/config"
@@ -59,6 +61,16 @@ func registerServices(mux *http.ServeMux, log *slog.Logger, cfg config.Config) e
 		return err
 	}
 	log.Debug("registered grievance module")
+
+	if err := eventsubscription.Initialize(mux, cfg, authManager); err != nil {
+		return err
+	}
+	log.Debug("registered event-subscription module")
+
+	if err := profile.Initialize(mux, cfg, authManager); err != nil {
+		return err
+	}
+	log.Debug("registered profile module")
 
 	return nil
 }

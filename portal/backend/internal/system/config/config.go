@@ -42,6 +42,9 @@ type Config struct {
 	CORS   CORSConfig   `koanf:"cors"`
 	Auth   AuthConfig   `koanf:"auth"`
 	Proxy  ProxyConfig  `koanf:"proxy"`
+
+	EventFramework EventFrameworkConfig `koanf:"event_framework"`
+	IdentityServer IdentityServerConfig `koanf:"identity_server"`
 }
 
 // AuthConfig contains OIDC confidential-client, JWT validation, and split-cookie settings.
@@ -114,6 +117,19 @@ type ProxyConfig struct {
 	PlaceholderUserID      string   `koanf:"placeholder_user_id"`
 	PlaceholderOrgID       string   `koanf:"placeholder_org_id"`
 	AllowedPassthrough     []string `koanf:"allowed_passthrough_methods"`
+}
+
+// EventFrameworkConfig contains upstream settings for the Event Notification Framework (ENF) API.
+type EventFrameworkConfig struct {
+	APIURL     string        `koanf:"api_url"`
+	APITimeout time.Duration `koanf:"api_timeout"`
+}
+
+// IdentityServerConfig contains settings for calling WSO2 IS's SCIM2 self-service API
+// (GET/PATCH /scim2/Me), used to view and update the authenticated user's own PII.
+type IdentityServerConfig struct {
+	SCIMBaseURL string        `koanf:"scim_base_url"`
+	SCIMTimeout time.Duration `koanf:"scim_timeout"`
 }
 
 // Load initializes configuration from defaults, optional file, and environment variables.
@@ -205,7 +221,7 @@ func setDefaults(k *koanf.Koanf) error {
 	if err := k.Set("cors.allowed_origins", []string{}); err != nil {
 		return err
 	}
-	if err := k.Set("cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}); err != nil {
+	if err := k.Set("cors.allowed_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}); err != nil {
 		return err
 	}
 	if err := k.Set("cors.allowed_headers", []string{"Content-Type", "Authorization", "X-Correlation-ID"}); err != nil {
@@ -313,6 +329,18 @@ func setDefaults(k *koanf.Koanf) error {
 	if err := k.Set("proxy.allowed_passthrough_methods", []string{"GET", "POST", "PUT", "DELETE"}); err != nil {
 		return err
 	}
+	if err := k.Set("event_framework.api_url", "http://localhost:8080"); err != nil {
+		return err
+	}
+	if err := k.Set("event_framework.api_timeout", "10s"); err != nil {
+		return err
+	}
+	if err := k.Set("identity_server.scim_base_url", "https://localhost:9443"); err != nil {
+		return err
+	}
+	if err := k.Set("identity_server.scim_timeout", "10s"); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -389,6 +417,18 @@ func validate(cfg Config) error {
 	}
 	if len(cfg.Proxy.AllowedPassthrough) == 0 {
 		return fmt.Errorf("proxy.allowed_passthrough_methods must not be empty")
+	}
+	if err := validateAbsoluteHTTPURL(cfg.EventFramework.APIURL, false); err != nil {
+		return fmt.Errorf("event_framework.api_url %w", err)
+	}
+	if cfg.EventFramework.APITimeout <= 0 {
+		return fmt.Errorf("event_framework.api_timeout must be > 0")
+	}
+	if err := validateAbsoluteHTTPURL(cfg.IdentityServer.SCIMBaseURL, false); err != nil {
+		return fmt.Errorf("identity_server.scim_base_url %w", err)
+	}
+	if cfg.IdentityServer.SCIMTimeout <= 0 {
+		return fmt.Errorf("identity_server.scim_timeout must be > 0")
 	}
 	return nil
 }

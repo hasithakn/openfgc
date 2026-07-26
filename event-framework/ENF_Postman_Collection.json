@@ -36,7 +36,7 @@
 								"value": "application/json"
 							},
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							}
 						],
@@ -57,7 +57,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							}
 						],
@@ -79,7 +79,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							}
 						],
@@ -108,17 +108,17 @@
 								"value": "application/json"
 							},
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							},
 							{
-								"key": "X-Group-Id",
+								"key": "group-id",
 								"value": "{{groupId}}"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"topic\": \"user-consent-events\",\n  \"filter\": {\n    \"expression\": \"purpose == 'MARKETING'\"\n  },\n  \"delivery\": {\n    \"mode\": \"POLL\"\n  }\n}"
+							"raw": "{\n    \"topic\": \"user-consent-events\",\n    \"filter\": {\n      \"type\": \"specific\",\n      \"purposes\": [\"MARKETING\"]\n    },\n    \"delivery\": {\n      \"mode\": \"webhook\",\n      \"callbackUrl\": \"http://localhost:9091/webhook\",\n      \"sharedSecret\": \"a-shared-secret-value\"\n    }\n  }"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/subscriptions",
@@ -133,7 +133,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							}
 						],
@@ -154,7 +154,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							}
 						],
@@ -174,7 +174,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							}
 						],
@@ -186,6 +186,73 @@
 								{ "key": "subscriptionId", "value": "sub-123" }
 							]
 						}
+					}
+				},
+				{
+					"name": "List Subscription Events",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "org-id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscriptions/:subscriptionId/events?limit=10&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["subscriptions", ":subscriptionId", "events"],
+							"query": [
+								{ "key": "limit", "value": "10" },
+								{ "key": "offset", "value": "0" }
+							],
+							"variable": [
+								{ "key": "subscriptionId", "value": "sub-123" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Subscription Event Delivery History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "org-id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscriptions/:subscriptionId/events/:deliveryId/history",
+							"host": ["{{baseUrl}}"],
+							"path": ["subscriptions", ":subscriptionId", "events", ":deliveryId", "history"],
+							"variable": [
+								{ "key": "subscriptionId", "value": "sub-123" },
+								{ "key": "deliveryId", "value": "deliv-123" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Subscription Event Delivery History (Alias)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "org-id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscriptions/:subscriptionId/events/:deliveryId",
+							"host": ["{{baseUrl}}"],
+							"path": ["subscriptions", ":subscriptionId", "events", ":deliveryId"],
+							"variable": [
+								{ "key": "subscriptionId", "value": "sub-123" },
+								{ "key": "deliveryId", "value": "deliv-123" }
+							]
+						},
+						"description": "Alias of \"Get Subscription Event Delivery History\" — same handler, shorter path without the trailing /history segment."
 					}
 				}
 			]
@@ -203,11 +270,11 @@
 								"value": "application/json"
 							},
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							},
 							{
-								"key": "X-Group-Id",
+								"key": "group-id",
 								"value": "{{groupId}}"
 							}
 						],
@@ -223,6 +290,72 @@
 					}
 				},
 				{
+					"name": "List Events",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "org-id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/events?limit=10&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["events"],
+							"query": [
+								{ "key": "status", "value": "", "disabled": true },
+								{ "key": "subscriptionId", "value": "", "disabled": true },
+								{ "key": "purposes", "value": "", "disabled": true },
+								{ "key": "search", "value": "", "disabled": true },
+								{ "key": "limit", "value": "10" },
+								{ "key": "offset", "value": "0" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Event Delivery History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "org-id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/events/:deliveryId/history",
+							"host": ["{{baseUrl}}"],
+							"path": ["events", ":deliveryId", "history"],
+							"variable": [
+								{ "key": "deliveryId", "value": "deliv-123" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Event Delivery History (Alias)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "org-id",
+								"value": "{{orgId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/events/:deliveryId",
+							"host": ["{{baseUrl}}"],
+							"path": ["events", ":deliveryId"],
+							"variable": [
+								{ "key": "deliveryId", "value": "deliv-123" }
+							]
+						},
+						"description": "Alias of \"Get Event Delivery History\" — same handler, shorter path without the trailing /history segment."
+					}
+				},
+				{
 					"name": "Poll Events",
 					"request": {
 						"method": "POST",
@@ -232,11 +365,11 @@
 								"value": "application/json"
 							},
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							},
 							{
-								"key": "X-Group-Id",
+								"key": "group-id",
 								"value": "{{groupId}}"
 							},
 							{
@@ -265,11 +398,11 @@
 								"value": "application/json"
 							},
 							{
-								"key": "X-Org-Id",
+								"key": "org-id",
 								"value": "{{orgId}}"
 							},
 							{
-								"key": "X-Group-Id",
+								"key": "group-id",
 								"value": "{{groupId}}"
 							},
 							{

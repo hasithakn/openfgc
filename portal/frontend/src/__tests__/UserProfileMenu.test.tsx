@@ -6,6 +6,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AcrylicOrangeTheme, OxygenUIThemeProvider } from '@wso2/oxygen-ui'
 import { I18nextProvider } from 'react-i18next'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import UserProfileMenu from '../components/layout/main-layout/UserProfileMenu'
 import i18n from '../i18n/i18n'
@@ -26,11 +27,13 @@ function renderMenu(profile?: Record<string, unknown>): void {
   authMocks.getUserProfile.mockReturnValue(profile)
   authMocks.logout.mockResolvedValue()
   render(
-    <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
-      <I18nextProvider i18n={i18n}>
-        <UserProfileMenu />
-      </I18nextProvider>
-    </OxygenUIThemeProvider>,
+    <MemoryRouter>
+      <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
+        <I18nextProvider i18n={i18n}>
+          <UserProfileMenu />
+        </I18nextProvider>
+      </OxygenUIThemeProvider>
+    </MemoryRouter>,
   )
   fireEvent.click(screen.getByRole('button', { name: 'Account' }))
 }
@@ -113,11 +116,13 @@ describe('UserProfileMenu', () => {
       }),
     )
     render(
-      <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
-        <I18nextProvider i18n={i18n}>
-          <UserProfileMenu />
-        </I18nextProvider>
-      </OxygenUIThemeProvider>,
+      <MemoryRouter>
+        <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
+          <I18nextProvider i18n={i18n}>
+            <UserProfileMenu />
+          </I18nextProvider>
+        </OxygenUIThemeProvider>
+      </MemoryRouter>,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Account' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))

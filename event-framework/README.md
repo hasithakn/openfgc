@@ -21,7 +21,7 @@ mvn clean install -DskipTests
 2. Run the runner module (starts the ENF HTTP server on port 8080):
 
 ```bash
-mvn -pl event-notification-runner exec:java
+mvn -pl event-notification-runner exec:java -DENF_PORT=8082
 ```
 
 Notes:

@@ -18,6 +18,7 @@
 
 import { Sidebar } from '@wso2/oxygen-ui'
 import {
+  Activity,
   Blocks,
   Clock3,
   FileWarning,
@@ -25,6 +26,7 @@ import {
   ListChecks,
   ShieldCheck,
   Target,
+  Webhook,
 } from '@wso2/oxygen-ui-icons-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -90,6 +92,20 @@ const ELEMENT_ITEM: SidebarItem = {
   icon: <Blocks size={18} />,
 }
 
+const SUBSCRIPTION_ITEM: SidebarItem = {
+  id: 'event-subscriptions',
+  labelKey: 'sidebar.subscriptions',
+  path: '/subscriptions',
+  icon: <Webhook size={18} />,
+}
+
+const EVENT_ITEM: SidebarItem = {
+  id: 'events',
+  labelKey: 'sidebar.events',
+  path: '/events',
+  icon: <Activity size={18} />,
+}
+
 function mapPathToMenuId(pathname: string, search: string): string {
   if (pathname.startsWith('/dashboard')) {
     return 'dashboard'
@@ -121,6 +137,14 @@ function mapPathToMenuId(pathname: string, search: string): string {
     return 'elements'
   }
 
+  if (pathname.startsWith('/subscriptions')) {
+    return 'event-subscriptions'
+  }
+
+  if (pathname.startsWith('/events')) {
+    return 'events'
+  }
+
   return 'dashboard'
 }
 
@@ -129,7 +153,8 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
   const { role } = useDemoRole()
-  const { isAdmin, canReadPurposes, canReadElements, canReadGrievancesSelf } = useScopes()
+  const { isAdmin, canReadPurposes, canReadElements, canReadGrievancesSelf, canManageEventSubscriptions } =
+    useScopes()
   const showGrievances = role === 'dataPrincipal' && canReadGrievancesSelf
   const showGrievanceManagement = role === 'grievanceOfficer'
 
@@ -145,12 +170,16 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
     ...(canReadPurposes ? [PURPOSE_ITEM] : []),
     ...(canReadElements ? [ELEMENT_ITEM] : []),
   ]
+  const dataProcessorItems: SidebarItem[] = canManageEventSubscriptions
+    ? [SUBSCRIPTION_ITEM, EVENT_ITEM]
+    : []
   const allItems: SidebarItem[] = [
     ...DASHBOARD_ITEMS,
     ...consentItems,
     ...(showGrievances ? GRIEVANCE_ITEMS : []),
     ...(showGrievanceManagement ? GRIEVANCE_MANAGEMENT_ITEMS : []),
     ...catalogItems,
+    ...dataProcessorItems,
   ]
 
   const activeItem = mapPathToMenuId(location.pathname, location.search)
@@ -215,6 +244,18 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
           <Sidebar.Category>
             <Sidebar.CategoryLabel>{t('sidebar.catalog')}</Sidebar.CategoryLabel>
             {catalogItems.map((item) => (
+              <Sidebar.Item key={item.id} id={item.id}>
+                <Sidebar.ItemIcon>{item.icon}</Sidebar.ItemIcon>
+                <Sidebar.ItemLabel>{t(item.labelKey)}</Sidebar.ItemLabel>
+              </Sidebar.Item>
+            ))}
+          </Sidebar.Category>
+        )}
+
+        {dataProcessorItems.length > 0 && (
+          <Sidebar.Category>
+            <Sidebar.CategoryLabel>{t('sidebar.dataProcessors')}</Sidebar.CategoryLabel>
+            {dataProcessorItems.map((item) => (
               <Sidebar.Item key={item.id} id={item.id}>
                 <Sidebar.ItemIcon>{item.icon}</Sidebar.ItemIcon>
                 <Sidebar.ItemLabel>{t(item.labelKey)}</Sidebar.ItemLabel>

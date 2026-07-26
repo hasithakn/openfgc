@@ -26,6 +26,8 @@ import (
 
 type principalKey struct{}
 
+type accessTokenKey struct{}
+
 // Principal contains identity and authorization data derived from a validated token.
 type Principal struct {
 	UserID string
@@ -48,4 +50,23 @@ func PrincipalFromContext(ctx context.Context) (Principal, bool) {
 		return Principal{}, false
 	}
 	return principal, true
+}
+
+// WithAccessToken stores the caller's own validated, reconstructed access token in request
+// context. Kept separate from Principal (which flows into places like /auth/userinfo's JSON
+// response) so the raw credential is never casually serialized alongside identity claims.
+func WithAccessToken(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, accessTokenKey{}, token)
+}
+
+// AccessTokenFromContext returns the caller's own access token, if one was stored.
+func AccessTokenFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	token, ok := ctx.Value(accessTokenKey{}).(string)
+	if !ok || strings.TrimSpace(token) == "" {
+		return "", false
+	}
+	return token, true
 }

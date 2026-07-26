@@ -43,7 +43,18 @@ function buildBreadcrumbItems(
   grievanceQueueLabel: string,
   purposesLabel: string,
   elementsLabel: string,
+  dataProcessorsLabel: string,
+  subscriptionsLabel: string,
+  eventsLabel: string,
+  profileLabel: string,
 ): BreadcrumbItem[] {
+  if (pathname.startsWith('/profile')) {
+    return [
+      { label: homeLabel, path: '/dashboard', isCurrent: false },
+      { label: profileLabel, path: '/profile', isCurrent: true },
+    ]
+  }
+
   const consentDetailsMatch = pathname.match(/^\/consents\/([^/]+)$/)
 
   if (consentDetailsMatch) {
@@ -140,6 +151,37 @@ function buildBreadcrumbItems(
     ]
   }
 
+  const subscriptionDetailsMatch = pathname.match(/^\/subscriptions\/([^/]+)$/)
+
+  if (subscriptionDetailsMatch) {
+    return [
+      { label: homeLabel, path: '/dashboard', isCurrent: false },
+      { label: dataProcessorsLabel, path: '/subscriptions', isCurrent: false },
+      { label: subscriptionsLabel, path: '/subscriptions', isCurrent: false },
+      {
+        label: safeDecodeURIComponent(subscriptionDetailsMatch[1]),
+        path: pathname,
+        isCurrent: true,
+      },
+    ]
+  }
+
+  if (pathname.startsWith('/subscriptions')) {
+    return [
+      { label: homeLabel, path: '/dashboard', isCurrent: false },
+      { label: dataProcessorsLabel, path: '/subscriptions', isCurrent: false },
+      { label: subscriptionsLabel, path: '/subscriptions', isCurrent: true },
+    ]
+  }
+
+  if (pathname.startsWith('/events')) {
+    return [
+      { label: homeLabel, path: '/dashboard', isCurrent: false },
+      { label: dataProcessorsLabel, path: '/subscriptions', isCurrent: false },
+      { label: eventsLabel, path: '/events', isCurrent: true },
+    ]
+  }
+
   return [
     {
       label: homeLabel,
@@ -161,6 +203,10 @@ function HeaderBreadcrumbs(): React.JSX.Element {
     t('sidebar.grievanceQueue'),
     t('sidebar.purposes'),
     t('sidebar.elements'),
+    t('sidebar.dataProcessors'),
+    t('sidebar.subscriptions'),
+    t('sidebar.events'),
+    t('layout.profile'),
   )
 
   return (

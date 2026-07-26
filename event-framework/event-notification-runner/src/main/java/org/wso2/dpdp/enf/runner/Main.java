@@ -28,14 +28,17 @@ public class Main {
 
     private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
 
-    public static final String BASE_URI = "http://0.0.0.0:8080/";
+    public static final String DEFAULT_PORT = "8080";
 
     public static void main(String[] args) {
         try {
             LOGGER.info("Starting ENF Database Initialization...");
             initDatabase();
 
-            LOGGER.info("Starting Grizzly HTTP Server on " + BASE_URI + "...");
+            String port = System.getProperty("ENF_PORT", System.getenv("ENF_PORT") != null ? System.getenv("ENF_PORT") : DEFAULT_PORT);
+            String baseUri = "http://0.0.0.0:" + port + "/";
+
+            LOGGER.info("Starting Grizzly HTTP Server on " + baseUri + "...");
             ResourceConfig config = new ResourceConfig()
                     .register(TopicEndpoint.class)
                     .register(SubscriptionEndpoint.class)
@@ -45,7 +48,7 @@ public class Main {
                     .register(ENFExceptionMapper.class)
                     .register(JacksonFeature.class);
 
-            HttpServer server = GrizzlyHttpServerFactory.createHttpServer(URI.create(BASE_URI), config);
+            HttpServer server = GrizzlyHttpServerFactory.createHttpServer(URI.create(baseUri), config);
             server.start();
 
             // Start Webhook Delivery Retry Scheduled Job (runs every 5s for pending/failed retries)
@@ -53,7 +56,7 @@ public class Main {
 
             LOGGER.info("==========================================================");
             LOGGER.info("  WSO2 DPDP Event Notification Framework (ENF) Running!   ");
-            LOGGER.info("  Base URL: http://localhost:8080/                       ");
+            LOGGER.info("  Base URL: http://localhost:" + port + "/                       ");
             LOGGER.info("  Ready to accept Postman requests. Press Ctrl+C to stop.  ");
             LOGGER.info("==========================================================");
 
