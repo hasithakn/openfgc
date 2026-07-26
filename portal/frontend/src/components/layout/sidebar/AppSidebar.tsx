@@ -165,7 +165,7 @@ function AppSidebar({ collapsed }: AppSidebarProps): React.JSX.Element {
     icon: <ShieldCheck size={18} />,
   }
 
-  const consentItems: SidebarItem[] = [consentItem, PENDING_CONSENT_ITEM]
+  const consentItems: SidebarItem[] = [consentItem, ...(isAdmin ? [] : [PENDING_CONSENT_ITEM])]
   const catalogItems: SidebarItem[] = [
     ...(canReadPurposes ? [PURPOSE_ITEM] : []),
     ...(canReadElements ? [ELEMENT_ITEM] : []),

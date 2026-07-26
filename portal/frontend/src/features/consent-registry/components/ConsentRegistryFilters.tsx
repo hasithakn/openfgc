@@ -137,13 +137,13 @@ function ConsentRegistryFilters({
         </Stack>
 
         <TextField
-          label={t('consentRegistry.filters.consentType')}
+          label={t('consentRegistry.filters.purpose')}
           size="small"
-          value={filters.consentType}
+          value={filters.purpose}
           onChange={(event) => {
             onFilterChange({
               ...filters,
-              consentType: event.target.value,
+              purpose: event.target.value,
             })
           }}
           sx={{ width: { xs: '100%', lg: 'auto' }, flex: { lg: 1 }, minWidth: { lg: 180 } }}

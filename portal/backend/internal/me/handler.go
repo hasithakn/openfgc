@@ -96,7 +96,7 @@ func (h *Handler) ConsentByID(w http.ResponseWriter, r *http.Request) {
 
 	baseResp, err := h.svc.ForwardRaw(r, http.MethodGet, "/api/v1/consents/"+url.PathEscape(consentID), func(q url.Values) {
 		q.Set("details", "true")
-		q.Del("includeStatusHistory")
+		q.Set("includeStatusHistory", "true")
 	}, nil)
 	if err != nil {
 		writeProxyError(w, err)
@@ -115,6 +115,53 @@ func (h *Handler) ConsentByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.svc.WriteUpstreamResponse(w, baseResp)
+}
+
+// ConsentHistory handles GET /me/consents/{consentId}/history.
+func (h *Handler) ConsentHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method not allowed")
+		return
+	}
+	userID, ok := h.resolveUserID(w, r)
+	if !ok {
+		return
+	}
+	consentID := r.PathValue("consentId")
+	if consentID == "" {
+		writeJSONError(w, http.StatusNotFound, "NOT_FOUND", "consent id not found")
+		return
+	}
+	if !isValidConsentID(consentID) {
+		writeJSONError(w, http.StatusBadRequest, "INVALID_CONSENT_ID", "invalid consent id")
+		return
+	}
+
+	baseResp, err := h.svc.ForwardRaw(r, http.MethodGet, "/api/v1/consents/"+url.PathEscape(consentID), nil, nil)
+	if err != nil {
+		writeProxyError(w, err)
+		return
+	}
+	if baseResp.StatusCode != http.StatusOK {
+		h.svc.WriteUpstreamResponse(w, baseResp)
+		return
+	}
+	if _, owned, ownershipErr := OwnedConsentGroupID(baseResp.Body, userID); ownershipErr != nil {
+		writeProxyError(w, ownershipErr)
+		return
+	} else if !owned {
+		writeJSONError(w, http.StatusNotFound, "NOT_FOUND", "consent not found")
+		return
+	}
+
+	historyResp, err := h.svc.ForwardRaw(r, http.MethodGet, "/api/v1/consents/"+url.PathEscape(consentID)+"/history", func(q url.Values) {
+		q.Set("includeSnapshots", "true")
+	}, nil)
+	if err != nil {
+		writeProxyError(w, err)
+		return
+	}
+	h.svc.WriteUpstreamResponse(w, historyResp)
 }
 
 // ConsentApprove handles POST /me/consents/{consentId}/approve.

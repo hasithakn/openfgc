@@ -34,6 +34,7 @@ func Initialize(mux *http.ServeMux, cfg config.Config, authManager *auth.Manager
 
 	mux.Handle("GET /me/consents", authManager.Require(http.HandlerFunc(handler.Consents), auth.ScopeConsentsReadSelf))
 	mux.Handle("GET /me/consents/{consentId}", authManager.Require(http.HandlerFunc(handler.ConsentByID), auth.ScopeConsentsReadSelf))
+	mux.Handle("GET /me/consents/{consentId}/history", authManager.Require(http.HandlerFunc(handler.ConsentHistory), auth.ScopeConsentsReadSelf))
 	mux.Handle("POST /me/consents/{consentId}/approve", authManager.Require(http.HandlerFunc(handler.ConsentApprove), auth.ScopeConsentsWriteSelf))
 	mux.Handle("POST /me/consents/{consentId}/revoke", authManager.Require(http.HandlerFunc(handler.ConsentRevoke), auth.ScopeConsentsWriteSelf))
 

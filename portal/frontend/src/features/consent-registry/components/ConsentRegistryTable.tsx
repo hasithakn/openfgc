@@ -31,6 +31,7 @@ import { CircleCheckBig, Eye, ShieldX } from '@wso2/oxygen-ui-icons-react'
 import { Fragment, type MouseEvent, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useScopes } from '../../../context/ScopeContext'
 import type { ConsentRecord } from '../../../types/consent'
 import { formatEpochTimestamp, formatIsoDateTime } from '../../../utils/dateTime'
 import { CONSENT_REGISTRY_ROWS_PER_PAGE_OPTIONS } from '../constants'
@@ -49,7 +50,7 @@ interface ConsentRegistryTableProps {
   isMutating: boolean
 }
 
-type SortField = 'type' | 'status' | 'updatedAt' | 'expirationTime'
+type SortField = 'id' | 'status' | 'updatedAt' | 'expirationTime'
 type SortDirection = 'asc' | 'desc'
 
 const DATE_TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -64,8 +65,18 @@ const DATE_TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
 const PURPOSE_PREVIEW_COUNT = 2
 
 const CONSENT_REGISTRY_COLUMN_WIDTHS = {
+  purposes: '28%',
+  consentId: '14%',
+  userId: '13%',
+  status: '13%',
+  updated: '14%',
+  expiration: '14%',
+  actions: '10%',
+} as const
+
+const CONSENT_REGISTRY_COLUMN_WIDTHS_NO_USER = {
   purposes: '34%',
-  type: '11%',
+  consentId: '16%',
   status: '13%',
   updated: '16%',
   expiration: '16%',
@@ -121,6 +132,10 @@ function ConsentRegistryTable({
 }: ConsentRegistryTableProps): React.JSX.Element {
   const { t } = useTranslation('common')
   const navigate = useNavigate()
+  const { isAdmin } = useScopes()
+  const columnWidths = isAdmin
+    ? CONSENT_REGISTRY_COLUMN_WIDTHS
+    : CONSENT_REGISTRY_COLUMN_WIDTHS_NO_USER
   const [sortField, setSortField] = useState<SortField>('updatedAt')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [purposesPopoverAnchor, setPurposesPopoverAnchor] = useState<HTMLElement | null>(null)
@@ -230,33 +245,35 @@ function ConsentRegistryTable({
         >
           <ListingTable.Head>
             <ListingTable.Row>
-              <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.purposes }}>
+              <ListingTable.Cell sx={{ width: columnWidths.purposes }}>
                 {t('consentRegistry.table.headers.purposes')}
               </ListingTable.Cell>
-              <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.type }}>
-                <ListingTable.SortLabel field="type">
-                  {t('consentRegistry.table.headers.type')}
+              <ListingTable.Cell sx={{ width: columnWidths.consentId }}>
+                <ListingTable.SortLabel field="id">
+                  {t('consentRegistry.table.headers.consentId')}
                 </ListingTable.SortLabel>
               </ListingTable.Cell>
-              <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.status }}>
+              {isAdmin ? (
+                <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.userId }}>
+                  {t('consentRegistry.table.headers.userId')}
+                </ListingTable.Cell>
+              ) : null}
+              <ListingTable.Cell sx={{ width: columnWidths.status }}>
                 <ListingTable.SortLabel field="status">
                   {t('consentRegistry.table.headers.status')}
                 </ListingTable.SortLabel>
               </ListingTable.Cell>
-              <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.updated }}>
+              <ListingTable.Cell sx={{ width: columnWidths.updated }}>
                 <ListingTable.SortLabel field="updatedAt">
                   {t('consentRegistry.table.headers.updated')}
                 </ListingTable.SortLabel>
               </ListingTable.Cell>
-              <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.expiration }}>
+              <ListingTable.Cell sx={{ width: columnWidths.expiration }}>
                 <ListingTable.SortLabel field="expirationTime">
                   {t('consentRegistry.table.headers.expiration')}
                 </ListingTable.SortLabel>
               </ListingTable.Cell>
-              <ListingTable.Cell
-                align="center"
-                sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.actions }}
-              >
+              <ListingTable.Cell align="center" sx={{ width: columnWidths.actions }}>
                 {t('consentRegistry.table.headers.actions')}
               </ListingTable.Cell>
             </ListingTable.Row>
@@ -266,27 +283,29 @@ function ConsentRegistryTable({
             {isLoading
               ? Array.from({ length: rowsPerPage }, (_, rowIndex) => (
                   <ListingTable.Row key={`skeleton-row-${rowIndex}`} variant="table">
-                    <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.purposes }}>
+                    <ListingTable.Cell sx={{ width: columnWidths.purposes }}>
                       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
                         <Skeleton variant="rounded" width={140} height={24} />
                       </Box>
                     </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.type }}>
-                      <Skeleton variant="text" width="70%" />
+                    <ListingTable.Cell sx={{ width: columnWidths.consentId }}>
+                      <Skeleton variant="text" width="80%" />
                     </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.status }}>
+                    {isAdmin ? (
+                      <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.userId }}>
+                        <Skeleton variant="text" width="70%" />
+                      </ListingTable.Cell>
+                    ) : null}
+                    <ListingTable.Cell sx={{ width: columnWidths.status }}>
                       <Skeleton variant="rounded" width={72} height={24} />
                     </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.updated }}>
+                    <ListingTable.Cell sx={{ width: columnWidths.updated }}>
                       <Skeleton variant="text" width="86%" />
                     </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.expiration }}>
+                    <ListingTable.Cell sx={{ width: columnWidths.expiration }}>
                       <Skeleton variant="text" width="86%" />
                     </ListingTable.Cell>
-                    <ListingTable.Cell
-                      align="center"
-                      sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.actions }}
-                    >
+                    <ListingTable.Cell align="center" sx={{ width: columnWidths.actions }}>
                       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.75 }}>
                         <Skeleton variant="circular" width={24} height={24} />
                         <Skeleton variant="circular" width={24} height={24} />
@@ -302,7 +321,7 @@ function ConsentRegistryTable({
                         bgcolor: 'action.hover',
                       }}
                     >
-                      <ListingTable.Cell colSpan={6} sx={{ fontWeight: 700 }}>
+                      <ListingTable.Cell colSpan={isAdmin ? 7 : 6} sx={{ fontWeight: 700 }}>
                         {t('consentRegistry.table.groupLabel', { groupId: group.groupId })}
                       </ListingTable.Cell>
                     </ListingTable.Row>
@@ -316,9 +335,7 @@ function ConsentRegistryTable({
                         onClick={handleRowClick}
                         sx={{ cursor: 'pointer' }}
                       >
-                        <ListingTable.Cell
-                          sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.purposes, fontWeight: 500 }}
-                        >
+                        <ListingTable.Cell sx={{ width: columnWidths.purposes, fontWeight: 500 }}>
                           <Box
                             sx={{
                               display: 'flex',
@@ -353,10 +370,31 @@ function ConsentRegistryTable({
                             ) : null}
                           </Box>
                         </ListingTable.Cell>
-                        <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.type }}>
-                          {row.type}
+                        <ListingTable.Cell
+                          sx={{
+                            width: columnWidths.consentId,
+                            fontFamily: 'monospace',
+                            fontSize: '0.8125rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {row.id}
                         </ListingTable.Cell>
-                        <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.status }}>
+                        {isAdmin ? (
+                          <ListingTable.Cell
+                            sx={{
+                              width: CONSENT_REGISTRY_COLUMN_WIDTHS.userId,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {row.userId ?? '-'}
+                          </ListingTable.Cell>
+                        ) : null}
+                        <ListingTable.Cell sx={{ width: columnWidths.status }}>
                           <Chip
                             size="small"
                             color={getConsentStatusChipColor(row.status)}
@@ -366,18 +404,18 @@ function ConsentRegistryTable({
                             variant="outlined"
                           />
                         </ListingTable.Cell>
-                        <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.updated }}>
+                        <ListingTable.Cell sx={{ width: columnWidths.updated }}>
                           {formatIsoDateTime(row.updatedAt, DATE_TIME_FORMAT_OPTIONS)}
                         </ListingTable.Cell>
                         <ListingTable.Cell
                           sx={
                             row.expirationTime === 0
                               ? {
-                                  width: CONSENT_REGISTRY_COLUMN_WIDTHS.expiration,
+                                  width: columnWidths.expiration,
                                   color: 'text.disabled',
                                 }
                               : {
-                                  width: CONSENT_REGISTRY_COLUMN_WIDTHS.expiration,
+                                  width: columnWidths.expiration,
                                 }
                           }
                         >
@@ -385,10 +423,7 @@ function ConsentRegistryTable({
                             ? t('consentRegistry.table.notApplicable')
                             : formatEpochTimestamp(row.expirationTime, DATE_TIME_FORMAT_OPTIONS)}
                         </ListingTable.Cell>
-                        <ListingTable.Cell
-                          align="center"
-                          sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.actions }}
-                        >
+                        <ListingTable.Cell align="center" sx={{ width: columnWidths.actions }}>
                           <ListingTable.RowActions visibility="always">
                             <Tooltip title={t('consentRegistry.actions.view')}>
                               <IconButton

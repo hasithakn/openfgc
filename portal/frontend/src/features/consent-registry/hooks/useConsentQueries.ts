@@ -30,7 +30,9 @@ import {
   approveMyConsent,
   fetchAllConsents,
   fetchConsentByID,
+  fetchConsentHistoryByID,
   fetchMyConsentByID,
+  fetchMyConsentHistory,
   fetchMyConsents,
   revokeMyConsent,
 } from '../api/consentsApi'
@@ -42,6 +44,7 @@ import {
 import type {
   ConsentApprovalSelection,
   ConsentDetailAPI,
+  ConsentHistoryEntry,
   ConsentListQueryParams,
   ConsentRecord,
   ConsentRegistryFilters,
@@ -79,7 +82,7 @@ function toListParams(
 
   return {
     consentStatuses: filters.status === 'All' ? undefined : statusFilterMap[filters.status],
-    consentTypes: filters.consentType.trim() || undefined,
+    purposeName: filters.purpose.trim() || undefined,
     fromTime: toStartOfDayEpochMilliseconds(filters.startDate),
     toTime: toEndOfDayEpochMilliseconds(filters.endDate),
     userId: filters.userId?.trim() || undefined,
@@ -88,7 +91,7 @@ function toListParams(
   }
 }
 
-function toConsentRow(consent: ConsentDetailAPI): ConsentRecord {
+function toConsentRow(consent: ConsentDetailAPI, isAdmin: boolean): ConsentRecord {
   const normalizedStatus = normalizeConsentStatus(consent.status)
 
   if (!isConsentAPIStatus(normalizedStatus)) {
@@ -98,13 +101,13 @@ function toConsentRow(consent: ConsentDetailAPI): ConsentRecord {
   return {
     id: consent.id,
     groupId: consent.groupId,
-    type: consent.type,
     status: normalizedStatus,
     purposes: consent.purposes.map((purpose) => purpose.displayName ?? purpose.name),
     updatedAt: new Date(toEpochMilliseconds(consent.updatedTime) ?? 0).toISOString(),
     expirationTime: consent.expirationTime ?? 0,
     canRevoke: isConsentRevokableStatus(normalizedStatus),
-    canApprove: isConsentApprovableStatus(normalizedStatus),
+    canApprove: !isAdmin && isConsentApprovableStatus(normalizedStatus),
+    userId: consent.authorizations?.[0]?.userId,
   }
 }
 
@@ -122,7 +125,7 @@ function consentListQueryOptions(
     queryFn: async (): Promise<ConsentListResult> => {
       const response = await fetchFn(params)
       return {
-        rows: response.data.map(toConsentRow),
+        rows: response.data.map((consent) => toConsentRow(consent, isAdmin)),
         total: response.metadata.total,
       }
     },
@@ -163,6 +166,26 @@ export function useConsentDetailQuery(
     queryFn: async (): Promise<ConsentDetailAPI> =>
       isAdmin ? fetchConsentByID(String(consentID)) : fetchMyConsentByID(String(consentID)),
     enabled: Boolean(consentID),
+  })
+}
+
+// Lazy: full snapshot history can be a heavier payload than the rest of the detail page, so
+// this is only meant to be enabled while the history modal is actually open.
+export function useConsentHistoryQuery(
+  consentID: string | undefined,
+  enabled: boolean,
+): UseQueryResult<ConsentHistoryEntry[]> {
+  const { isAdmin } = useScopes()
+
+  return useQuery<ConsentHistoryEntry[]>({
+    queryKey: ['consent-history', isAdmin ? 'all' : 'mine', consentID],
+    queryFn: async (): Promise<ConsentHistoryEntry[]> => {
+      const response = isAdmin
+        ? await fetchConsentHistoryByID(String(consentID))
+        : await fetchMyConsentHistory(String(consentID))
+      return response.history
+    },
+    enabled: enabled && Boolean(consentID),
   })
 }
 

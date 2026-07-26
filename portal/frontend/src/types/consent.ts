@@ -29,26 +29,26 @@ export function isConsentAPIStatus(status: string): status is ConsentAPIStatus {
 export interface ConsentRecord {
   id: string
   groupId: string
-  type: string
   status: ConsentAPIStatus
   purposes: string[]
   updatedAt: string
   expirationTime?: number
   canRevoke: boolean
   canApprove: boolean
+  userId?: string
 }
 
 export interface ConsentRegistryFilters {
   status: 'All' | ConsentStatus
   startDate: string
   endDate: string
-  consentType: string
+  purpose: string
   userId?: string
 }
 
 export interface ConsentListQueryParams {
   consentStatuses?: string
-  consentTypes?: string
+  purposeName?: string
   fromTime?: number
   toTime?: number
   limit: number
@@ -93,6 +93,15 @@ export interface ConsentAuthorizationResource {
   resources?: unknown
 }
 
+export interface ConsentStatusAudit {
+  statusAuditId: string
+  previousStatus?: string
+  currentStatus: string
+  actionTime: number
+  actionBy?: string
+  reason?: string
+}
+
 export interface ConsentDetailAPI {
   id: string
   groupId: string
@@ -107,6 +116,20 @@ export interface ConsentDetailAPI {
   purposes: ConsentPurposeItem[]
   attributes?: Record<string, string>
   authorizations?: ConsentAuthorizationResource[]
+  statusHistory?: ConsentStatusAudit[]
+}
+
+export interface ConsentHistoryEntry {
+  historyId: string
+  actionTime: number
+  actionBy?: string
+  reason?: string
+  snapshot?: ConsentDetailAPI
+}
+
+export interface ConsentHistoryListResponse {
+  id: string
+  history: ConsentHistoryEntry[]
 }
 
 export interface ConsentSearchMetadata {

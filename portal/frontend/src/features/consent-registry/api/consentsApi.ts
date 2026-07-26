@@ -19,6 +19,7 @@
 import type {
   ConsentApprovalSelection,
   ConsentDetailAPI,
+  ConsentHistoryListResponse,
   ConsentListQueryParams,
   ConsentSearchResponse,
 } from '../../../types/consent'
@@ -31,7 +32,7 @@ export async function fetchMyConsents(
     method: 'GET',
     query: {
       consentStatuses: params.consentStatuses,
-      consentTypes: params.consentTypes,
+      purposeName: params.purposeName,
       fromTime: params.fromTime,
       toTime: params.toTime,
       limit: params.limit,
@@ -47,7 +48,7 @@ export async function fetchAllConsents(
     method: 'GET',
     query: {
       consentStatuses: params.consentStatuses,
-      consentTypes: params.consentTypes,
+      purposeName: params.purposeName,
       fromTime: params.fromTime,
       toTime: params.toTime,
       userIds: params.userId,
@@ -68,8 +69,32 @@ export async function fetchConsentByID(consentID: string): Promise<ConsentDetail
     method: 'GET',
     query: {
       details: true,
+      includeStatusHistory: true,
     },
   })
+}
+
+export async function fetchMyConsentHistory(
+  consentID: string,
+): Promise<ConsentHistoryListResponse> {
+  return apiRequest<ConsentHistoryListResponse>(
+    `/me/consents/${encodeURIComponent(consentID)}/history`,
+    { method: 'GET' },
+  )
+}
+
+export async function fetchConsentHistoryByID(
+  consentID: string,
+): Promise<ConsentHistoryListResponse> {
+  return apiRequest<ConsentHistoryListResponse>(
+    `/api/consents/${encodeURIComponent(consentID)}/history`,
+    {
+      method: 'GET',
+      query: {
+        includeSnapshots: true,
+      },
+    },
+  )
 }
 
 export async function approveMyConsent(

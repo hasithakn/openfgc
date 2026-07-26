@@ -31,12 +31,15 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import HeaderBreadcrumbs from '../../components/layout/main-layout/HeaderBreadcrumbs'
+import { useScopes } from '../../context/ScopeContext'
 import ConsentApprovalDialog from './components/ConsentApprovalDialog'
 import ConsentRevocationDialog from './components/ConsentRevocationDialog'
 import ConsentAuthorizationsSection from './components/details/ConsentAuthorizationsSection'
+import ConsentHistoryModal from './components/details/ConsentHistoryModal'
 import ConsentMetadataCard from './components/details/ConsentMetadataCard'
 import ConsentPurposesSection from './components/details/ConsentPurposesSection'
 import ConsentResourcesModal from './components/details/ConsentResourcesModal'
+import ConsentStatusHistorySection from './components/details/ConsentStatusHistorySection'
 import {
   useApproveConsentMutation,
   useConsentDetailQuery,
@@ -144,6 +147,7 @@ function ConsentDetailsPage(): React.JSX.Element {
   const { t } = useTranslation('common')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { isAdmin } = useScopes()
   const consentDetailQuery = useConsentDetailQuery(id)
   const approveMutation = useApproveConsentMutation()
   const revokeMutation = useRevokeConsentMutation()
@@ -151,6 +155,7 @@ function ConsentDetailsPage(): React.JSX.Element {
   const [revocationDialogOpen, setRevocationDialogOpen] = useState<boolean>(false)
   const [resourcesModalOpen, setResourcesModalOpen] = useState<boolean>(false)
   const [selectedResourcesJson, setSelectedResourcesJson] = useState<string>('')
+  const [historyModalOpen, setHistoryModalOpen] = useState<boolean>(false)
 
   if (!id) {
     return (
@@ -169,7 +174,7 @@ function ConsentDetailsPage(): React.JSX.Element {
   }
 
   const detail = consentDetailQuery.data
-  const canApprove = detail ? isConsentApprovableStatus(detail.status) : false
+  const canApprove = detail ? !isAdmin && isConsentApprovableStatus(detail.status) : false
   const canRevoke = detail ? isConsentRevokableStatus(detail.status) : false
 
   if (consentDetailQuery.isLoading) {
@@ -214,6 +219,15 @@ function ConsentDetailsPage(): React.JSX.Element {
             bottom: { md: 0 },
           }}
         >
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => {
+              setHistoryModalOpen(true)
+            }}
+          >
+            {t('consentRegistry.details.historyModal.viewFullHistory', 'View Full History')}
+          </Button>
           {canApprove ? (
             <Button
               variant="contained"
@@ -248,6 +262,15 @@ function ConsentDetailsPage(): React.JSX.Element {
         onViewResources={(resources) => {
           setSelectedResourcesJson(formatResourcesForModal(resources))
           setResourcesModalOpen(true)
+        }}
+      />
+      <ConsentStatusHistorySection statusHistory={detail.statusHistory ?? []} />
+
+      <ConsentHistoryModal
+        open={historyModalOpen}
+        consentId={id}
+        onClose={() => {
+          setHistoryModalOpen(false)
         }}
       />
 
