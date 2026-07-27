@@ -35,10 +35,22 @@ var globalConfig *Config
 
 // Config holds all configuration for the application
 type Config struct {
-	Server   ServerConfig    `yaml:"server"`
-	Database DatabasesConfig `yaml:"database"`
-	Logging  LoggingConfig   `yaml:"logging"`
-	Consent  ConsentConfig   `yaml:"consent"`
+	Server         ServerConfig         `yaml:"server"`
+	Database       DatabasesConfig      `yaml:"database"`
+	Logging        LoggingConfig        `yaml:"logging"`
+	Consent        ConsentConfig        `yaml:"consent"`
+	EventFramework EventFrameworkConfig `yaml:"event_framework"`
+}
+
+// EventFrameworkConfig holds settings for publishing business events (consent
+// revoke/update/expire, account deletion) to the Event Notification Framework (ENF).
+type EventFrameworkConfig struct {
+	// BaseURL is the ENF service's base URL (events are POSTed to {BaseURL}/events).
+	// Leave blank to disable event publishing entirely.
+	BaseURL string `yaml:"base_url"`
+	// Timeout bounds each publish call. Publishing is best-effort — a failure or timeout
+	// is logged and never fails the underlying consent/account operation that triggered it.
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 // ServerConfig holds HTTP server configuration

@@ -12,6 +12,7 @@ import (
 	"github.com/wso2/openfgc/internal/anonymization/model"
 	"github.com/wso2/openfgc/internal/consent"
 	consentModel "github.com/wso2/openfgc/internal/consent/model"
+	"github.com/wso2/openfgc/internal/eventpublish"
 	dbmodel "github.com/wso2/openfgc/internal/system/database/model"
 	"github.com/wso2/openfgc/internal/system/error/serviceerror"
 	"github.com/wso2/openfgc/internal/system/log"
@@ -40,11 +41,13 @@ type AnonymizationService interface {
 type service struct {
 	stores     *stores.StoreRegistry
 	consentSvc consent.ConsentService
+	events     *eventpublish.Client
 }
 
-// NewAnonymizationService creates a new anonymization service.
-func NewAnonymizationService(registry *stores.StoreRegistry, consentSvc consent.ConsentService) AnonymizationService {
-	return &service{stores: registry, consentSvc: consentSvc}
+// NewAnonymizationService creates a new anonymization service. events may be nil
+// (publishing disabled).
+func NewAnonymizationService(registry *stores.StoreRegistry, consentSvc consent.ConsentService, events *eventpublish.Client) AnonymizationService {
+	return &service{stores: registry, consentSvc: consentSvc, events: events}
 }
 
 func (s *service) AnonymizeUser(ctx context.Context, orgID, userID string) (*model.AnonymizeOutput, *serviceerror.ServiceError) {
@@ -119,6 +122,17 @@ func (s *service) AnonymizeUser(ctx context.Context, orgID, userID string) (*mod
 	logger.Info("User anonymized",
 		log.String("org_id", orgID),
 		log.Int("consents_revoked", revokedCount))
+
+	s.events.Publish(orgID, "", eventpublish.Event{
+		Topic:    eventpublish.TopicAccountDelete,
+		Purposes: []string{},
+		Payload: map[string]any{
+			"userId":           userID,
+			"anonymizedUserId": newUserID,
+			"consentsRevoked":  revokedCount,
+			"actionTime":       currentTime,
+		},
+	})
 
 	return &model.AnonymizeOutput{
 		AnonymizedUserID: newUserID,

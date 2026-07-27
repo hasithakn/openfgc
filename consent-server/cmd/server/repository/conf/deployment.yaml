@@ -59,3 +59,9 @@ consent:
   history:
     # Enables full consent history snapshots.
     enabled: true
+
+# Event Notification Framework (ENF) — publishes CONSENT_REVOKE/CONSENT_UPDATE/
+# CONSENT_EXPIRE/ACCOUNT_DELETE events. Leave base_url blank to disable publishing.
+event_framework:
+  base_url: "http://localhost:8082"
+  timeout: 5s

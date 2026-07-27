@@ -1,29 +1,56 @@
 const http = require('http');
-const url = require('url');
 
 const PORT = process.env.PORT || 9091;
+const DIVIDER = '─'.repeat(50);
+
+// Only these carry real information about the delivery — the rest (connection, host,
+// content-length, user-agent, upgrade, etc.) is HTTP/transport plumbing, not signal.
+const EVENT_HEADER_FIELDS = [
+    ['org-id', 'x-org-id'],
+    ['event-id', 'x-event-id'],
+    ['delivery-id', 'x-delivery-id'],
+    ['signature', 'x-event-signature'],
+];
+
+function logRequest(method, path, headers) {
+    console.log(`\n${DIVIDER}`);
+    console.log(`[${new Date().toISOString()}] ${method} ${path}`);
+    for (const [label, header] of EVENT_HEADER_FIELDS) {
+        if (headers[header]) {
+            console.log(`  ${label.padEnd(11)}: ${headers[header]}`);
+        }
+    }
+}
+
+function logPayload(body) {
+    try {
+        const indented = JSON.stringify(JSON.parse(body), null, 2)
+            .split('\n')
+            .map(line => `  ${line}`)
+            .join('\n');
+        console.log(`  payload:\n${indented}`);
+    } catch {
+        console.log(`  payload (non-JSON): ${body}`);
+    }
+}
 
 const server = http.createServer((req, res) => {
-    const parsedUrl = url.parse(req.url, true);
+    const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const method = req.method;
     const path = parsedUrl.pathname;
-    const query = parsedUrl.query;
+    const query = Object.fromEntries(parsedUrl.searchParams);
 
-    const { 'http2-settings': _http2Settings, ...loggedHeaders } = req.headers;
-
-    console.log(`\n==================================================`);
-    console.log(`[${new Date().toISOString()}] Received ${method} request on ${path}`);
-    console.log(`Headers:`, loggedHeaders);
+    logRequest(method, path, req.headers);
 
     // GET Request - Challenge Verification (e.g. Webhook / WebSub intent verification)
     if (method === 'GET') {
         const challenge = query.challenge || query['hub.challenge'] || query.challenge_token || query.token;
         if (challenge) {
-            console.log(`-> Echoing back challenge query parameter: "${challenge}"`);
+            console.log(`  -> echoing back challenge query parameter: "${challenge}"`);
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end(challenge);
         } else {
-            console.log(`-> GET request received (no challenge parameter found).`);
+            console.log(`  -> no challenge parameter present`);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ status: 'active', message: 'Webhook listener running', query }));
         }
@@ -38,7 +65,7 @@ const server = http.createServer((req, res) => {
         });
 
         req.on('end', () => {
-            console.log(`-> Request Body:\n${body}`);
+            logPayload(body);
 
             try {
                 const parsedBody = JSON.parse(body);
@@ -46,7 +73,7 @@ const server = http.createServer((req, res) => {
                 const challenge = parsedBody.challenge || parsedBody['hub.challenge'] || parsedBody.challenge_token;
 
                 if (challenge) {
-                    console.log(`-> Echoing back challenge from JSON body: "${challenge}"`);
+                    console.log(`  -> echoing back challenge from JSON body: "${challenge}"`);
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ challenge: challenge, status: 'verified' }));
                 } else {
@@ -72,9 +99,9 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`==================================================`);
+    console.log(DIVIDER);
     console.log(` Webhook Echo Listener started on http://localhost:${PORT}`);
     console.log(` Ready to echo challenge and receive Webhook events.`);
     console.log(` Callback URL to use in subscription: http://localhost:${PORT}/webhook`);
-    console.log(`==================================================`);
+    console.log(DIVIDER);
 });

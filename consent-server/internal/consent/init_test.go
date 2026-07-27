@@ -32,7 +32,7 @@ func TestInitialize(t *testing.T) {
 	mux := http.NewServeMux()
 	registry := &stores.StoreRegistry{}
 
-	service := Initialize(mux, registry)
+	service := Initialize(mux, registry, nil)
 
 	require.NotNil(t, service, "Service should be initialized")
 }
@@ -72,7 +72,7 @@ func TestRegisterRoutes(t *testing.T) {
 func TestNewConsentService(t *testing.T) {
 	// Test service creation
 	registry := &stores.StoreRegistry{}
-	service := newConsentService(registry)
+	service := newConsentService(registry, nil)
 
 	require.NotNil(t, service, "Service should not be nil")
 }

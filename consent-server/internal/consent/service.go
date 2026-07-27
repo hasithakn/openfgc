@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/openfgc/internal/consent/model"
 	"github.com/wso2/openfgc/internal/consent/validator"
 	purposemodel "github.com/wso2/openfgc/internal/consentpurpose/model"
+	"github.com/wso2/openfgc/internal/eventpublish"
 	"github.com/wso2/openfgc/internal/system/config"
 	dbmodel "github.com/wso2/openfgc/internal/system/database/model"
 	"github.com/wso2/openfgc/internal/system/error/serviceerror"
@@ -78,11 +79,32 @@ type ConsentService interface {
 // consentService implements ConsentService.
 type consentService struct {
 	stores *stores.StoreRegistry
+	events *eventpublish.Client
 }
 
-// newConsentService creates a new consent service.
-func newConsentService(registry *stores.StoreRegistry) ConsentService {
-	return &consentService{stores: registry}
+// newConsentService creates a new consent service. events may be nil (publishing disabled).
+func newConsentService(registry *stores.StoreRegistry, events *eventpublish.Client) ConsentService {
+	return &consentService{stores: registry, events: events}
+}
+
+// purposeNames extracts purpose names for an event's "purposes" field, used for ENF
+// subscription filter matching.
+func purposeNames(rows []model.ConsentPurposeRow) []string {
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, row.PurposeName)
+	}
+	return names
+}
+
+// consentOutputPurposeNames extracts purpose names from an already-loaded ConsentOutput,
+// used for ENF subscription filter matching when the purposes are on hand for free.
+func consentOutputPurposeNames(purposes []model.ConsentPurposeOutput) []string {
+	names := make([]string, 0, len(purposes))
+	for _, p := range purposes {
+		names = append(names, p.Name)
+	}
+	return names
 }
 
 // RecordConsentHistory records a pre-mutation consent snapshot using a shared store registry.
@@ -770,6 +792,36 @@ func (s *consentService) UpdateConsent(ctx context.Context, consentID, groupID, 
 	logger.Info("Consent updated successfully",
 		log.String("consent_id", consentID),
 		log.String("status", updated.CurrentStatus))
+
+	changed := make([]string, 0, 5)
+	if statusChanged {
+		changed = append(changed, "status")
+	}
+	if input.ExpirationTime != nil {
+		changed = append(changed, "expirationTime")
+	}
+	if input.Purposes != nil {
+		changed = append(changed, "purposes")
+	}
+	if input.Attributes != nil {
+		changed = append(changed, "attributes")
+	}
+	if input.Authorizations != nil {
+		changed = append(changed, "authorizations")
+	}
+	if len(changed) > 0 {
+		s.events.Publish(orgID, existing.GroupID, eventpublish.Event{
+			Topic:    eventpublish.TopicConsentUpdate,
+			Purposes: consentOutputPurposeNames(out.Purposes),
+			Payload: map[string]any{
+				"consentId":     consentID,
+				"currentStatus": updated.CurrentStatus,
+				"changed":       changed,
+				"actionTime":    currentTime,
+			},
+		})
+	}
+
 	return out, nil
 }
 
@@ -847,6 +899,22 @@ func (s *consentService) RevokeConsent(ctx context.Context, consentID, orgID str
 		log.String("consent_id", consentID),
 		log.String("previous_status", prevStatus),
 		log.String("new_status", revokedStatus))
+
+	if s.events != nil {
+		if purposeRows, purposeErr := consentStore.GetPurposesByConsentID(ctx, consentID, orgID); purposeErr == nil {
+			s.events.Publish(orgID, existing.GroupID, eventpublish.Event{
+				Topic:    eventpublish.TopicConsentRevoke,
+				Purposes: purposeNames(purposeRows),
+				Payload: map[string]any{
+					"consentId":     consentID,
+					"currentStatus": revokedStatus,
+					"actionTime":    currentTime,
+				},
+			})
+		} else {
+			logger.Error("failed to load purposes for CONSENT_REVOKE event", log.Error(purposeErr))
+		}
+	}
 
 	return &model.ConsentRevokeOutput{
 		ActionTime: currentTime,
@@ -1069,6 +1137,23 @@ func (s *consentService) ExpireConsent(ctx context.Context, consent *model.Conse
 
 	consent.CurrentStatus = expiredStatus
 	consent.UpdatedTime = currentTime
+
+	if s.events != nil {
+		if purposeRows, purposeErr := consentStore.GetPurposesByConsentID(ctx, consent.ConsentID, orgID); purposeErr == nil {
+			s.events.Publish(orgID, consent.GroupID, eventpublish.Event{
+				Topic:    eventpublish.TopicConsentExpire,
+				Purposes: purposeNames(purposeRows),
+				Payload: map[string]any{
+					"consentId":     consent.ConsentID,
+					"currentStatus": expiredStatus,
+					"actionTime":    currentTime,
+				},
+			})
+		} else {
+			logger.Error("failed to load purposes for CONSENT_EXPIRE event", log.Error(purposeErr))
+		}
+	}
+
 	return nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/wso2/openfgc/portal/backend/internal/eventpublish"
 	"github.com/wso2/openfgc/portal/backend/internal/proxy"
 	"github.com/wso2/openfgc/portal/backend/internal/system/auth"
 	"github.com/wso2/openfgc/portal/backend/internal/system/config"
@@ -26,7 +27,12 @@ func Initialize(mux *http.ServeMux, cfg config.Config, authManager *auth.Manager
 		return err
 	}
 
-	handler, err := NewHandler(cfg, log, authManager, anonymizeProxy)
+	eventClient, err := eventpublish.NewClient(cfg.EventFramework.APIURL, cfg.EventFramework.APITimeout, log)
+	if err != nil {
+		return err
+	}
+
+	handler, err := NewHandler(cfg, log, authManager, anonymizeProxy, eventClient)
 	if err != nil {
 		return err
 	}

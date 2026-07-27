@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/openfgc/internal/consent"
 	"github.com/wso2/openfgc/internal/consentelement"
 	"github.com/wso2/openfgc/internal/consentpurpose"
+	"github.com/wso2/openfgc/internal/eventpublish"
 	"github.com/wso2/openfgc/internal/grievance"
 	"github.com/wso2/openfgc/internal/system/config"
 	"github.com/wso2/openfgc/internal/system/healthcheck/handler"
@@ -53,6 +54,15 @@ func registerServices(mux *http.ServeMux) {
 	)
 	logger.Debug("Store Registry initialized with all stores")
 
+	eventClient, err := eventpublish.NewClient(config.Get().EventFramework.BaseURL, config.Get().EventFramework.Timeout)
+	if err != nil {
+		logger.Error("invalid event_framework config — event publishing disabled", log.Error(err))
+	} else if eventClient == nil {
+		logger.Info("event_framework.base_url is blank — event publishing disabled")
+	} else {
+		logger.Debug("Event publisher initialized")
+	}
+
 	// Initialize all services with the registry
 	authresource.Initialize(mux, storeRegistry)
 	logger.Debug("AuthResource module initialized")
@@ -63,13 +73,13 @@ func registerServices(mux *http.ServeMux) {
 	consentpurpose.Initialize(mux, storeRegistry)
 	logger.Debug("ConsentPurpose module initialized")
 
-	svc := consent.Initialize(mux, storeRegistry)
+	svc := consent.Initialize(mux, storeRegistry, eventClient)
 	logger.Debug("Consent module initialized")
 
 	grievance.Initialize(mux, storeRegistry)
 	logger.Debug("Grievance module initialized")
 
-	anonymization.Initialize(mux, storeRegistry, svc)
+	anonymization.Initialize(mux, storeRegistry, svc, eventClient)
 	logger.Debug("Anonymization module initialized")
 
 	startConsentExpirationScheduler(svc)

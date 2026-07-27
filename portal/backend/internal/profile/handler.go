@@ -12,7 +12,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
+	"github.com/wso2/openfgc/portal/backend/internal/eventpublish"
 	"github.com/wso2/openfgc/portal/backend/internal/proxy"
 	"github.com/wso2/openfgc/portal/backend/internal/system/auth"
 	"github.com/wso2/openfgc/portal/backend/internal/system/config"
@@ -24,6 +26,7 @@ type Handler struct {
 	svc         *Service
 	authManager *auth.Manager
 	anonymize   *proxy.Service
+	events      *eventpublish.Client
 	log         *slog.Logger
 }
 
@@ -40,13 +43,13 @@ const maxProfileRequestBytes = 65536
 
 // NewHandler creates a profile handler with an initialized service. authManager provides
 // admin-scoped access tokens for account deletion; anonymize forwards the account-deletion
-// data-anonymization call to consent-server.
-func NewHandler(cfg config.Config, log *slog.Logger, authManager *auth.Manager, anonymize *proxy.Service) (*Handler, error) {
+// data-anonymization call to consent-server; events publishes USER_DATA_CHANGE.
+func NewHandler(cfg config.Config, log *slog.Logger, authManager *auth.Manager, anonymize *proxy.Service, events *eventpublish.Client) (*Handler, error) {
 	svc, err := NewService(cfg, log)
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{svc: svc, authManager: authManager, anonymize: anonymize, log: log}, nil
+	return &Handler{svc: svc, authManager: authManager, anonymize: anonymize, events: events, log: log}, nil
 }
 
 // GetProfile handles GET /profile, returning the caller's own PII from WSO2 IS.
@@ -97,7 +100,48 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		writeProfileError(w, err)
 		return
 	}
+
+	if principal, ok := systemcontext.PrincipalFromContext(r.Context()); ok {
+		h.events.Publish(principal.OrgID, "", eventpublish.Event{
+			Topic:    eventpublish.TopicUserDataChange,
+			Purposes: []string{},
+			Payload: map[string]any{
+				"userId":     principal.UserID,
+				"changed":    changedProfileFields(update),
+				"actionTime": time.Now().UnixMilli(),
+			},
+		})
+	}
+
 	writeJSON(w, http.StatusOK, toProfileResponse(user))
+}
+
+// changedProfileFields lists which sections of a ProfileUpdateRequest were present in the
+// request (using the same field names as the public API), for the USER_DATA_CHANGE event.
+func changedProfileFields(update ProfileUpdateRequest) []string {
+	changed := make([]string, 0, 7)
+	if update.Name != nil {
+		changed = append(changed, "name")
+	}
+	if update.NickName != nil {
+		changed = append(changed, "nickName")
+	}
+	if update.Emails != nil {
+		changed = append(changed, "emails")
+	}
+	if update.PhoneNumbers != nil {
+		changed = append(changed, "phoneNumbers")
+	}
+	if update.Addresses != nil {
+		changed = append(changed, "addresses")
+	}
+	if update.Age != nil {
+		changed = append(changed, "age")
+	}
+	if update.Birthday != nil {
+		changed = append(changed, "birthday")
+	}
+	return changed
 }
 
 // DeleteAccount handles DELETE /profile — the end-user "delete my account" action.

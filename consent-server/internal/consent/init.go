@@ -21,14 +21,16 @@ package consent
 import (
 	"net/http"
 
+	"github.com/wso2/openfgc/internal/eventpublish"
 	"github.com/wso2/openfgc/internal/system/constants"
 	"github.com/wso2/openfgc/internal/system/stores"
 )
 
-// Initialize sets up the consent module and registers routes
-func Initialize(mux *http.ServeMux, registry *stores.StoreRegistry) ConsentService {
+// Initialize sets up the consent module and registers routes. eventClient publishes
+// CONSENT_REVOKE/CONSENT_UPDATE/CONSENT_EXPIRE events; nil disables publishing.
+func Initialize(mux *http.ServeMux, registry *stores.StoreRegistry, eventClient *eventpublish.Client) ConsentService {
 	// Create service and handler using the registry
-	service := newConsentService(registry)
+	service := newConsentService(registry, eventClient)
 	handler := newConsentHandler(service)
 
 	// Register routes
