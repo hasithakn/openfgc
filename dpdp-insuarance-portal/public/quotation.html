@@ -380,10 +380,10 @@
           <div class="field-error" id="err-name">Please enter your full name.</div>
         </div>
         <div class="form-group">
-          <label for="field-age">Age <span class="required-star">*</span></label>
-          <input type="number" id="field-age" placeholder="e.g. 32" min="1" max="100" autocomplete="off" oninput="onAgeInput()">
+          <label for="field-birthday">Date of Birth <span class="required-star">*</span></label>
+          <input type="date" id="field-birthday" autocomplete="bday" oninput="onBirthdayInput()">
           <div class="field-hint"><span class="field-hint-icon">📊</span> Used to calculate your insurance premium based on your risk profile.</div>
-          <div class="field-error" id="err-age">Please enter a valid age (1–100).</div>
+          <div class="field-error" id="err-birthday">Please enter a valid date of birth.</div>
         </div>
       </div>
       <div class="form-grid single">
@@ -395,7 +395,7 @@
         </div>
       </div>
 
-      <!-- Guardian section — shown when age < 18 -->
+      <!-- Guardian section — shown when the applicant is under 18 -->
       <div id="guardian-section" style="display:none; margin-top:4px; margin-bottom:4px;">
         <div style="background:#fef9c3; border:1px solid #fde047; border-radius:12px; padding:16px 18px; margin-bottom:14px;">
           <div style="display:flex; align-items:flex-start; gap:10px;">
@@ -435,7 +435,7 @@
             </div>
             <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;" id="policy-elements-row">
               <span style="font-size:11px; font-weight:700; background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:5px;">Full Name</span>
-              <span style="font-size:11px; font-weight:700; background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:5px;">Age</span>
+              <span style="font-size:11px; font-weight:700; background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:5px;">Date of Birth</span>
               <span style="font-size:11px; font-weight:700; background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:5px;">Email Address</span>
             </div>
           </div>
@@ -532,9 +532,23 @@
   var purposeData = {};
   var MINOR_FLOW_ENABLED = false; // set from /api/config; default off
 
-  function onAgeInput() {
+  // Age in whole years as of today — only ever used locally to gate the minor
+  // flow; the birthdate itself (not this derived number) is what gets consented to
+  // and pushed to the user's profile.
+  function calculateAgeFromBirthday(dateStr) {
+    var birthday = new Date(dateStr);
+    if (isNaN(birthday.getTime())) return NaN;
+    var today = new Date();
+    var age = today.getFullYear() - birthday.getFullYear();
+    var hadBirthdayThisYear = (today.getMonth() > birthday.getMonth()) ||
+      (today.getMonth() === birthday.getMonth() && today.getDate() >= birthday.getDate());
+    if (!hadBirthdayThisYear) age--;
+    return age;
+  }
+
+  function onBirthdayInput() {
     if (!MINOR_FLOW_ENABLED) return;
-    var age = parseInt(document.getElementById('field-age').value, 10);
+    var age = calculateAgeFromBirthday(document.getElementById('field-birthday').value);
     var isMinor = !isNaN(age) && age < 18;
     document.getElementById('guardian-section').style.display = isMinor ? 'block' : 'none';
     document.getElementById('btn-submit-label').textContent = isMinor
@@ -603,19 +617,19 @@
   }
 
   function validate() {
-    var name    = document.getElementById('field-name').value.trim();
-    var ageRaw  = document.getElementById('field-age').value.trim();
-    var age     = parseInt(ageRaw, 10);
-    var email   = document.getElementById('field-email').value.trim();
-    var isMinor = MINOR_FLOW_ENABLED && !isNaN(age) && age < 18;
+    var name     = document.getElementById('field-name').value.trim();
+    var birthday = document.getElementById('field-birthday').value.trim();
+    var age      = calculateAgeFromBirthday(birthday);
+    var email    = document.getElementById('field-email').value.trim();
+    var isMinor  = MINOR_FLOW_ENABLED && !isNaN(age) && age < 18;
 
     var ok = true;
     showError('field-name', 'err-name', !name);
     if (!name) ok = false;
 
-    var ageOk = !isNaN(age) && age >= 1 && age <= 100;
-    showError('field-age', 'err-age', !ageOk);
-    if (!ageOk) ok = false;
+    var birthdayOk = !isNaN(age) && age >= 0 && age <= 100;
+    showError('field-birthday', 'err-birthday', !birthdayOk);
+    if (!birthdayOk) ok = false;
 
     var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     showError('field-email', 'err-email', !emailOk);
@@ -646,12 +660,12 @@
     if (!validate()) return;
 
     var name          = document.getElementById('field-name').value.trim();
-    var age           = document.getElementById('field-age').value.trim();
+    var birthday      = document.getElementById('field-birthday').value.trim();
     var email         = document.getElementById('field-email').value.trim();
     var wantsMarketing= document.getElementById('consent-marketing').checked;
     var durationMs    = parseInt(document.querySelector('input[name="consent-duration"]:checked').value, 10);
     var expirationTime = Date.now() + durationMs;
-    var isMinor       = MINOR_FLOW_ENABLED && parseInt(age, 10) < 18;
+    var isMinor       = MINOR_FLOW_ENABLED && calculateAgeFromBirthday(birthday) < 18;
     var guardianEmail = isMinor ? document.getElementById('field-guardian-email').value.trim() : null;
 
     // Build authorizations; minor flow creates delegated consent awaiting guardian approval
@@ -674,9 +688,9 @@
         {
           name: 'create_custom_insurance_policy',
           elements: [
-            { name: 'name',  approved: true, value: {} },
-            { name: 'email', approved: true, value: {} },
-            { name: 'age',   approved: true, value: {} }
+            { name: 'name',     approved: true, value: {} },
+            { name: 'email',    approved: true, value: {} },
+            { name: 'birthday', approved: true, value: {} }
           ]
         }
       ];
@@ -700,7 +714,7 @@
       await fetch('/api/pending-pii', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, name: name, age: age })
+        body: JSON.stringify({ email: email, name: name, birthday: birthday })
       }).catch(function() {});
 
       await refreshApiLogs();
@@ -730,7 +744,7 @@
   }
 
   // Clear errors on input
-  ['field-name','field-age','field-email','field-guardian-email'].forEach(function(id) {
+  ['field-name','field-birthday','field-email','field-guardian-email'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener('input', function() { this.classList.remove('error'); });
   });

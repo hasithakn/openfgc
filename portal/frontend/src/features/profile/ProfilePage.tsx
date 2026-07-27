@@ -7,45 +7,47 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  Divider,
   Skeleton,
   Snackbar,
   Stack,
   TextField,
   Typography,
 } from '@wso2/oxygen-ui'
-import { Mail } from '@wso2/oxygen-ui-icons-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import HeaderBreadcrumbs from '../../components/layout/main-layout/HeaderBreadcrumbs'
-import type { EmailAttr } from '../../types/profile'
-import { MultiValueCard } from './components/ProfileContactCards'
 import { useProfileQuery, useUpdateProfileMutation } from './hooks/useProfileQueries'
 
-type EditableEmail = Required<EmailAttr> & { id: string }
-
-function emptyEmail(): EditableEmail {
-  return { value: '', type: 'work', primary: false, id: crypto.randomUUID() }
+function pickPrimary<T extends { primary?: boolean }>(
+  items: T[],
+  pick: (item: T) => string,
+): string {
+  const item = items.find((candidate) => candidate.primary) ?? items[0]
+  return item ? pick(item) : ''
 }
 
-function normalizeEmails(emails: EmailAttr[]): EditableEmail[] {
-  return emails.length > 0
-    ? emails.map((email) => ({
-        value: email.value,
-        type: email.type ?? 'work',
-        primary: Boolean(email.primary),
-        id: crypto.randomUUID(),
-      }))
-    : [emptyEmail()]
-}
+const FIELD_LABEL_WIDTH = 110
 
-// Read-only display keys don't need to survive edits/removals, so a content-derived id
-// (rather than a stored uuid) is enough here and avoids regenerating one on every render.
-function withEmailDisplayId(email: EmailAttr): EmailAttr & { id: string } {
-  return { ...email, id: `${email.value}|${email.type ?? ''}` }
+function FieldRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <Stack direction="row" spacing={2} alignItems="center">
+      <Typography
+        variant="body2"
+        fontWeight={600}
+        color="text.secondary"
+        sx={{ minWidth: FIELD_LABEL_WIDTH }}
+      >
+        {label}:
+      </Typography>
+      <Box sx={{ flex: 1, minWidth: 0 }}>{children}</Box>
+    </Stack>
+  )
 }
 
 function ProfilePage(): React.JSX.Element {
@@ -54,10 +56,11 @@ function ProfilePage(): React.JSX.Element {
   const updateMutation = useUpdateProfileMutation()
 
   const [editing, setEditing] = useState(false)
-  const [givenName, setGivenName] = useState('')
-  const [familyName, setFamilyName] = useState('')
-  const [age, setAge] = useState('')
-  const [emails, setEmails] = useState<EditableEmail[]>([])
+  const [name, setName] = useState('')
+  const [nickName, setNickName] = useState('')
+  const [birthday, setBirthday] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [saveError, setSaveError] = useState<string>()
   const [saveSuccess, setSaveSuccess] = useState(false)
 
@@ -65,10 +68,11 @@ function ProfilePage(): React.JSX.Element {
 
   const startEditing = (): void => {
     if (!profile) return
-    setGivenName(profile.givenName)
-    setFamilyName(profile.familyName)
-    setAge(profile.age !== undefined ? String(profile.age) : '')
-    setEmails(normalizeEmails(profile.emails))
+    setName(profile.formattedName)
+    setNickName(profile.nickName ?? '')
+    setBirthday(profile.birthday ?? '')
+    setPhone(pickPrimary(profile.phoneNumbers, (phoneNumber) => phoneNumber.value))
+    setAddress(pickPrimary(profile.addresses, (item) => item.formatted))
     setSaveError(undefined)
     setEditing(true)
   }
@@ -80,14 +84,15 @@ function ProfilePage(): React.JSX.Element {
 
   const handleSave = (): void => {
     setSaveError(undefined)
-    const ageNumber = age.trim() ? Number(age) : undefined
+    const trimmedPhone = phone.trim()
+    const trimmedAddress = address.trim()
     updateMutation.mutate(
       {
-        name: { givenName: givenName.trim(), familyName: familyName.trim() },
-        emails: emails
-          .filter((email) => email.value.trim())
-          .map((email) => ({ value: email.value, type: email.type, primary: email.primary })),
-        age: Number.isFinite(ageNumber) ? ageNumber : undefined,
+        name: { givenName: name.trim(), familyName: '' },
+        nickName: nickName.trim() || undefined,
+        birthday: birthday.trim() || undefined,
+        phoneNumbers: trimmedPhone ? [{ value: trimmedPhone, primary: true }] : undefined,
+        addresses: trimmedAddress ? [{ formatted: trimmedAddress, primary: true }] : undefined,
       },
       {
         onSuccess: (): void => {
@@ -108,7 +113,6 @@ function ProfilePage(): React.JSX.Element {
           <HeaderBreadcrumbs />
           <Skeleton width={300} height={48} />
           <Skeleton variant="rounded" height={160} />
-          <Skeleton variant="rounded" height={160} />
         </Stack>
       </Box>
     )
@@ -127,13 +131,8 @@ function ProfilePage(): React.JSX.Element {
 
   return (
     <Box component="main" sx={{ p: { xs: 2, md: 4 } }}>
-      <Stack spacing={3}>
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          justifyContent="space-between"
-          alignItems={{ md: 'flex-end' }}
-          spacing={2}
-        >
+      <Stack spacing={3} sx={{ maxWidth: 480 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-end" spacing={2}>
           <Stack spacing={0.75} minWidth={0}>
             <HeaderBreadcrumbs />
             <Typography variant="h4" fontWeight={700}>
@@ -162,88 +161,84 @@ function ProfilePage(): React.JSX.Element {
 
         {saveError ? <Alert severity="error">{saveError}</Alert> : null}
 
-        <Card sx={{ boxShadow: 1 }}>
-          <CardHeader
-            title={<Typography fontWeight={600}>{t('profile.fields.identity')}</Typography>}
-          />
-          <Divider />
-          <CardContent>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
-                gap: 3,
-              }}
-            >
-              <Stack spacing={0.5}>
-                <Typography variant="caption" color="text.secondary">
-                  {t('profile.fields.username')}
-                </Typography>
-                <Typography variant="body2">{profile.username || '-'}</Typography>
-              </Stack>
-              {editing ? (
-                <>
-                  <TextField
-                    size="small"
-                    label={t('profile.fields.givenName')}
-                    value={givenName}
-                    onChange={(event) => setGivenName(event.target.value)}
-                  />
-                  <TextField
-                    size="small"
-                    label={t('profile.fields.familyName')}
-                    value={familyName}
-                    onChange={(event) => setFamilyName(event.target.value)}
-                  />
-                  <TextField
-                    size="small"
-                    type="number"
-                    label={t('profile.fields.age')}
-                    value={age}
-                    onChange={(event) => setAge(event.target.value)}
-                  />
-                </>
-              ) : (
-                <>
-                  <Stack spacing={0.5}>
-                    <Typography variant="caption" color="text.secondary">
-                      {t('profile.fields.givenName')}
-                    </Typography>
-                    <Typography variant="body2">{profile.givenName || '-'}</Typography>
-                  </Stack>
-                  <Stack spacing={0.5}>
-                    <Typography variant="caption" color="text.secondary">
-                      {t('profile.fields.familyName')}
-                    </Typography>
-                    <Typography variant="body2">{profile.familyName || '-'}</Typography>
-                  </Stack>
-                  <Stack spacing={0.5}>
-                    <Typography variant="caption" color="text.secondary">
-                      {t('profile.fields.age')}
-                    </Typography>
-                    <Typography variant="body2">{profile.age ?? '-'}</Typography>
-                  </Stack>
-                </>
-              )}
-            </Box>
-          </CardContent>
-        </Card>
+        <Stack spacing={2}>
+          <FieldRow label={t('profile.fields.name')}>
+            {editing ? (
+              <TextField
+                size="small"
+                fullWidth
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            ) : (
+              <Typography variant="body2">{profile.formattedName || '-'}</Typography>
+            )}
+          </FieldRow>
 
-        <MultiValueCard
-          icon={<Mail size={14} />}
-          title={t('profile.fields.emails')}
-          editing={editing}
-          values={editing ? emails : profile.emails.map(withEmailDisplayId)}
-          emptyLabel={t('profile.messages.noEmails')}
-          addLabel={t('profile.actions.addEmail')}
-          onAdd={() => setEmails((current) => [...current, emptyEmail()])}
-          onRemove={(index) => setEmails((current) => current.filter((_, i) => i !== index))}
-          onChange={(index, field, value) =>
-            setEmails((current) =>
-              current.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
-            )
-          }
-        />
+          <FieldRow label={t('profile.fields.nickName')}>
+            {editing ? (
+              <TextField
+                size="small"
+                fullWidth
+                value={nickName}
+                onChange={(event) => setNickName(event.target.value)}
+              />
+            ) : (
+              <Typography variant="body2">{profile.nickName || '-'}</Typography>
+            )}
+          </FieldRow>
+
+          <FieldRow label={t('profile.fields.birthday')}>
+            {editing ? (
+              <TextField
+                size="small"
+                fullWidth
+                type="date"
+                value={birthday}
+                onChange={(event) => setBirthday(event.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            ) : (
+              <Typography variant="body2">{profile.birthday || '-'}</Typography>
+            )}
+          </FieldRow>
+
+          <FieldRow label={t('profile.fields.phone')}>
+            {editing ? (
+              <TextField
+                size="small"
+                fullWidth
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+              />
+            ) : (
+              <Typography variant="body2">
+                {pickPrimary(profile.phoneNumbers, (phoneNumber) => phoneNumber.value) || '-'}
+              </Typography>
+            )}
+          </FieldRow>
+
+          <FieldRow label={t('profile.fields.address')}>
+            {editing ? (
+              <TextField
+                size="small"
+                fullWidth
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+              />
+            ) : (
+              <Typography variant="body2">
+                {pickPrimary(profile.addresses, (item) => item.formatted) || '-'}
+              </Typography>
+            )}
+          </FieldRow>
+
+          <FieldRow label={t('profile.fields.email')}>
+            <Typography variant="body2">
+              {pickPrimary(profile.emails, (email) => email.value) || '-'}
+            </Typography>
+          </FieldRow>
+        </Stack>
       </Stack>
 
       <Snackbar

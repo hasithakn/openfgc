@@ -11,5 +11,5 @@
   "isClientSecret": "Y9ghD49rYK7ewokLg_EBS2akXl5QHbhc98Un4UrCGVka",
   "isRedirectUri": "http://localhost:3020/auth/callback",
   "sessionCookieSecret": "change-this-in-a-real-deployment",
-  "scimAgeAttributePath": "urn:scim:schemas:extension:custom:User:age"
+  "scimBirthdayAttributePath": "urn:scim:schemas:extension:custom:User:birthday"
 }

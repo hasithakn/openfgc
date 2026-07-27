@@ -107,7 +107,7 @@
   .field-error { font-size: 11px; color: var(--danger); margin-top: 5px; display: none; }
   .field-error.show { display: block; }
 
-  /* Guardian section — hidden until minor age entered */
+  /* Guardian section — hidden until a minor's birthday is entered */
   .guardian-section {
     background: var(--warning-light); border: 1px solid #fde68a;
     border-radius: 12px; padding: 16px 18px; margin-bottom: 18px;
@@ -181,7 +181,7 @@
   <div class="form-card" id="form-card">
     <div class="form-card-header">
       <h2>Your Details</h2>
-      <p>Enter your age — if you're under 18, we'll ask for a guardian's approval.</p>
+      <p>Enter your date of birth — if you're under 18, we'll ask for a guardian's approval.</p>
     </div>
     <div class="form-body">
 
@@ -198,15 +198,15 @@
       </div>
 
       <div class="form-group">
-        <label for="field-age">Age <span class="required-star">*</span></label>
-        <input type="number" id="field-age" placeholder="e.g. 16" min="1" max="120" autocomplete="off" oninput="onAgeChange()">
+        <label for="field-birthday">Date of Birth <span class="required-star">*</span></label>
+        <input type="date" id="field-birthday" autocomplete="bday" oninput="onBirthdayChange()">
         <div class="field-hint">If you are under 18, a guardian must approve consent before your account can be created.</div>
-        <div class="field-error" id="err-age">Please enter a valid age.</div>
+        <div class="field-error" id="err-birthday">Please enter a valid date of birth.</div>
       </div>
 
       <hr class="form-divider">
 
-      <!-- Guardian section (shown when age < 18) -->
+      <!-- Guardian section (shown when the applicant is under 18) -->
       <div class="guardian-section" id="guardian-section">
         <div class="guardian-banner">
           <span class="guardian-icon">👨‍👩‍👧</span>
@@ -273,8 +273,21 @@
     document.title = 'Sign Up — ' + name;
   }).catch(function() {});
 
-  function onAgeChange() {
-    var age = parseInt(document.getElementById('field-age').value, 10);
+  // Age in whole years as of today — only used locally to gate the guardian flow;
+  // the birthdate itself is what gets consented to and pushed to the user's profile.
+  function calculateAgeFromBirthday(dateStr) {
+    var birthday = new Date(dateStr);
+    if (isNaN(birthday.getTime())) return NaN;
+    var today = new Date();
+    var age = today.getFullYear() - birthday.getFullYear();
+    var hadBirthdayThisYear = (today.getMonth() > birthday.getMonth()) ||
+      (today.getMonth() === birthday.getMonth() && today.getDate() >= birthday.getDate());
+    if (!hadBirthdayThisYear) age--;
+    return age;
+  }
+
+  function onBirthdayChange() {
+    var age = calculateAgeFromBirthday(document.getElementById('field-birthday').value);
     isMinor = !isNaN(age) && age < 18;
     var gs = document.getElementById('guardian-section');
     var btn = document.getElementById('btn-label');
@@ -295,10 +308,11 @@
   }
 
   function validate() {
-    var name    = document.getElementById('field-name').value.trim();
-    var email   = document.getElementById('field-email').value.trim();
-    var age     = parseInt(document.getElementById('field-age').value, 10);
-    var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    var name     = document.getElementById('field-name').value.trim();
+    var email    = document.getElementById('field-email').value.trim();
+    var birthday = document.getElementById('field-birthday').value.trim();
+    var age      = calculateAgeFromBirthday(birthday);
+    var emailRe  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     var ok = true;
 
     showError('field-name', 'err-name', !name);
@@ -307,8 +321,8 @@
     showError('field-email', 'err-email', !emailRe.test(email));
     if (!emailRe.test(email)) ok = false;
 
-    showError('field-age', 'err-age', isNaN(age) || age < 1 || age > 120);
-    if (isNaN(age) || age < 1 || age > 120) ok = false;
+    showError('field-birthday', 'err-birthday', isNaN(age) || age < 0 || age > 120);
+    if (isNaN(age) || age < 0 || age > 120) ok = false;
 
     if (isMinor) {
       var gEmail = document.getElementById('field-guardian-email').value.trim();
@@ -341,9 +355,9 @@
         {
           name: 'create_custom_insurance_policy',
           elements: [
-            { name: 'name',  isUserApproved: true, value: {} },
-            { name: 'email', isUserApproved: true, value: {} },
-            { name: 'age',   isUserApproved: true, value: {} }
+            { name: 'name',     isUserApproved: true, value: {} },
+            { name: 'email',    isUserApproved: true, value: {} },
+            { name: 'birthday', isUserApproved: true, value: {} }
           ]
         }
       ],

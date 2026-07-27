@@ -671,29 +671,21 @@ const commonEn = {
   profile: {
     title: 'My Profile',
     fields: {
-      identity: 'Identity',
-      username: 'Username',
-      givenName: 'Given name',
-      familyName: 'Family name',
-      age: 'Age',
-      emails: 'Email addresses',
-      value: 'Value',
-      type: 'Type',
+      name: 'Name',
+      nickName: 'Nickname',
+      birthday: 'Birthday',
+      email: 'Email',
+      phone: 'Phone number',
+      address: 'Address',
     },
     actions: {
       edit: 'Edit',
       save: 'Save',
       cancel: 'Cancel',
-      remove: 'Remove',
-      addEmail: 'Add email',
-    },
-    values: {
-      primary: 'Primary',
     },
     messages: {
       loadFailed: 'Unable to load your profile right now.',
       updateSuccess: 'Your profile has been updated.',
-      noEmails: 'No email addresses on file.',
     },
   },
 } as const

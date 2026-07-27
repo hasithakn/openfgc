@@ -31,6 +31,10 @@ Stateless backend-for-frontend (BFF) for OpenFGC Portal, responsible for handlin
 - `task run`
 - `task run:env` (loads variables from `.env` for local development)
 
+to debug 
+
+`set -a; source .env; set +a && dlv debug ./cmd/server --headless --listen=:2345 --api-version=2`
+
 Install Task if needed: https://taskfile.dev/installation/
 
 ## Configuration

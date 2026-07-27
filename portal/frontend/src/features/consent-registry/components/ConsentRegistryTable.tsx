@@ -245,13 +245,13 @@ function ConsentRegistryTable({
         >
           <ListingTable.Head>
             <ListingTable.Row>
-              <ListingTable.Cell sx={{ width: columnWidths.purposes }}>
-                {t('consentRegistry.table.headers.purposes')}
-              </ListingTable.Cell>
               <ListingTable.Cell sx={{ width: columnWidths.consentId }}>
                 <ListingTable.SortLabel field="id">
                   {t('consentRegistry.table.headers.consentId')}
                 </ListingTable.SortLabel>
+              </ListingTable.Cell>
+              <ListingTable.Cell sx={{ width: columnWidths.purposes }}>
+                {t('consentRegistry.table.headers.purposes')}
               </ListingTable.Cell>
               {isAdmin ? (
                 <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.userId }}>
@@ -283,13 +283,13 @@ function ConsentRegistryTable({
             {isLoading
               ? Array.from({ length: rowsPerPage }, (_, rowIndex) => (
                   <ListingTable.Row key={`skeleton-row-${rowIndex}`} variant="table">
+                    <ListingTable.Cell sx={{ width: columnWidths.consentId }}>
+                      <Skeleton variant="text" width="80%" />
+                    </ListingTable.Cell>
                     <ListingTable.Cell sx={{ width: columnWidths.purposes }}>
                       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
                         <Skeleton variant="rounded" width={140} height={24} />
                       </Box>
-                    </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ width: columnWidths.consentId }}>
-                      <Skeleton variant="text" width="80%" />
                     </ListingTable.Cell>
                     {isAdmin ? (
                       <ListingTable.Cell sx={{ width: CONSENT_REGISTRY_COLUMN_WIDTHS.userId }}>
@@ -335,6 +335,18 @@ function ConsentRegistryTable({
                         onClick={handleRowClick}
                         sx={{ cursor: 'pointer' }}
                       >
+                        <ListingTable.Cell
+                          sx={{
+                            width: columnWidths.consentId,
+                            fontFamily: 'monospace',
+                            fontSize: '0.8125rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {row.id}
+                        </ListingTable.Cell>
                         <ListingTable.Cell sx={{ width: columnWidths.purposes, fontWeight: 500 }}>
                           <Box
                             sx={{
@@ -369,18 +381,6 @@ function ConsentRegistryTable({
                               />
                             ) : null}
                           </Box>
-                        </ListingTable.Cell>
-                        <ListingTable.Cell
-                          sx={{
-                            width: columnWidths.consentId,
-                            fontFamily: 'monospace',
-                            fontSize: '0.8125rem',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {row.id}
                         </ListingTable.Cell>
                         {isAdmin ? (
                           <ListingTable.Cell

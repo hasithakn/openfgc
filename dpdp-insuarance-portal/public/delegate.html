@@ -494,7 +494,7 @@
                 <div class="consent-desc">Your name is printed on your certificate. Your date of birth is required to verify age under the DPDP Act. Your email is used for account access and course updates.</div>
                 <div class="data-tags">
                   <span class="data-tag">Name</span>
-                  <span class="data-tag">Age</span>
+                  <span class="data-tag">Date of Birth</span>
                   <span class="data-tag">Email</span>
                 </div>
               </div>
@@ -853,9 +853,9 @@
           purposes: [{
             name: 'course_enrollment_and_certification',
             elements: [
-              { name: 'name',  isUserApproved: true, value: {} },
-              { name: 'age',   isUserApproved: true, value: {} },
-              { name: 'email', isUserApproved: true, value: {} }
+              { name: 'name',     isUserApproved: true, value: {} },
+              { name: 'birthday', isUserApproved: true, value: {} },
+              { name: 'email',    isUserApproved: true, value: {} }
             ]
           }]
         })
@@ -866,9 +866,9 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: email, pii: [
-          { key: 'name',  label: 'Name',  value: name },
-          { key: 'age',   label: 'Age',   value: String(age) },
-          { key: 'email', label: 'Email', value: email }
+          { key: 'name',     label: 'Name',          value: name },
+          { key: 'birthday', label: 'Date of Birth', value: dob },
+          { key: 'email',    label: 'Email',         value: email }
         ]})
       }).catch(function() {});
 

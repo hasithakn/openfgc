@@ -206,7 +206,8 @@ export function useApproveConsentMutation(): UseMutationResult<
       await queryClient.invalidateQueries({ queryKey: ['consents'] })
       await queryClient.invalidateQueries({
         predicate: (query) =>
-          query.queryKey[0] === 'consent' && query.queryKey.includes(variables.consentID),
+          (query.queryKey[0] === 'consent' || query.queryKey[0] === 'consent-history') &&
+          query.queryKey.includes(variables.consentID),
       })
     },
   })
@@ -220,7 +221,9 @@ export function useRevokeConsentMutation(): UseMutationResult<unknown, Error, st
     onSuccess: async (_data, consentID): Promise<void> => {
       await queryClient.invalidateQueries({ queryKey: ['consents'] })
       await queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === 'consent' && query.queryKey.includes(consentID),
+        predicate: (query) =>
+          (query.queryKey[0] === 'consent' || query.queryKey[0] === 'consent-history') &&
+          query.queryKey.includes(consentID),
       })
     },
   })

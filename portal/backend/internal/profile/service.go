@@ -56,15 +56,34 @@ type ScimEmail struct {
 	Primary bool   `json:"primary,omitempty"`
 }
 
+// ScimPhoneNumber maps one entry of the SCIM2 Core User "phoneNumbers" multi-valued attribute.
+type ScimPhoneNumber struct {
+	Value   string `json:"value,omitempty"`
+	Type    string `json:"type,omitempty"`
+	Primary bool   `json:"primary,omitempty"`
+}
+
+// ScimAddress maps one entry of the SCIM2 Core User "addresses" multi-valued attribute.
+type ScimAddress struct {
+	Formatted string `json:"formatted,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Primary   bool   `json:"primary,omitempty"`
+}
+
 // ScimUser is the subset of the SCIM2 Core User schema this module treats as PII, plus
-// Age, which isn't part of any static SCIM schema — it lives under whatever custom
-// extension schema/attribute the deployment configured (identity_server.scim_age_
-// attribute_path), so it's populated separately by Service, not by json.Unmarshal.
+// Age and Birthday, neither of which is part of any static SCIM schema — they live under
+// whatever custom extension schema/attribute the deployment configured (identity_server.
+// scim_age_attribute_path / scim_birthday_attribute_path), so they're populated separately
+// by Service, not by json.Unmarshal.
 type ScimUser struct {
-	UserName string      `json:"userName,omitempty"`
-	Name     ScimName    `json:"name,omitempty"`
-	Emails   []ScimEmail `json:"emails,omitempty"`
-	Age      *int        `json:"-"`
+	UserName     string            `json:"userName,omitempty"`
+	Name         ScimName          `json:"name,omitempty"`
+	NickName     string            `json:"nickName,omitempty"`
+	Emails       []ScimEmail       `json:"emails,omitempty"`
+	PhoneNumbers []ScimPhoneNumber `json:"phoneNumbers,omitempty"`
+	Addresses    []ScimAddress     `json:"addresses,omitempty"`
+	Age          *int              `json:"-"`
+	Birthday     string            `json:"-"`
 }
 
 // PatchOperation is a single SCIM PatchOp operation (RFC 7644 §3.5.2).
@@ -81,10 +100,12 @@ type patchRequest struct {
 
 // Service calls WSO2 IS's SCIM2 self-service (/scim2/Me) API on behalf of the caller.
 type Service struct {
-	baseURL   *url.URL
-	http      *http.Client
-	ageSchema string // e.g. "urn:scim:schemas:extension:custom:User"; empty disables age entirely
-	ageAttr   string // e.g. "age"
+	baseURL        *url.URL
+	http           *http.Client
+	ageSchema      string // e.g. "urn:scim:schemas:extension:custom:User"; empty disables age entirely
+	ageAttr        string // e.g. "age"
+	birthdaySchema string // empty disables birthday entirely
+	birthdayAttr   string // e.g. "birthday"
 }
 
 // NewService builds a profile service targeting the configured Identity Server SCIM2 API.
@@ -94,11 +115,14 @@ func NewService(cfg config.Config) (*Service, error) {
 		return nil, fmt.Errorf("invalid identity_server.scim_base_url: %q", cfg.IdentityServer.SCIMBaseURL)
 	}
 	ageSchema, ageAttr := splitAttributePath(strings.TrimSpace(cfg.IdentityServer.SCIMAgeAttributePath))
+	birthdaySchema, birthdayAttr := splitAttributePath(strings.TrimSpace(cfg.IdentityServer.SCIMBirthdayAttributePath))
 	return &Service{
-		baseURL:   parsed,
-		http:      &http.Client{Timeout: cfg.IdentityServer.SCIMTimeout},
-		ageSchema: ageSchema,
-		ageAttr:   ageAttr,
+		baseURL:        parsed,
+		http:           &http.Client{Timeout: cfg.IdentityServer.SCIMTimeout},
+		ageSchema:      ageSchema,
+		ageAttr:        ageAttr,
+		birthdaySchema: birthdaySchema,
+		birthdayAttr:   birthdayAttr,
 	}, nil
 }
 
@@ -109,6 +133,15 @@ func (s *Service) AgeAttributePath() string {
 		return ""
 	}
 	return s.ageSchema + ":" + s.ageAttr
+}
+
+// BirthdayAttributePath returns the full SCIM PATCH path for the birthday attribute,
+// or "" if not configured.
+func (s *Service) BirthdayAttributePath() string {
+	if s.birthdaySchema == "" || s.birthdayAttr == "" {
+		return ""
+	}
+	return s.birthdaySchema + ":" + s.birthdayAttr
 }
 
 // splitAttributePath splits a full SCIM attribute path at its last ":" — schema URNs
@@ -190,31 +223,40 @@ func (s *Service) do(ctx context.Context, method, accessToken string, body []byt
 		}
 		if user, ok := out.(*ScimUser); ok {
 			user.Age = s.extractAge(respBody)
+			user.Birthday = s.extractBirthday(respBody)
 		}
 	}
 	return nil
 }
 
-// extractAge pulls the configured custom-schema age attribute out of a raw SCIM2
+// extractCustomAttribute pulls a configured custom-schema attribute out of a raw SCIM2
 // response. Done via a generic map (not a static json tag) since the schema/attribute
 // names are deployment-configured, not fixed by any spec.
-func (s *Service) extractAge(body []byte) *int {
-	if s.ageSchema == "" || s.ageAttr == "" {
-		return nil
+func extractCustomAttribute(body []byte, schema, attr string) (json.RawMessage, bool) {
+	if schema == "" || attr == "" {
+		return nil, false
 	}
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(body, &top); err != nil {
-		return nil
+		return nil, false
 	}
-	schemaRaw, ok := top[s.ageSchema]
+	schemaRaw, ok := top[schema]
 	if !ok {
-		return nil
+		return nil, false
 	}
 	var attrs map[string]json.RawMessage
 	if err := json.Unmarshal(schemaRaw, &attrs); err != nil {
-		return nil
+		return nil, false
 	}
-	attrRaw, ok := attrs[s.ageAttr]
+	attrRaw, ok := attrs[attr]
+	if !ok {
+		return nil, false
+	}
+	return attrRaw, true
+}
+
+func (s *Service) extractAge(body []byte) *int {
+	attrRaw, ok := extractCustomAttribute(body, s.ageSchema, s.ageAttr)
 	if !ok {
 		return nil
 	}
@@ -223,4 +265,16 @@ func (s *Service) extractAge(body []byte) *int {
 		return nil
 	}
 	return &age
+}
+
+func (s *Service) extractBirthday(body []byte) string {
+	attrRaw, ok := extractCustomAttribute(body, s.birthdaySchema, s.birthdayAttr)
+	if !ok {
+		return ""
+	}
+	var birthday string
+	if err := json.Unmarshal(attrRaw, &birthday); err != nil {
+		return ""
+	}
+	return birthday
 }

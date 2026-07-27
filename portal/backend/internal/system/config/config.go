@@ -135,6 +135,9 @@ type IdentityServerConfig struct {
 	// > SCIM2 Custom Schema. Leave blank to disable age entirely (core SCIM2 has no
 	// standard age attribute).
 	SCIMAgeAttributePath string `koanf:"scim_age_attribute_path"`
+	// SCIMBirthdayAttributePath is the full SCIM PATCH path for a custom "birthday" claim,
+	// same convention as SCIMAgeAttributePath. Leave blank to disable birthday entirely.
+	SCIMBirthdayAttributePath string `koanf:"scim_birthday_attribute_path"`
 }
 
 // Load initializes configuration from defaults, optional file, and environment variables.
@@ -347,6 +350,9 @@ func setDefaults(k *koanf.Koanf) error {
 		return err
 	}
 	if err := k.Set("identity_server.scim_age_attribute_path", ""); err != nil {
+		return err
+	}
+	if err := k.Set("identity_server.scim_birthday_attribute_path", ""); err != nil {
 		return err
 	}
 

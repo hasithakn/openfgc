@@ -168,6 +168,7 @@ function SubscriptionFormDialog({
           <TextField
             required
             fullWidth
+            type="password"
             label={t('eventSubscriptions.fields.sharedSecret')}
             value={sharedSecret}
             onChange={(event) => setSharedSecret(event.target.value)}

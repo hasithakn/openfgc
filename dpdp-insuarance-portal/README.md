@@ -22,7 +22,7 @@ This demonstrates:
 |---|---|---|
 | `name` | Full Name | Policy personalisation |
 | `email` | Email Address | Quote delivery, policy documents |
-| `age` | Age | Premium calculation |
+| `birthday` | Date of Birth | Premium calculation |
 | `marketing_via_email` | Agree to marketing via email | Optional marketing consent flag |
 
 ---
@@ -31,7 +31,7 @@ This demonstrates:
 
 | Purpose | Elements | Type |
 |---|---|---|
-| `create_custom_insurance_policy` | `name`, `email`, `age` | Mandatory (required for quotation) |
+| `create_custom_insurance_policy` | `name`, `email`, `birthday` | Mandatory (required for quotation) |
 | `marketing_via_email` | `marketing_via_email` | Optional (user opt-in) |
 
 ---
@@ -46,7 +46,7 @@ This demonstrates:
 3. Quotation form loads — purpose descriptions are fetched
    live from the Consent Manager and shown inline
        ↓
-4. Customer fills in: Name, Email, Age
+4. Customer fills in: Name, Email, Date of Birth
    • Required: agrees to Privacy Policy (creates_custom_insurance_policy)
    • Optional: opts in to email marketing (marketing_via_email)
        ↓

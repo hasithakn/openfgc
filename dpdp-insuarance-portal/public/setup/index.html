@@ -251,7 +251,7 @@
       <tbody id="elements-tbody">
         <tr><td class="td-name">name</td><td class="td-display">Full Name</td><td class="td-desc">The full name of the insurance applicant</td><td class="status-cell"><span class="dot pending"></span><span class="status-text pending">not registered</span></td></tr>
         <tr><td class="td-name">email</td><td class="td-display">Email Address</td><td class="td-desc">Email address used to send your quote and policy documents</td><td class="status-cell"><span class="dot pending"></span><span class="status-text pending">not registered</span></td></tr>
-        <tr><td class="td-name">age</td><td class="td-display">Age</td><td class="td-desc">Age used to calculate your insurance premium</td><td class="status-cell"><span class="dot pending"></span><span class="status-text pending">not registered</span></td></tr>
+        <tr><td class="td-name">birthday</td><td class="td-display">Date of Birth</td><td class="td-desc">Date of birth used to calculate your insurance premium</td><td class="status-cell"><span class="dot pending"></span><span class="status-text pending">not registered</span></td></tr>
         <tr><td class="td-name">marketing_via_email</td><td class="td-display">Agree to send marketing materials via email</td><td class="td-desc">Consent to receive marketing materials and promotional offers via email</td><td class="status-cell"><span class="dot pending"></span><span class="status-text pending">not registered</span></td></tr>
       </tbody>
     </table>
@@ -284,12 +284,12 @@
         </tr>
         <tr>
           <td class="td-name">create_custom_insurance_policy</td>
-          <td class="td-desc">We collect your name, email, mobile number, and age to design a personalised life insurance plan tailored to your needs and calculate your premium.</td>
+          <td class="td-desc">We collect your name, email, mobile number, and date of birth to design a personalised life insurance plan tailored to your needs and calculate your premium.</td>
           <td>
             <div class="element-tags">
               <span class="element-tag">name</span>
               <span class="element-tag">email</span>
-              <span class="element-tag">age</span>
+              <span class="element-tag">birthday</span>
             </div>
           </td>
           <td class="status-cell"><span class="dot pending"></span><span class="status-text pending">not registered</span></td>
@@ -318,7 +318,7 @@
 </footer>
 
 <script>
-  var ELEMENT_NAMES   = ['name', 'email', 'age', 'marketing_via_email'];
+  var ELEMENT_NAMES   = ['name', 'email', 'birthday', 'marketing_via_email'];
   var PURPOSE_NAMES   = ['marketing_via_email', 'create_custom_insurance_policy'];
 
   // Load config

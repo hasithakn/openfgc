@@ -44,11 +44,11 @@ const ELEMENT_DEFINITIONS = [
     properties: { jsonPath: '$.applicant.email', resourcePath: '/applicant/{id}' }
   },
   {
-    name: 'age',
-    displayName: 'Age',
-    description: 'Age used to calculate your insurance premium',
+    name: 'birthday',
+    displayName: 'Date of Birth',
+    description: 'Date of birth used to calculate your insurance premium',
     type: 'resource-field',
-    properties: { jsonPath: '$.applicant.age', resourcePath: '/applicant/{id}' }
+    properties: { jsonPath: '$.applicant.birthday', resourcePath: '/applicant/{id}' }
   },
   {
     name: 'marketing_via_email',
@@ -68,11 +68,11 @@ const PURPOSE_DEFINITIONS = [
   },
   {
     name: 'create_custom_insurance_policy',
-    description: 'We collect your full name, email address, and age to design a personalised life insurance plan tailored to your specific needs. Your age enables us to calculate an accurate premium based on your risk profile. Your contact details ensure we can deliver your policy documents, send renewal notices, and reach you if we need to discuss your coverage. Your name is used to personalise your policy agreement.',
+    description: 'We collect your full name, email address, and date of birth to design a personalised life insurance plan tailored to your specific needs. Your date of birth enables us to calculate an accurate premium based on your risk profile. Your contact details ensure we can deliver your policy documents, send renewal notices, and reach you if we need to discuss your coverage. Your name is used to personalise your policy agreement.',
     elements: [
-      { name: 'name',  isMandatory: true },
-      { name: 'email', isMandatory: true },
-      { name: 'age',   isMandatory: true }
+      { name: 'name',     isMandatory: true },
+      { name: 'email',    isMandatory: true },
+      { name: 'birthday', isMandatory: true }
     ]
   }
 ];

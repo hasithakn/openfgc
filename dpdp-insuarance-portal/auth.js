@@ -17,10 +17,11 @@ const IS_REDIRECT_URI = process.env.IS_REDIRECT_URI || config.isRedirectUri || '
 const SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || config.sessionCookieSecret || 'dev-secret';
 const PORT = process.env.PORT || config.port || 3020;
 const POST_LOGOUT_REDIRECT_URI = `http://localhost:${PORT}/home.html`;
-// Full SCIM PATCH path for the custom "age" claim, e.g. "urn:scim:wso2:schema:age" —
-// only exists once a matching local claim has been created and SCIM2-mapped in the IS
-// Console (see README). Leave empty in config.json to skip pushing age entirely.
-const SCIM_AGE_ATTRIBUTE_PATH = process.env.SCIM_AGE_ATTRIBUTE_PATH || config.scimAgeAttributePath || '';
+// Full SCIM PATCH path for the custom "birthday" claim, e.g.
+// "urn:scim:schemas:extension:custom:User:birthday" — only exists once a matching local
+// claim has been created and SCIM2-mapped in the IS Console (see README). Leave empty in
+// config.json to skip pushing birthday entirely.
+const SCIM_BIRTHDAY_ATTRIBUTE_PATH = process.env.SCIM_BIRTHDAY_ATTRIBUTE_PATH || config.scimBirthdayAttributePath || '';
 
 // Local WSO2 IS dev instances almost always run with a self-signed cert. Only relax
 // TLS verification for discovery/token calls when the issuer itself is localhost —
@@ -49,7 +50,12 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 function createSession(claims, idToken) {
   const sessionId = crypto.randomBytes(24).toString('hex');
-  const email = claims.email || claims.sub;
+  // claims.email is only released when the SP is configured (and the user has consented)
+  // to share it — this org's `sub`/`username` claims are the email for self-registered
+  // users, but fall back through whichever of them IS actually released rather than
+  // assuming `sub` alone, since a UUID subject would silently break PII matching below.
+  const email = claims.email || claims.username || claims.preferred_username || claims.sub;
+  console.log('[Auth] Resolved login identity — email claim: ' + (claims.email || '(none)') + ', username claim: ' + (claims.username || claims.preferred_username || '(none)') + ', sub: ' + claims.sub + ' → using: ' + email);
   sessions.set(sessionId, {
     sub: claims.sub,
     email,
@@ -77,8 +83,8 @@ const PENDING_PII_COOKIE = 'insurance_pending_pii';
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', signed: true, secure: false }; // secure:false — this demo runs over plain http locally
 
 // Best-effort: if this login's email matches PII stashed by the quotation form before
-// any account existed, push the applicant's name (and age, if a custom SCIM claim for
-// it has been configured) into their IS profile via SCIM2 — so a customer never has
+// any account existed, push the applicant's name (and birthday, if a custom SCIM claim
+// for it has been configured) into their IS profile via SCIM2 — so a customer never has
 // to retype what they already gave us.
 async function applyPendingPii(req, res, email, accessToken) {
   const raw = req.signedCookies[PENDING_PII_COOKIE];
@@ -98,7 +104,9 @@ async function applyPendingPii(req, res, email, accessToken) {
   // Only ever apply pending PII to the identity it was actually collected for — the
   // real trust boundary is here, not at collection time (the cookie itself is set
   // before any login exists, so it can't be verified against an identity until now).
-  if (!pending.email || !email || pending.email.toLowerCase() !== email.toLowerCase()) {
+  const pendingEmail = String(pending.email || '').trim().toLowerCase();
+  const loginEmail = String(email || '').trim().toLowerCase();
+  if (!pendingEmail || !loginEmail || pendingEmail !== loginEmail) {
     console.log('[Auth] Pending-PII email (' + pending.email + ') does not match logged-in email (' + email + ') — skipping SCIM push.');
     return;
   }
@@ -108,25 +116,25 @@ async function applyPendingPii(req, res, email, accessToken) {
   const familyName = parts.slice(1).join(' ');
 
   // Sent as two independent PATCH calls (not one combined request) — SCIM PATCH is
-  // atomic, so a failing custom "age" attribute (e.g. not yet wired into IS's SCIM2
+  // atomic, so a failing custom "birthday" attribute (e.g. not yet wired into IS's SCIM2
   // schema) must never be able to roll back the perfectly valid name update too.
   if (givenName) {
+    // IS doesn't auto-derive "formatted" from givenName/familyName on a replace — send
+    // it explicitly so any client reading the profile (not just this one) sees a name.
+    const formatted = (givenName + ' ' + familyName).trim();
     await scimPatchMe(accessToken, email, 'name', [
-      { op: 'replace', path: 'name', value: { givenName, familyName } },
+      { op: 'replace', path: 'name', value: { givenName, familyName, formatted } },
     ]);
   }
 
-  const ageNumber = Number(pending.age);
-  if (SCIM_AGE_ATTRIBUTE_PATH && pending.age && Number.isFinite(ageNumber)) {
-    // The custom "age" claim is configured as an Integer in IS — sending it as a JSON
-    // string (rather than a real number) trips IS's "DataType doesn't match" check.
-    await scimPatchMe(accessToken, email, 'age', [
-      { op: 'replace', path: SCIM_AGE_ATTRIBUTE_PATH, value: ageNumber },
+  if (SCIM_BIRTHDAY_ATTRIBUTE_PATH && pending.birthday) {
+    await scimPatchMe(accessToken, email, 'birthday', [
+      { op: 'replace', path: SCIM_BIRTHDAY_ATTRIBUTE_PATH, value: String(pending.birthday) },
     ]);
   }
 
-  if (!givenName && !(SCIM_AGE_ATTRIBUTE_PATH && pending.age)) {
-    console.log('[Auth] Pending-PII matched ' + email + ' but had nothing usable to push (no name, no age/no age attribute configured).');
+  if (!givenName && !(SCIM_BIRTHDAY_ATTRIBUTE_PATH && pending.birthday)) {
+    console.log('[Auth] Pending-PII matched ' + email + ' but had nothing usable to push (no name, no birthday/no birthday attribute configured).');
   }
 }
 
@@ -253,12 +261,12 @@ function register(app) {
   });
 
   // Called by the quotation form right after a consent is created, before the user
-  // has any account yet — stashes the name/age they just typed in so they can be
+  // has any account yet — stashes the name/birthday they just typed in so they can be
   // pushed into their IS profile via SCIM the moment they log in with that same email.
   app.post('/api/pending-pii', (req, res) => {
-    const { email, name, age } = req.body || {};
+    const { email, name, birthday } = req.body || {};
     if (!email || !name) return res.status(400).json({ error: 'email and name are required' });
-    res.cookie(PENDING_PII_COOKIE, JSON.stringify({ email, name, age }), { ...COOKIE_OPTS, maxAge: 30 * 60 * 1000 });
+    res.cookie(PENDING_PII_COOKIE, JSON.stringify({ email, name, birthday }), { ...COOKIE_OPTS, maxAge: 30 * 60 * 1000 });
     res.json({ ok: true });
   });
 }
