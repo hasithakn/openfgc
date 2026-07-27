@@ -6,6 +6,7 @@
 package profile
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/wso2/openfgc/portal/backend/internal/system/auth"
@@ -14,8 +15,8 @@ import (
 
 // Initialize sets up the profile module and registers self-service PII routes. No portal
 // scope is required beyond authentication — every user manages their own profile.
-func Initialize(mux *http.ServeMux, cfg config.Config, authManager *auth.Manager) error {
-	handler, err := NewHandler(cfg)
+func Initialize(mux *http.ServeMux, cfg config.Config, authManager *auth.Manager, log *slog.Logger) error {
+	handler, err := NewHandler(cfg, log)
 	if err != nil {
 		return err
 	}

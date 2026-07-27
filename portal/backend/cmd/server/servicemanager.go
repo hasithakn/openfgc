@@ -67,7 +67,7 @@ func registerServices(mux *http.ServeMux, log *slog.Logger, cfg config.Config) e
 	}
 	log.Debug("registered event-subscription module")
 
-	if err := profile.Initialize(mux, cfg, authManager); err != nil {
+	if err := profile.Initialize(mux, cfg, authManager, log); err != nil {
 		return err
 	}
 	log.Debug("registered profile module")

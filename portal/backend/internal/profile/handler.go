@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/wso2/openfgc/portal/backend/internal/system/config"
@@ -32,8 +33,8 @@ var errRequestBodyTooLarge = errors.New("request body too large")
 const maxProfileRequestBytes = 65536
 
 // NewHandler creates a profile handler with an initialized service.
-func NewHandler(cfg config.Config) (*Handler, error) {
-	svc, err := NewService(cfg)
+func NewHandler(cfg config.Config, log *slog.Logger) (*Handler, error) {
+	svc, err := NewService(cfg, log)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,13 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "INVALID_REQUEST_BODY", "no profile fields to update")
 		return
 	}
-	user, err := h.svc.UpdateMe(r.Context(), token, ops)
+	if _, err := h.svc.UpdateMe(r.Context(), token, ops); err != nil {
+		writeProfileError(w, err)
+		return
+	}
+	// Re-fetch rather than trust the PATCH response: SCIM implementations vary on
+	// whether they return the full updated resource, a partial one, or no body at all.
+	user, err := h.svc.GetMe(r.Context(), token)
 	if err != nil {
 		writeProfileError(w, err)
 		return

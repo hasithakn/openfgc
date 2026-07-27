@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -56,6 +57,24 @@ type ScimEmail struct {
 	Primary bool   `json:"primary,omitempty"`
 }
 
+// UnmarshalJSON accepts either the SCIM-spec complex object ({"value": "..."}) or a bare
+// string — this IS tenant's local claim mapping returns multi-valued attributes as plain
+// strings rather than complex objects, even though PATCHing them as complex objects works.
+func (e *ScimEmail) UnmarshalJSON(data []byte) error {
+	var asString string
+	if err := json.Unmarshal(data, &asString); err == nil {
+		e.Value = asString
+		return nil
+	}
+	type alias ScimEmail
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*e = ScimEmail(a)
+	return nil
+}
+
 // ScimPhoneNumber maps one entry of the SCIM2 Core User "phoneNumbers" multi-valued attribute.
 type ScimPhoneNumber struct {
 	Value   string `json:"value,omitempty"`
@@ -63,11 +82,43 @@ type ScimPhoneNumber struct {
 	Primary bool   `json:"primary,omitempty"`
 }
 
+// UnmarshalJSON — see ScimEmail.UnmarshalJSON.
+func (p *ScimPhoneNumber) UnmarshalJSON(data []byte) error {
+	var asString string
+	if err := json.Unmarshal(data, &asString); err == nil {
+		p.Value = asString
+		return nil
+	}
+	type alias ScimPhoneNumber
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*p = ScimPhoneNumber(a)
+	return nil
+}
+
 // ScimAddress maps one entry of the SCIM2 Core User "addresses" multi-valued attribute.
 type ScimAddress struct {
 	Formatted string `json:"formatted,omitempty"`
 	Type      string `json:"type,omitempty"`
 	Primary   bool   `json:"primary,omitempty"`
+}
+
+// UnmarshalJSON — see ScimEmail.UnmarshalJSON; a bare string here becomes the formatted line.
+func (a *ScimAddress) UnmarshalJSON(data []byte) error {
+	var asString string
+	if err := json.Unmarshal(data, &asString); err == nil {
+		a.Formatted = asString
+		return nil
+	}
+	type alias ScimAddress
+	var al alias
+	if err := json.Unmarshal(data, &al); err != nil {
+		return err
+	}
+	*a = ScimAddress(al)
+	return nil
 }
 
 // ScimUser is the subset of the SCIM2 Core User schema this module treats as PII, plus
@@ -102,6 +153,7 @@ type patchRequest struct {
 type Service struct {
 	baseURL        *url.URL
 	http           *http.Client
+	log            *slog.Logger
 	ageSchema      string // e.g. "urn:scim:schemas:extension:custom:User"; empty disables age entirely
 	ageAttr        string // e.g. "age"
 	birthdaySchema string // empty disables birthday entirely
@@ -109,7 +161,7 @@ type Service struct {
 }
 
 // NewService builds a profile service targeting the configured Identity Server SCIM2 API.
-func NewService(cfg config.Config) (*Service, error) {
+func NewService(cfg config.Config, log *slog.Logger) (*Service, error) {
 	parsed, err := url.Parse(strings.TrimSpace(cfg.IdentityServer.SCIMBaseURL))
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return nil, fmt.Errorf("invalid identity_server.scim_base_url: %q", cfg.IdentityServer.SCIMBaseURL)
@@ -119,6 +171,7 @@ func NewService(cfg config.Config) (*Service, error) {
 	return &Service{
 		baseURL:        parsed,
 		http:           &http.Client{Timeout: cfg.IdentityServer.SCIMTimeout},
+		log:            log,
 		ageSchema:      ageSchema,
 		ageAttr:        ageAttr,
 		birthdaySchema: birthdaySchema,
@@ -189,6 +242,7 @@ func (s *Service) do(ctx context.Context, method, accessToken string, body []byt
 	}
 	req, err := http.NewRequestWithContext(ctx, method, target.String(), reader)
 	if err != nil {
+		s.log.Error("failed to build SCIM2 request", "method", method, "url", target.String(), "error", err)
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
@@ -199,6 +253,7 @@ func (s *Service) do(ctx context.Context, method, accessToken string, body []byt
 
 	resp, err := s.http.Do(req)
 	if err != nil {
+		s.log.Error("SCIM2 request to identity server failed", "method", method, "url", target.String(), "error", err)
 		var netErr net.Error
 		if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
 			return ErrUpstreamTimeout
@@ -211,14 +266,20 @@ func (s *Service) do(ctx context.Context, method, accessToken string, body []byt
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		s.log.Error("failed to read SCIM2 response body", "method", method, "url", target.String(), "status", resp.StatusCode, "error", err)
 		return fmt.Errorf("read identity server response: %w", ErrUpstreamUnavailable)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		s.log.Error("SCIM2 request to identity server returned an error status", "method", method, "url", target.String(), "status", resp.StatusCode, "body", string(respBody))
 		return &UpstreamStatusError{StatusCode: resp.StatusCode}
 	}
-	if out != nil {
+	// A successful PATCH/PUT may legitimately come back with no body (e.g. 204, or 200
+	// with nothing written) depending on the SCIM implementation — that's not a parse
+	// failure, there's just nothing to parse.
+	if out != nil && len(bytes.TrimSpace(respBody)) > 0 {
 		if err := json.Unmarshal(respBody, out); err != nil {
+			s.log.Error("failed to parse SCIM2 response body", "method", method, "url", target.String(), "status", resp.StatusCode, "body", string(respBody), "error", err)
 			return fmt.Errorf("parse identity server response: %w", err)
 		}
 		if user, ok := out.(*ScimUser); ok {
