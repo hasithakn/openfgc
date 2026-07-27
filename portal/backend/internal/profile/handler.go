@@ -72,7 +72,7 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "INVALID_REQUEST_BODY", "invalid request body")
 		return
 	}
-	ops := buildPatchOperations(update)
+	ops := buildPatchOperations(update, h.svc.AgeAttributePath())
 	if len(ops) == 0 {
 		writeJSONError(w, http.StatusBadRequest, "INVALID_REQUEST_BODY", "no profile fields to update")
 		return

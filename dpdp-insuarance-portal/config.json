@@ -1,0 +1,15 @@
+{
+  "companyName": "Insurance Corporation",
+  "orgId": "carbon.super",
+  "openfgcUrl": "http://127.0.0.1:8060",
+  "consentPortalUrl": "http://localhost:5173",
+  "portalBackendUrl": "http://localhost:3001",
+  "port": 3020,
+  "enableMinorFlow": false,
+  "isIssuerUrl": "https://localhost:9443/oauth2/token",
+  "isClientId": "6i4BVKDuRMxi3N0Y5M7lVUQwJfMa",
+  "isClientSecret": "Y9ghD49rYK7ewokLg_EBS2akXl5QHbhc98Un4UrCGVka",
+  "isRedirectUri": "http://localhost:3020/auth/callback",
+  "sessionCookieSecret": "change-this-in-a-real-deployment",
+  "scimAgeAttributePath": "urn:scim:schemas:extension:custom:User:age"
+}

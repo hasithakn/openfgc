@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Get a Quotation — Life Insurance Provider</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --primary: #1e3a5f;
+    --primary-dark: #132540;
+    --primary-light: #e8f0fc;
+    --accent: #c8963a;
+    --accent-light: #fdf3e3;
+    --success: #2e7d32;
+    --danger: #c62828;
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  header {
+    background: var(--primary);
+    padding: 0 64px;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-logo {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--accent); display: flex; align-items: center;
+    justify-content: center; font-size: 22px;
+  }
+  .brand-name { font-size: 18px; font-weight: 700; color: #fff; }
+  .brand-tagline { font-size: 12px; color: rgba(255,255,255,.6); margin-top: 1px; }
+  .btn-back {
+    font-size: 13px; color: rgba(255,255,255,.7); text-decoration: none;
+    padding: 8px 18px; border: 1px solid rgba(255,255,255,.2);
+    border-radius: 8px; transition: all .2s;
+  }
+  .btn-back:hover { color: #fff; border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.08); }
+
+  /* Page layout */
+  main {
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+
+  /* Page header */
+  .page-header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .page-eyebrow {
+    display: inline-block;
+    background: var(--primary-light); color: var(--primary);
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; padding: 4px 12px; border-radius: 20px;
+    margin-bottom: 14px;
+  }
+  .page-header h1 { font-size: 30px; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
+  .page-header p { font-size: 15px; color: var(--muted); line-height: 1.65; max-width: 540px; margin: 0 auto; }
+
+  /* Product info card */
+  .product-card {
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+  .product-icon { font-size: 48px; flex-shrink: 0; }
+  .product-info h2 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .product-info p { font-size: 13px; color: rgba(255,255,255,.7); line-height: 1.6; margin-bottom: 14px; }
+  .product-highlights { display: flex; gap: 20px; flex-wrap: wrap; }
+  .highlight {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: rgba(255,255,255,.85);
+  }
+  .highlight-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
+
+  /* Form card */
+  .form-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  .form-card-header {
+    padding: 20px 28px;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+  }
+  .form-card-header h2 { font-size: 16px; font-weight: 700; color: var(--text); }
+  .form-card-header p  { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  /* Loading purposes */
+  .purpose-loading {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted); padding: 6px 0;
+  }
+  .spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--primary);
+    animation: spin .7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Purpose description box */
+  .purpose-box {
+    background: var(--primary-light);
+    border: 1px solid #c3d9f7;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .purpose-box-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--primary); margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .purpose-box-text { font-size: 13px; color: #2a4a7a; line-height: 1.6; }
+
+  /* Form body */
+  .form-body { padding: 28px; }
+
+  .form-section-title {
+    font-size: 13px; font-weight: 700; color: var(--primary);
+    text-transform: uppercase; letter-spacing: .6px;
+    padding-bottom: 10px; margin-bottom: 20px;
+    border-bottom: 2px solid var(--primary-light);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 20px;
+  }
+  .form-grid.single { grid-template-columns: 1fr; }
+
+  .form-group { display: flex; flex-direction: column; }
+  .form-group label {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+  }
+  .required-star { color: var(--danger); font-size: 14px; }
+  .form-group input {
+    padding: 11px 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; color: var(--text);
+    background: #fff;
+    transition: border-color .2s, box-shadow .2s;
+    outline: none;
+  }
+  .form-group input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(30,58,95,.1);
+  }
+  .form-group input.error { border-color: var(--danger); }
+  .field-hint {
+    font-size: 11px; color: var(--muted); margin-top: 5px;
+    display: flex; align-items: flex-start; gap: 5px; line-height: 1.4;
+  }
+  .field-hint-icon { flex-shrink: 0; margin-top: 1px; }
+  .field-error { font-size: 11px; color: var(--danger); margin-top: 5px; display: none; }
+  .field-error.show { display: block; }
+
+  /* Divider */
+  .form-divider {
+    border: none; border-top: 1px solid var(--border);
+    margin: 28px 0;
+  }
+
+  /* Consent section */
+  .consent-section-title {
+    font-size: 13px; font-weight: 700; color: var(--text);
+    margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+  }
+  .consent-section-title span { font-size: 16px; }
+
+  .consent-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    transition: border-color .2s, background .2s;
+  }
+  .consent-item:last-child { margin-bottom: 0; }
+  .consent-item.required-consent {
+    border-color: #c3d9f7;
+    background: #fafcff;
+  }
+  .consent-item.optional-consent { background: #fafafa; }
+  .consent-item.checked { border-color: var(--primary); background: var(--primary-light); }
+
+  .consent-row {
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  .consent-checkbox {
+    width: 20px; height: 20px; flex-shrink: 0;
+    accent-color: var(--primary); cursor: pointer;
+    margin-top: 2px;
+  }
+  .consent-label { flex: 1; }
+  .consent-label strong {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    display: block; margin-bottom: 4px; cursor: pointer;
+  }
+  .consent-label .consent-desc {
+    font-size: 12px; color: var(--muted); line-height: 1.55;
+  }
+  .consent-label .consent-desc.loaded { color: #3d6b8f; }
+  .consent-badge {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; padding: 2px 8px; border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .consent-badge.required { background: #fee2e2; color: #991b1b; }
+  .consent-badge.optional { background: #fef9c3; color: #854d0e; }
+
+  /* Submit area */
+  .form-footer {
+    padding: 20px 28px;
+    background: #f8fafc;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .form-footer-note { font-size: 12px; color: var(--muted); line-height: 1.5; max-width: 420px; }
+
+  .btn-submit {
+    padding: 14px 36px;
+    background: var(--primary); color: #fff;
+    border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: background .2s, opacity .2s, transform .15s;
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .btn-submit:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
+  .btn-submit:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  /* Global error */
+  .submit-error {
+    background: #fbe9e7; border: 1px solid #ef9a9a;
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; color: var(--danger); margin: 0 28px 20px;
+    display: none;
+  }
+  .submit-error.show { display: block; }
+
+  /* Footer */
+  footer {
+    background: var(--primary-dark);
+    padding: 20px 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .footer-brand { font-size: 12px; color: rgba(255,255,255,.4); }
+  .footer-links { display: flex; gap: 16px; }
+  .footer-links a { font-size: 12px; color: rgba(255,255,255,.4); text-decoration: none; }
+  .footer-links a:hover { color: rgba(255,255,255,.7); }
+
+  /* Duration Selector */
+  .duration-selector { display: flex; gap: 10px; flex-wrap: wrap; }
+  .duration-option { cursor: pointer; }
+  .duration-option input[type="radio"] { display: none; }
+  .duration-option span { display: block; padding: 8px 20px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); transition: all .15s; user-select: none; }
+  .duration-option:hover span { border-color: #b8d4f0; color: var(--text); }
+  .duration-option input[type="radio"]:checked + span { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+
+  /* ── Split Layout ── */
+  .split-container { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+  .main-pane { width: 62%; min-width: 320px; overflow-y: auto; flex-shrink: 0; }
+  .split-handle { width: 5px; background: var(--border); cursor: col-resize; flex-shrink: 0; transition: background .15s; }
+  .split-handle:hover, .split-handle.dragging { background: var(--accent); }
+  .api-pane { flex: 1; min-width: 260px; display: flex; flex-direction: column; background: #0f1923; overflow: hidden; }
+  .api-pane-header {
+    padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0; background: #080f18;
+  }
+  .api-pane-title { font-size: 12px; font-weight: 700; color: #94a3b8; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: .5px; }
+  .api-pane-body { flex: 1; overflow-y: auto; padding: 10px; }
+  .api-drawer-empty { color: #4a5568; font-size: 12px; text-align: center; padding: 32px 16px; line-height: 1.6; }
+  .api-badge { background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; min-width: 18px; text-align: center; }
+  .api-clear-btn { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: #94a3b8; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 10px; cursor: pointer; transition: all .2s; }
+  .api-clear-btn:hover { background: rgba(255,255,255,.14); color: #e2e8f0; }
+  .api-entry { margin-bottom: 16px; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,.12); }
+  .api-entry-head { padding: 10px 14px; background: rgba(255,255,255,.04); display: flex; align-items: center; gap: 10px; }
+  .api-method { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 5px; font-family: monospace; flex-shrink: 0; }
+  .m-post   { background: #1a3a5c; color: #60a5fa; }
+  .m-put    { background: #3d2b0a; color: #fbbf24; }
+  .m-delete { background: #3b0f0f; color: #f87171; }
+  .api-url { font-size: 11px; color: #94a3b8; font-family: monospace; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .api-status { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; flex-shrink: 0; }
+  .s-ok  { background: #1a4731; color: #4ade80; }
+  .s-err { background: #3b0f0f; color: #f87171; }
+  .api-entry-body { padding: 12px 14px; background: #0a1018; border-top: 1px solid rgba(255,255,255,.04); }
+  .api-block-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #e2e8f0; margin-bottom: 6px; margin-top: 14px; }
+  .api-block-label:first-child { margin-top: 0; }
+  .api-block-label:not(:first-child) { border-top: 1px solid rgba(255,255,255,.12); padding-top: 10px; }
+  .api-entry-sep { height: 2px; background: rgba(255,255,255,.15); margin: 4px 0 16px; border-radius: 1px; }
+  .api-code {
+    background: #060d14; border-radius: 6px; padding: 10px 12px;
+    font-family: 'Courier New', monospace; font-size: 12px; color: #a0c4ff;
+    white-space: pre-wrap; word-break: break-all;
+    border: 1px solid rgba(255,255,255,.04);
+  }
+  .json-key  { color: #9cdcfe; }
+  .json-str  { color: #ce9178; }
+  .json-num  { color: #b5cea8; }
+  .json-bool { color: #569cd6; }
+  .json-null { color: #808080; }
+  .m-get { background: #1a4731; color: #4ade80; }
+  .api-chevron { font-size: 9px; color: #64748b; flex-shrink: 0; margin-left: auto; padding-left: 6px; }
+  .api-entry-head:hover { background: rgba(255,255,255,.07); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">🛡️</div>
+    <div>
+      <div class="brand-name" id="company-name">Life Insurance Provider</div>
+      <div class="brand-tagline">Protecting Families Since 1985</div>
+    </div>
+  </div>
+  <a href="/home.html" class="btn-back">← Home</a>
+</header>
+
+<div class="split-container">
+<div class="main-pane" id="main-pane">
+<main>
+
+  <div class="page-header">
+    <span class="page-eyebrow">Free Quotation</span>
+    <h1>Get Your Personalised Quote</h1>
+    <p>Fill in a few details below and we'll generate a life insurance quote tailored to you. All data is handled transparently — you'll see exactly why each piece of information is needed.</p>
+  </div>
+
+  <!-- Form -->
+  <div class="form-card">
+    <div class="form-card-header">
+      <h2>Your Details</h2>
+      <p>We only collect what we need. Hover over the information icon to see exactly why each field is required.</p>
+    </div>
+
+    <div class="form-body">
+
+      <div class="form-section-title">
+        <span>👤</span> Personal Information
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="field-name">Full Name <span class="required-star">*</span></label>
+          <input type="text" id="field-name" placeholder="e.g. Jane Smith" autocomplete="name">
+          <div class="field-hint"><span class="field-hint-icon">📋</span> Used to personalise your policy documents and coverage agreement.</div>
+          <div class="field-error" id="err-name">Please enter your full name.</div>
+        </div>
+        <div class="form-group">
+          <label for="field-age">Age <span class="required-star">*</span></label>
+          <input type="number" id="field-age" placeholder="e.g. 32" min="1" max="100" autocomplete="off" oninput="onAgeInput()">
+          <div class="field-hint"><span class="field-hint-icon">📊</span> Used to calculate your insurance premium based on your risk profile.</div>
+          <div class="field-error" id="err-age">Please enter a valid age (1–100).</div>
+        </div>
+      </div>
+      <div class="form-grid single">
+        <div class="form-group">
+          <label for="field-email">Email Address <span class="required-star">*</span></label>
+          <input type="email" id="field-email" placeholder="e.g. jane@example.com" autocomplete="email">
+          <div class="field-hint"><span class="field-hint-icon">📧</span> We will send your quotation and policy documents to this address.</div>
+          <div class="field-error" id="err-email">Please enter a valid email address.</div>
+        </div>
+      </div>
+
+      <!-- Guardian section — shown when age < 18 -->
+      <div id="guardian-section" style="display:none; margin-top:4px; margin-bottom:4px;">
+        <div style="background:#fef9c3; border:1px solid #fde047; border-radius:12px; padding:16px 18px; margin-bottom:14px;">
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <span style="font-size:18px; flex-shrink:0;">👨‍👩‍👦</span>
+            <div>
+              <div style="font-size:13px; font-weight:700; color:#854d0e; margin-bottom:4px;">Guardian Approval Required</div>
+              <div style="font-size:12px; color:#92400e; line-height:1.55;">
+                Under the DPDP Act 2023, consent for minors must be given or co-authorised by a parent or lawful guardian.
+                A delegated consent will be created and an approval request will be sent to the guardian's email.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="field-guardian-email">Guardian's Email Address <span class="required-star">*</span></label>
+          <input type="email" id="field-guardian-email" placeholder="e.g. parent@example.com" autocomplete="off">
+          <div class="field-hint"><span class="field-hint-icon">📧</span> The guardian will receive an approval request for this consent.</div>
+          <div class="field-error" id="err-guardian-email">Please enter a valid guardian email address.</div>
+        </div>
+      </div>
+
+      <hr class="form-divider">
+
+      <!-- Consent section -->
+      <div class="consent-section-title">
+        <span>🔐</span> Your Consent &amp; Privacy Preferences
+      </div>
+
+      <!-- Purpose 1 — mandatory (locked) -->
+      <div class="consent-item required-consent" style="margin-bottom:12px;">
+        <div class="consent-row">
+          <input type="checkbox" class="consent-checkbox" checked disabled style="opacity:.55; cursor:not-allowed;">
+          <div class="consent-label">
+            <strong>Generate Insurance Quotation</strong>
+            <div class="consent-desc loaded" id="policy-purpose-desc" style="margin-top:4px;">
+              Needed to generate a personalised policy quote.
+            </div>
+            <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;" id="policy-elements-row">
+              <span style="font-size:11px; font-weight:700; background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:5px;">Full Name</span>
+              <span style="font-size:11px; font-weight:700; background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:5px;">Age</span>
+              <span style="font-size:11px; font-weight:700; background:var(--primary-light); color:var(--primary); padding:2px 8px; border-radius:5px;">Email Address</span>
+            </div>
+          </div>
+          <span class="consent-badge required">Required</span>
+        </div>
+      </div>
+
+      <!-- Purpose 2 — optional marketing -->
+      <div class="consent-item optional-consent" id="consent-marketing-item">
+        <div class="consent-row">
+          <input type="checkbox" class="consent-checkbox" id="consent-marketing" onchange="onMarketingChange()">
+          <div class="consent-label">
+            <strong onclick="document.getElementById('consent-marketing').click()">
+              Receive Marketing Emails
+            </strong>
+            <div class="consent-desc" id="marketing-purpose-desc" style="margin-top:4px;">
+              <span class="purpose-loading" style="display:inline-flex; gap:6px; align-items:center;">
+                <span class="spinner" style="width:12px;height:12px;border-width:1.5px;"></span> Loading…
+              </span>
+            </div>
+            <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
+              <span style="font-size:11px; font-weight:700; background:#fef9c3; color:#854d0e; padding:2px 8px; border-radius:5px;">Email Address</span>
+            </div>
+          </div>
+          <span class="consent-badge optional">Optional</span>
+        </div>
+      </div>
+
+      <!-- Consent duration -->
+      <hr class="form-divider" style="margin: 20px 0 16px;">
+      <div class="consent-section-title" style="margin-bottom:14px;">
+        <span>⏱</span> How long should we keep consent to use your data?
+      </div>
+      <div class="duration-selector">
+        <label class="duration-option"><input type="radio" name="consent-duration" value="15552000000"><span>6 Months</span></label>
+        <label class="duration-option"><input type="radio" name="consent-duration" value="31536000000" checked><span>1 Year</span></label>
+        <label class="duration-option"><input type="radio" name="consent-duration" value="63072000000"><span>2 Years</span></label>
+      </div>
+
+      <!-- DPO Contact & One-Stop Portal -->
+      <hr class="form-divider" style="margin: 20px 0 16px;">
+      <div class="consent-section-title" style="margin-bottom:14px;">
+        <span>🛡️</span> Your Data Rights
+      </div>
+      <div style="border:1px solid var(--border); border-radius:12px; padding:16px 18px; background:#fafafa;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); margin-bottom:10px;">Data Protection Officer</div>
+        <div id="dpo-loading" class="purpose-loading"><div class="spinner"></div> Loading DPO details…</div>
+        <div id="dpo-list" style="display:none;"></div>
+        <div id="dpo-empty" style="display:none; font-size:13px; color:var(--muted); font-style:italic;">No DPO configured.</div>
+        <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border); font-size:12px; color:var(--muted); line-height:1.55;">
+          You can review or revoke your consent at any time via our
+          <a id="consent-portal-link" href="http://localhost:5173" target="_blank" style="color:var(--primary); font-weight:600;">One-Stop Consent Portal →</a>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="submit-error" id="submit-error" style="margin-top:16px;"></div>
+
+    </div><!-- /form-body -->
+
+    <div class="form-footer">
+      <div class="form-footer-note">
+        By submitting this form, a consent record will be created in our Consent Management system. You can review or revoke your consent at any time from your account.
+      </div>
+      <button class="btn-submit" id="btn-submit" onclick="submitForm()">
+        <span id="btn-submit-label">Get My Quotation →</span>
+      </button>
+    </div>
+  </div>
+
+</main>
+</div>
+<div class="split-handle" id="split-handle"></div>
+<div class="api-pane">
+  <div class="api-pane-header">
+    <div class="api-pane-title">📡 REST API Calls <span class="api-badge" id="api-count">0</span></div>
+    <button class="api-clear-btn" onclick="doClearApiLogs()">Clear</button>
+  </div>
+  <div class="api-pane-body" id="api-drawer-body">
+    <div class="api-drawer-empty">Submit the form to see the consent creation API call here.</div>
+  </div>
+</div>
+</div>
+
+<footer>
+  <span class="footer-brand" id="footer-company">Life Insurance Provider © 2025</span>
+  <div class="footer-links">
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms</a>
+  </div>
+</footer>
+
+<script>
+  var purposeData = {};
+  var MINOR_FLOW_ENABLED = false; // set from /api/config; default off
+
+  function onAgeInput() {
+    if (!MINOR_FLOW_ENABLED) return;
+    var age = parseInt(document.getElementById('field-age').value, 10);
+    var isMinor = !isNaN(age) && age < 18;
+    document.getElementById('guardian-section').style.display = isMinor ? 'block' : 'none';
+    document.getElementById('btn-submit-label').textContent = isMinor
+      ? 'Request Guardian Approval →'
+      : 'Get My Quotation →';
+  }
+
+  function loadPurposes() {
+    fetch('/api/purposes?limit=50')
+      .then(function(r) { return r.ok ? r.json() : { data: [] }; })
+      .then(function(data) {
+        var list = data.data || data || [];
+        list.forEach(function(p) {
+          if (p.name) purposeData[p.name] = p;
+        });
+        applyPurposeDescriptions();
+      })
+      .catch(function() {
+        // If server is unavailable, hide loading and show fallback text
+        hidePurposeLoading();
+      });
+  }
+
+  function applyPurposeDescriptions() {
+    // Mandatory policy consent desc
+    var policyPurpose = purposeData['create_custom_insurance_policy'];
+    var descEl = document.getElementById('policy-purpose-desc');
+    if (policyPurpose && policyPurpose.description) {
+      descEl.textContent = policyPurpose.description;
+    }
+
+    // Marketing purpose description
+    var marketingPurpose = purposeData['marketing_via_email'];
+    var mDesc = document.getElementById('marketing-purpose-desc');
+    if (marketingPurpose && marketingPurpose.description) {
+      mDesc.innerHTML = marketingPurpose.description;
+      mDesc.classList.add('loaded');
+    } else {
+      mDesc.textContent = 'We will send you personalised insurance offers, policy renewal reminders, and helpful tips — delivered to your inbox. You can unsubscribe at any time.';
+    }
+  }
+
+  function hidePurposeLoading() {
+    var mDesc = document.getElementById('marketing-purpose-desc');
+    if (mDesc && !mDesc.classList.contains('loaded')) {
+      mDesc.textContent = 'Personalised insurance offers and helpful tips delivered to your inbox. Unsubscribe at any time.';
+    }
+  }
+
+  function onMarketingChange() {
+    var checked = document.getElementById('consent-marketing').checked;
+    var item    = document.getElementById('consent-marketing-item');
+    item.classList.toggle('checked', checked);
+  }
+
+  function showError(fieldId, errId, show) {
+    var input = document.getElementById(fieldId);
+    var err   = document.getElementById(errId);
+    if (show) {
+      input.classList.add('error');
+      err.classList.add('show');
+    } else {
+      input.classList.remove('error');
+      err.classList.remove('show');
+    }
+  }
+
+  function validate() {
+    var name    = document.getElementById('field-name').value.trim();
+    var ageRaw  = document.getElementById('field-age').value.trim();
+    var age     = parseInt(ageRaw, 10);
+    var email   = document.getElementById('field-email').value.trim();
+    var isMinor = MINOR_FLOW_ENABLED && !isNaN(age) && age < 18;
+
+    var ok = true;
+    showError('field-name', 'err-name', !name);
+    if (!name) ok = false;
+
+    var ageOk = !isNaN(age) && age >= 1 && age <= 100;
+    showError('field-age', 'err-age', !ageOk);
+    if (!ageOk) ok = false;
+
+    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    showError('field-email', 'err-email', !emailOk);
+    if (!emailOk) ok = false;
+
+    if (isMinor) {
+      var guardianEmail = document.getElementById('field-guardian-email').value.trim();
+      var guardianOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail);
+      showError('field-guardian-email', 'err-guardian-email', !guardianOk);
+      if (!guardianOk) ok = false;
+    }
+
+    return ok;
+  }
+
+  async function postConsent(payload) {
+    var r = await fetch('/api/consents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    var data = await r.json();
+    return { ok: r.ok, status: r.status, data: data };
+  }
+
+  async function submitForm() {
+    document.getElementById('submit-error').classList.remove('show');
+    if (!validate()) return;
+
+    var name          = document.getElementById('field-name').value.trim();
+    var age           = document.getElementById('field-age').value.trim();
+    var email         = document.getElementById('field-email').value.trim();
+    var wantsMarketing= document.getElementById('consent-marketing').checked;
+    var durationMs    = parseInt(document.querySelector('input[name="consent-duration"]:checked').value, 10);
+    var expirationTime = Date.now() + durationMs;
+    var isMinor       = MINOR_FLOW_ENABLED && parseInt(age, 10) < 18;
+    var guardianEmail = isMinor ? document.getElementById('field-guardian-email').value.trim() : null;
+
+    // Build authorizations; minor flow creates delegated consent awaiting guardian approval
+    var authorizations = isMinor
+      ? [
+          { userId: guardianEmail, type: 'delegate',         status: 'CREATED', resources: {} },
+          { userId: email,         type: 'delegate_subject', status: 'CREATED', resources: { delegationType: 'parental_biological', revocationPolicy: 'ANY' } }
+        ]
+      : [{ userId: email, type: 'authorisation', status: 'APPROVED' }];
+
+    var btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    document.getElementById('btn-submit-label').textContent = '⏳ Submitting…';
+
+    await clearApiLogs();
+
+    try {
+      // Single consent with all purposes
+      var purposes = [
+        {
+          name: 'create_custom_insurance_policy',
+          elements: [
+            { name: 'name',  approved: true, value: {} },
+            { name: 'email', approved: true, value: {} },
+            { name: 'age',   approved: true, value: {} }
+          ]
+        }
+      ];
+      if (wantsMarketing) {
+        purposes.push({
+          name: 'marketing_via_email',
+          elements: [{ name: 'email', approved: true, value: {} }]
+        });
+      }
+
+      var r1 = await postConsent({
+        userId: email,
+        expirationTime: expirationTime,
+        authorizations: authorizations,
+        purposes: purposes
+      });
+
+      // Stash the name given here so that if this same email later creates a real IS
+      // account, it gets pushed into their profile via SCIM right after their first
+      // login — no re-typing required.
+      await fetch('/api/pending-pii', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, name: name, age: age })
+      }).catch(function() {});
+
+      await refreshApiLogs();
+
+      if (r1.ok) {
+        sessionStorage.setItem('quotation_name',       name);
+        sessionStorage.setItem('quotation_email',      email);
+        sessionStorage.setItem('quotation_consent_id', r1.data.id || '');
+        sessionStorage.setItem('quotation_marketing',  wantsMarketing ? 'yes' : 'no');
+        sessionStorage.setItem('quotation_is_minor',   isMinor ? 'yes' : 'no');
+        document.getElementById('btn-submit-label').textContent = '✓ Consent recorded — redirecting…';
+        btn.style.background = '#2e7d32';
+        setTimeout(function() { window.location.href = '/thank-you.html'; }, 2500);
+      } else {
+        var errMsg = (r1.data && r1.data.error) ? r1.data.error : 'Submission failed. Please try again.';
+        document.getElementById('submit-error').textContent = '⚠ ' + errMsg;
+        document.getElementById('submit-error').classList.add('show');
+        btn.disabled = false;
+        document.getElementById('btn-submit-label').textContent = isMinor ? 'Request Guardian Approval →' : 'Get My Quotation →';
+      }
+    } catch (e) {
+      document.getElementById('submit-error').textContent = '⚠ Could not connect to server. Please try again.';
+      document.getElementById('submit-error').classList.add('show');
+      btn.disabled = false;
+      document.getElementById('btn-submit-label').textContent = isMinor ? 'Request Guardian Approval →' : 'Get My Quotation →';
+    }
+  }
+
+  // Clear errors on input
+  ['field-name','field-age','field-email','field-guardian-email'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', function() { this.classList.remove('error'); });
+  });
+
+  // ── API Viewer ────────────────────────────────────────────────────────────────
+
+  async function clearApiLogs() {
+    try { await fetch('/api/logs', { method: 'DELETE' }); } catch (e) {}
+  }
+
+  async function doClearApiLogs() {
+    await clearApiLogs();
+    renderApiLogs([]);
+    document.getElementById('api-count').textContent = '0';
+  }
+
+  async function refreshApiLogs() {
+    try {
+      var r = await fetch('/api/logs');
+      var logs = await r.json();
+      var filtered = logs.filter(function(l) { return (l.url || '').indexOf('/api/v1/') >= 0; });
+      renderApiLogs(filtered);
+      document.getElementById('api-count').textContent = filtered.length;
+    } catch (e) {}
+  }
+
+  function renderApiLogs(logs) {
+    var body = document.getElementById('api-drawer-body');
+    if (!logs || logs.length === 0) {
+      body.innerHTML = '<div class="api-drawer-empty">Submit the form to see the consent creation API call here.</div>';
+      return;
+    }
+    body.innerHTML = logs.map(function(log, i) {
+      var m = (log.method || 'POST').toUpperCase();
+      var mClass = { POST: 'm-post', PUT: 'm-put', DELETE: 'm-delete', GET: 'm-get' }[m] || 'm-post';
+      var sOk = log.status >= 200 && log.status < 300;
+      var shortUrl = (log.url || '').replace(/https?:\/\/[^/]+/, '');
+      var bodyHtml =
+        (log.reqBody
+          ? '<div class="api-block-label">Request Body</div><div class="api-code">' + syntaxHighlight(log.reqBody) + '</div>'
+          : '') +
+        '<div class="api-block-label">Response (' + log.status + ')</div><div class="api-code">' + syntaxHighlight(log.resBody) + '</div>';
+      return '<div class="api-entry">' +
+        '<div class="api-entry-head" onclick="toggleApiEntry(this)" style="cursor:pointer;">' +
+        '<span class="api-method ' + mClass + '">' + m + '</span>' +
+        '<span class="api-url" title="' + escHtml(log.url || '') + '">' + escHtml(shortUrl) + '</span>' +
+        '<span class="api-status ' + (sOk ? 's-ok' : 's-err') + '">' + log.status + '</span>' +
+        '<span class="api-chevron">▶</span>' +
+        '</div>' +
+        '<div class="api-entry-body" style="display:none;">' + bodyHtml + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function toggleApiEntry(head) {
+    var body = head.nextElementSibling;
+    var chevron = head.querySelector('.api-chevron');
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    if (chevron) chevron.textContent = open ? '▶' : '▼';
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function syntaxHighlight(obj) {
+    if (obj === null || obj === undefined) return '<span class="json-null">null</span>';
+    var json = JSON.stringify(obj, null, 2)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+      if (/^"/.test(match)) return '<span class="' + (/:$/.test(match) ? 'json-key' : 'json-str') + '">' + match + '</span>';
+      if (/true|false/.test(match)) return '<span class="json-bool">' + match + '</span>';
+      if (/null/.test(match))       return '<span class="json-null">' + match + '</span>';
+      return '<span class="json-num">' + match + '</span>';
+    });
+  }
+
+  // Static demo values — there's no real DPO directory backing this yet.
+  var MOCK_DPOS = [
+    { name: 'Priya Nair', email: 'dpo@insurancecorp.example' }
+  ];
+
+  function loadDPO() {
+    document.getElementById('dpo-loading').style.display = 'none';
+    var html = MOCK_DPOS.map(function(dpo) {
+      return '<div style="display:flex; gap:10px; align-items:flex-start; margin-bottom:8px;">' +
+        '<span style="font-size:18px; flex-shrink:0;">👤</span>' +
+        '<div>' +
+          '<div style="font-size:14px; font-weight:600; color:var(--text);">' + escHtml(dpo.name || '—') + '</div>' +
+          '<div style="font-size:12px; color:var(--muted);">' +
+            '<a href="mailto:' + escHtml(dpo.email || '') + '" style="color:var(--primary);">' + escHtml(dpo.email || '—') + '</a>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    document.getElementById('dpo-list').innerHTML = html;
+    document.getElementById('dpo-list').style.display = 'block';
+  }
+
+  function loadConfig() {
+    fetch('/api/config').then(function(r) { return r.json(); }).then(function(cfg) {
+      var name = cfg.companyName || 'Life Insurance Provider';
+      document.getElementById('company-name').textContent = name;
+      document.getElementById('footer-company').textContent = name + ' © 2025';
+      document.title = 'Get a Quotation — ' + name;
+      if (cfg.consentPortalUrl) {
+        document.getElementById('consent-portal-link').href = cfg.consentPortalUrl;
+      }
+      // Show guardian section only when minor flow is enabled in config.json
+      MINOR_FLOW_ENABLED = Boolean(cfg.enableMinorFlow);
+      if (!MINOR_FLOW_ENABLED) {
+        document.getElementById('guardian-section').style.display = 'none';
+      }
+    }).catch(function() {});
+  }
+
+  // Clear stale logs from previous pages on load
+  clearApiLogs();
+
+  loadConfig();
+  loadPurposes();
+  loadDPO();
+
+  // ── Split Resize ─────────────────────────────────────────────────────────────
+  (function() {
+    var handle = document.getElementById('split-handle');
+    var pane   = document.getElementById('main-pane');
+    var cont   = pane.parentElement;
+    var drag   = false, startX = 0, startW = 0;
+    handle.addEventListener('mousedown', function(e) {
+      drag = true; startX = e.clientX;
+      startW = pane.getBoundingClientRect().width;
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!drag) return;
+      var cw = cont.getBoundingClientRect().width;
+      var nw = Math.max(320, Math.min(cw - 260 - 5, startW + (e.clientX - startX)));
+      pane.style.width = nw + 'px';
+    });
+    document.addEventListener('mouseup', function() {
+      if (!drag) return;
+      drag = false;
+      handle.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  })();
+</script>
+</body>
+</html>

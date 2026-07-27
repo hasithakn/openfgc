@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LearnPath — Explore. Learn. Grow.</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --primary:        #0d9488;
+    --primary-dark:   #0f766e;
+    --primary-light:  #f0fdfa;
+    --primary-mid:    #ccfbf1;
+    --primary-border: #5eead4;
+    --bg:             #f0fdfa;
+    --card:           #ffffff;
+    --text:           #0f172a;
+    --muted:          #64748b;
+    --danger:         #b91c1c;
+    --warn-bg:        #fefce8;
+    --warn-border:    #fde68a;
+    --warn-text:      #854d0e;
+    --success-light:  #f0fdf4;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  body.form-mode { height: 100vh; overflow: hidden; }
+
+  /* ── Header ── */
+  header {
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 48px;
+    height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+    position: sticky; top: 0; z-index: 200;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .brand-logo { width: 36px; height: 36px; border-radius: 9px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .brand-name { font-size: 17px; font-weight: 800; color: var(--primary); letter-spacing: -.3px; }
+  .brand-tag  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .header-pill { background: var(--primary-mid); border: 1px solid var(--primary-border); color: var(--primary-dark); font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+  .header-back { display: none; align-items: center; gap: 6px; background: var(--primary-light); border: 1px solid var(--primary-border); color: var(--primary-dark); font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .header-back:hover { background: var(--primary-mid); }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .header-create { background: transparent; color: var(--primary); border: 1.5px solid var(--primary-border); font-size: 13px; font-weight: 600; padding: 6px 16px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .header-create:hover { background: var(--primary-light); }
+  .header-signin { background: var(--primary); color: #fff; border: none; font-size: 13px; font-weight: 600; padding: 7px 18px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .header-signin:hover { background: var(--primary-dark); }
+  body.form-mode  .header-back   { display: flex; }
+  body.form-mode  .header-pill   { display: none; }
+  body.form-mode  .header-signin { display: none; }
+  body.form-mode  .header-create { display: none; }
+  body.login-mode .header-back   { display: flex; }
+  body.login-mode .header-pill   { display: none; }
+  body.login-mode .header-signin { display: none; }
+  body.login-mode .header-create { display: none; }
+  body.login-mode #landing-view        { display: none; }
+  body.login-mode #login-view          { display: flex; }
+  body.login-mode #form-view-container { display: none; }
+
+  /* ── LOGIN VIEW ── */
+  #login-view { display: none; flex: 1; align-items: center; justify-content: center; padding: 24px; }
+  .login-card { background: var(--card); border: 1px solid #e2e8f0; border-radius: 16px; padding: 36px; max-width: 420px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,.08); transition: max-width .2s; }
+  .login-card.wide { max-width: 560px; padding: 0; overflow: hidden; }
+  .login-logo { width: 48px; height: 48px; border-radius: 12px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 16px; }
+  .login-title { font-size: 20px; font-weight: 800; color: var(--text); text-align: center; margin-bottom: 4px; }
+  .login-sub   { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 26px; }
+  .login-group { display: flex; flex-direction: column; margin-bottom: 14px; }
+  .login-group label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+  .login-group input { padding: 11px 13px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: var(--text); outline: none; transition: border-color .2s, box-shadow .2s; }
+  .login-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,148,136,.12); }
+  .login-group input.err { border-color: var(--danger); }
+  .login-err { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
+  .login-err.show { display: block; }
+  .btn-login { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 9px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background .2s; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-login:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn-login:disabled { opacity: .5; cursor: not-allowed; }
+  .login-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 12px; }
+  .login-divider::before, .login-divider::after { content: ''; flex: 1; border-top: 1px solid #e2e8f0; }
+  .btn-create { width: 100%; padding: 11px; background: transparent; color: var(--primary); border: 2px solid var(--primary-border); border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .2s, border-color .2s; }
+  .btn-create:hover { background: var(--primary-light); border-color: var(--primary); }
+
+  /* login result states */
+  .login-spinner-wrap { text-align: center; padding: 24px 0; }
+  .login-spinner { width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--primary-mid); border-top-color: var(--primary); animation: spin .7s linear infinite; margin: 0 auto 12px; }
+  .login-spinner-text { font-size: 14px; color: var(--muted); }
+  .result-banner { border-radius: 12px; padding: 20px; margin-bottom: 18px; text-align: center; }
+  .result-banner.green { background: var(--success-light); border: 1px solid #86efac; }
+  .result-banner.amber { background: var(--warn-bg); border: 1px solid var(--warn-border); }
+  .result-banner.red   { background: #fef2f2; border: 1px solid #fca5a5; }
+  .result-icon  { font-size: 36px; display: block; margin-bottom: 8px; }
+  .result-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+  .result-banner.green .result-title { color: #15803d; }
+  .result-banner.amber .result-title { color: #92400e; }
+  .result-banner.red   .result-title { color: #991b1b; }
+  .result-body  { font-size: 13px; line-height: 1.6; }
+  .result-banner.green .result-body { color: #166534; }
+  .result-banner.amber .result-body { color: #92400e; }
+  .result-banner.red   .result-body { color: #7f1d1d; }
+  .course-hero-thumb { height: 160px; background: linear-gradient(135deg, #0c4a6e, #0d9488); display: flex; align-items: center; justify-content: center; font-size: 72px; position: relative; }
+  .course-hero-badge { position: absolute; top: 12px; right: 12px; background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 20px; }
+  .course-hero-body  { padding: 22px 24px; }
+  .course-hero-cat   { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--primary); margin-bottom: 4px; }
+  .course-hero-title { font-size: 17px; font-weight: 900; color: var(--text); margin-bottom: 14px; }
+  .btn-start { width: 100%; padding: 14px; background: #15803d; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; transition: background .2s; letter-spacing: .3px; }
+  .btn-start:hover { background: #166534; }
+  .consent-meta { font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center; }
+  .timeline { display: flex; align-items: center; gap: 0; margin: 16px 0; }
+  .tl-step { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .tl-dot  { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; margin-bottom: 6px; }
+  .tl-dot.done    { background: #dcfce7; color: #15803d; border: 2px solid #86efac; }
+  .tl-dot.waiting { background: #fef9c3; color: #854d0e; border: 2px solid #fde68a; }
+  .tl-dot.locked  { background: #f1f5f9; color: #94a3b8; border: 2px solid #e2e8f0; }
+  .tl-label { font-size: 10px; font-weight: 600; color: var(--muted); text-align: center; }
+  .tl-line  { flex: 1; height: 2px; background: #e2e8f0; margin-bottom: 22px; }
+  .tl-line.done { background: #86efac; }
+  .btn-try-again { width: 100%; margin-top: 12px; padding: 10px; background: transparent; color: var(--primary); border: 1.5px solid var(--primary-border); border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+  .btn-try-again:hover { background: var(--primary-light); }
+
+  /* ── LANDING ── */
+  #landing-view { flex: 1; display: flex; flex-direction: column; }
+
+  .hero {
+    background: linear-gradient(135deg, #0c4a6e 0%, #0f766e 55%, #0d9488 100%);
+    position: relative; overflow: hidden;
+    padding: 64px 48px 56px; text-align: center;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,.16) 1px, transparent 1px);
+    background-size: 28px 28px; pointer-events: none;
+  }
+  .hero-inner { position: relative; max-width: 600px; margin: 0 auto; }
+  .hero h1 { font-size: 40px; font-weight: 900; color: #fff; line-height: 1.1; letter-spacing: -.7px; margin-bottom: 14px; }
+  .hero h1 span { color: #6ee7b7; }
+  .hero p { font-size: 15px; color: #a7f3d0; line-height: 1.6; margin-bottom: 28px; }
+  .hero-cta { display: inline-flex; align-items: center; gap: 8px; background: #fff; color: var(--primary-dark); font-size: 14px; font-weight: 700; padding: 11px 26px; border-radius: 10px; cursor: pointer; border: none; transition: transform .15s, box-shadow .15s; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+  .hero-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.25); }
+
+  /* Featured course spotlight */
+  .spotlight-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px; }
+  .spotlight-label { width: 100%; max-width: 800px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--primary); margin-bottom: 14px; }
+
+  .spotlight-card {
+    background: var(--card); border: 2px solid var(--primary-border);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(13,148,136,.1);
+    display: flex; width: 100%; max-width: 800px;
+  }
+  .spotlight-thumb {
+    width: 200px; flex-shrink: 0;
+    background: linear-gradient(135deg, #0c4a6e, #0d9488);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 64px;
+  }
+  .spotlight-body { padding: 28px; flex: 1; }
+  .spotlight-cat  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--primary); margin-bottom: 6px; }
+  .spotlight-title { font-size: 20px; font-weight: 900; color: var(--text); margin-bottom: 8px; line-height: 1.25; }
+  .spotlight-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 18px; }
+  .spotlight-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .pill     { font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid #e2e8f0; padding: 3px 10px; border-radius: 12px; }
+  .pill.free { background: var(--primary-mid); color: var(--primary-dark); border-color: var(--primary-border); font-weight: 700; }
+  .btn-enrol { padding: 12px 28px; background: var(--primary); color: #fff; border: none; border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .2s, transform .15s; }
+  .btn-enrol:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+  .landing-footer { background: #0f172a; padding: 18px 48px; display: flex; align-items: center; justify-content: space-between; }
+  .lf-brand { font-size: 12px; color: rgba(255,255,255,.3); }
+  .lf-links { display: flex; gap: 18px; }
+  .lf-links a { font-size: 12px; color: rgba(255,255,255,.3); text-decoration: none; }
+  .lf-links a:hover { color: rgba(255,255,255,.6); }
+
+  /* ── FORM VIEW ── */
+  #form-view-container { display: none; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
+  body.form-mode #form-view-container { display: flex; }
+  body.form-mode #landing-view        { display: none; }
+
+  .split-container { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+  .main-pane   { width: 62%; min-width: 320px; overflow-y: auto; flex-shrink: 0; }
+  .split-handle { width: 5px; background: #e2e8f0; cursor: col-resize; flex-shrink: 0; transition: background .15s; }
+  .split-handle:hover, .split-handle.dragging { background: var(--primary); }
+  .api-pane   { flex: 1; min-width: 260px; display: flex; flex-direction: column; background: #0f1923; overflow: hidden; }
+  .api-pane-head { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.07); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; background: #080f18; }
+  .api-pane-title { font-size: 12px; font-weight: 700; color: #94a3b8; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: .5px; }
+  .api-pane-body  { flex: 1; overflow-y: auto; padding: 10px; }
+  .api-empty  { color: #4a5568; font-size: 12px; text-align: center; padding: 32px 16px; line-height: 1.6; }
+  .api-badge  { background: var(--primary); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; min-width: 18px; text-align: center; }
+  .api-clear  { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: #94a3b8; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .api-clear:hover { background: rgba(255,255,255,.14); color: #e2e8f0; }
+  .api-entry  { margin-bottom: 14px; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,.1); }
+  .api-head   { padding: 10px 14px; background: rgba(255,255,255,.04); display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .api-head:hover { background: rgba(255,255,255,.07); }
+  .api-method { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 5px; font-family: monospace; flex-shrink: 0; }
+  .m-post { background: #1a3a5c; color: #60a5fa; }
+  .m-get  { background: #1a4731; color: #4ade80; }
+  .api-url    { font-size: 11px; color: #94a3b8; font-family: monospace; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .api-status { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; flex-shrink: 0; }
+  .s-ok  { background: #1a4731; color: #4ade80; }
+  .s-err { background: #3b0f0f; color: #f87171; }
+  .api-body-inner { padding: 12px 14px; background: #0a1018; border-top: 1px solid rgba(255,255,255,.04); }
+  .api-blk-label  { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #e2e8f0; margin-bottom: 6px; margin-top: 12px; }
+  .api-blk-label:first-child { margin-top: 0; }
+  .api-blk-label:not(:first-child) { border-top: 1px solid rgba(255,255,255,.1); padding-top: 10px; }
+  .api-code { background: #060d14; border-radius: 6px; padding: 10px 12px; font-family: 'Courier New', monospace; font-size: 12px; color: #a0c4ff; white-space: pre-wrap; word-break: break-all; border: 1px solid rgba(255,255,255,.04); }
+  .json-key  { color: #9cdcfe; } .json-str { color: #ce9178; } .json-num { color: #b5cea8; } .json-bool { color: #569cd6; }
+  .api-chevron { font-size: 9px; color: #64748b; flex-shrink: 0; margin-left: auto; padding-left: 6px; }
+
+  /* Form layout */
+  main { max-width: 720px; width: 100%; margin: 0 auto; padding: 24px 24px 56px; }
+  .enrol-context { background: var(--card); border: 1px solid var(--primary-border); border-radius: 12px; padding: 14px 18px; margin-bottom: 18px; display: flex; align-items: center; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .enrol-thumb { width: 44px; height: 44px; border-radius: 9px; background: linear-gradient(135deg, #0c4a6e, #0d9488); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .enrol-lbl   { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--primary); margin-bottom: 2px; }
+  .enrol-title { font-size: 14px; font-weight: 800; color: var(--text); }
+
+  .form-card { background: var(--card); border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+  .form-card-header { padding: 18px 24px; border-bottom: 1px solid #e2e8f0; }
+  .form-card-header h2 { font-size: 15px; font-weight: 700; color: var(--text); }
+  .form-card-header p  { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+  .form-body { padding: 22px 24px; }
+  .sec-title { font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: .7px; padding-bottom: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--primary-mid); }
+
+  .form-grid        { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .form-grid.single { grid-template-columns: 1fr; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--text); display: block; margin-bottom: 5px; }
+  .req { color: var(--danger); }
+  .form-group input { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: var(--text); background: #fff; outline: none; transition: border-color .2s, box-shadow .2s; }
+  .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,148,136,.12); }
+  .form-group input.err { border-color: var(--danger); }
+  .hint       { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .field-err  { font-size: 11px; color: var(--danger); margin-top: 4px; display: none; }
+  .field-err.show { display: block; }
+
+  .age-pill       { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 10px; margin-top: 5px; }
+  .age-pill.minor { background: #fef9c3; color: #854d0e; }
+  .age-pill.adult { background: #dcfce7; color: #15803d; }
+
+  .guardian-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 12px; }
+  .guardian-banner-title { font-size: 13px; font-weight: 700; color: var(--warn-text); margin-bottom: 3px; }
+  .guardian-banner-body  { font-size: 12px; color: #92400e; line-height: 1.55; }
+
+  .divider { border: none; border-top: 1px solid #e2e8f0; margin: 18px 0; }
+
+  .consent-block { border: 1px solid var(--primary-border); border-radius: 12px; background: var(--primary-light); padding: 14px 16px; }
+  .consent-block-title { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .req-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 8px; }
+  .consent-desc { font-size: 12px; color: #134e4a; line-height: 1.6; margin-bottom: 10px; }
+  .data-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .data-tag  { font-size: 11px; font-weight: 700; background: var(--primary-mid); color: var(--primary-dark); padding: 2px 9px; border-radius: 5px; }
+
+  .dpo-box { border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; background: #f8fffe; }
+  .dpo-name  { font-size: 13px; font-weight: 700; color: var(--text); }
+  .dpo-role  { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .dpo-email { font-size: 12px; color: var(--primary); font-weight: 600; text-decoration: none; }
+  .dpo-email:hover { text-decoration: underline; }
+  .dpo-notice { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  .submit-err { background: #fbe9e7; border: 1px solid #ef9a9a; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--danger); margin-top: 14px; display: none; }
+  .submit-err.show { display: block; }
+
+  .form-footer { padding: 16px 24px; background: #f8fffe; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .footer-note { font-size: 12px; color: var(--muted); line-height: 1.5; max-width: 360px; }
+  .btn-submit { padding: 11px 26px; background: var(--primary); color: #fff; border: none; border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; flex-shrink: 0; transition: background .2s, transform .15s; }
+  .btn-submit:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
+  .btn-submit:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Success */
+  #success-view { display: none; }
+  .success-banner { border-radius: 14px; padding: 28px; text-align: center; margin-bottom: 18px; }
+  .success-banner.green { background: var(--success-light); border: 1px solid #86efac; }
+  .success-banner.amber { background: var(--warn-bg); border: 1px solid var(--warn-border); }
+  .s-icon  { font-size: 48px; display: block; margin-bottom: 10px; }
+  .s-title { font-size: 22px; font-weight: 800; margin-bottom: 7px; }
+  .success-banner.green .s-title { color: #15803d; }
+  .success-banner.amber .s-title { color: #92400e; }
+  .s-body  { font-size: 14px; line-height: 1.6; }
+  .success-banner.green .s-body { color: #166534; }
+  .success-banner.amber .s-body { color: #92400e; }
+  .ref-card  { background: var(--card); border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 22px; margin-bottom: 14px; }
+  .ref-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 12px; }
+  .ref-row   { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid #e2e8f0; gap: 14px; }
+  .ref-row:last-child { border-bottom: none; }
+  .ref-key   { font-size: 13px; color: var(--muted); flex-shrink: 0; }
+  .ref-val   { font-size: 13px; font-weight: 600; color: var(--text); text-align: right; word-break: break-all; }
+  .ref-val.mono { font-family: 'Courier New', monospace; font-size: 11px; color: var(--primary); }
+  .next-card  { background: var(--card); border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 22px; margin-bottom: 14px; }
+  .next-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+  .step       { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+  .step:last-child { border-bottom: none; }
+  .step-num   { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-mid); color: var(--primary-dark); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step h4    { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .step p     { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .btn-again  { display: inline-flex; align-items: center; gap: 8px; background: var(--primary); color: #fff; padding: 10px 22px; border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: background .2s; }
+  .btn-again:hover { background: var(--primary-dark); }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────── -->
+<header>
+  <div class="brand" onclick="goLanding()">
+    <div class="brand-logo">🚀</div>
+    <div>
+      <div class="brand-name">LearnPath</div>
+      <div class="brand-tag">Explore. Learn. Grow.</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="header-back"   onclick="goLanding()">← Back to Courses</button>
+    <button class="header-create" onclick="showCreateAccount()">Create Account</button>
+    <button class="header-signin" onclick="goLogin()">Sign In</button>
+    <span class="header-pill">DPDP Act 2023 — Minor Consent Demo</span>
+  </div>
+</header>
+
+<!-- ── LANDING ────────────────────────────────────────────────── -->
+<div id="landing-view">
+
+  <section class="hero">
+    <div class="hero-inner">
+      <h1>Learning has <span>no limits</span></h1>
+      <p>Explore science, arts, and life skills — free courses with certificates for all ages.</p>
+      <button class="hero-cta" onclick="document.getElementById('spotlight-anchor').scrollIntoView({behavior:'smooth'})">See Courses ↓</button>
+    </div>
+  </section>
+
+  <div class="spotlight-section" id="spotlight-anchor">
+    <div class="spotlight-label">Now enrolling</div>
+    <div class="spotlight-card">
+      <div class="spotlight-thumb">🚀</div>
+      <div class="spotlight-body">
+        <div class="spotlight-cat">Space &amp; Astronomy</div>
+        <div class="spotlight-title">Space Science: Exploring Our Solar System</div>
+        <div class="spotlight-desc">Planets, moons, black holes, and the future of space travel — 24 bite-sized lessons for curious learners of all ages.</div>
+        <div class="spotlight-pills">
+          <span class="pill">📅 Self-paced</span>
+          <span class="pill">🏅 Certificate</span>
+          <span class="pill">Ages 10+</span>
+          <span class="pill free">Free</span>
+        </div>
+        <button class="btn-enrol" onclick="startEnrol()">Enrol Now →</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="landing-footer">
+    <span class="lf-brand">LearnPath © 2025 · Powered by WSO2 Consent Management</span>
+    <div class="lf-links"><a href="#">Privacy Policy</a><a href="#">Terms of Service</a></div>
+  </footer>
+
+</div>
+
+<!-- ── LOGIN VIEW ─────────────────────────────────────────────── -->
+<div id="login-view">
+  <div class="login-card">
+
+    <div id="login-form-inner">
+      <div class="login-logo">🚀</div>
+      <div class="login-title">Welcome back</div>
+      <div class="login-sub">Sign in to access your courses</div>
+
+      <div class="login-group">
+        <label for="l-email">Email Address</label>
+        <input type="email" id="l-email" placeholder="e.g. riya@example.com" autocomplete="email"
+               onkeydown="if(event.key==='Enter') doLogin()">
+        <div class="login-err" id="l-email-err">Please enter a valid email address.</div>
+      </div>
+      <div class="login-group">
+        <label for="l-password">Password</label>
+        <input type="password" id="l-password" placeholder="••••••••" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+
+      <button class="btn-login" id="btn-login" onclick="doLogin()">Sign In</button>
+
+      <div class="login-divider">or</div>
+
+      <button class="btn-create" onclick="showCreateAccount()">Create Account →</button>
+    </div>
+
+    <!-- Create Account panel -->
+    <div id="create-account-inner" style="display:none;">
+      <div class="login-logo">🚀</div>
+      <div class="login-title">Create Account</div>
+      <div class="login-sub">Join LearnPath and start learning</div>
+
+      <div class="login-group">
+        <label for="ca-email">Email Address</label>
+        <input type="email" id="ca-email" placeholder="e.g. riya@example.com" autocomplete="email"
+               onkeydown="if(event.key==='Enter') doCreateAccount()">
+        <div class="login-err" id="ca-email-err">Please enter a valid email address.</div>
+      </div>
+      <div class="login-group">
+        <label for="ca-password">New Password</label>
+        <input type="password" id="ca-password" placeholder="••••••••" autocomplete="new-password"
+               onkeydown="if(event.key==='Enter') doCreateAccount()">
+        <div class="login-err" id="ca-password-err">Please enter a password.</div>
+      </div>
+
+      <button class="btn-login" id="btn-create-account" onclick="doCreateAccount()">Create Account</button>
+
+      <div class="login-divider">or</div>
+
+      <button class="btn-create" onclick="goLogin()">Already have an account? Sign In →</button>
+    </div>
+
+    <div id="login-result" style="display:none;"></div>
+
+  </div>
+</div>
+
+<!-- ── FORM VIEW ──────────────────────────────────────────────── -->
+<div id="form-view-container">
+  <div class="split-container">
+
+    <div class="main-pane" id="main-pane">
+      <main>
+
+        <div id="enrol-form-view">
+
+          <div class="enrol-context">
+            <div class="enrol-thumb">🚀</div>
+            <div>
+              <div class="enrol-lbl">Enrolling for</div>
+              <div class="enrol-title">Space Science: Exploring Our Solar System</div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-header">
+              <h2>Create Your Account</h2>
+              <p>Learners under 18 require a parent or guardian's approval — a consent request is sent automatically.</p>
+            </div>
+
+            <div class="form-body">
+              <div class="sec-title">Your Details</div>
+
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="f-name">Full Name <span class="req">*</span></label>
+                  <input type="text" id="f-name" placeholder="e.g. Riya Sharma" autocomplete="name">
+                  <div class="field-err" id="e-name">Please enter your full name.</div>
+                </div>
+                <div class="form-group">
+                  <label for="f-dob">Date of Birth <span class="req">*</span></label>
+                  <input type="date" id="f-dob" oninput="onDobChange()" autocomplete="bday">
+                  <div id="age-display"></div>
+                  <div class="field-err" id="e-dob">Please enter a valid date of birth.</div>
+                </div>
+              </div>
+
+              <div class="form-grid single">
+                <div class="form-group">
+                  <label for="f-email">Email Address <span class="req">*</span></label>
+                  <input type="email" id="f-email" placeholder="e.g. riya@example.com" autocomplete="email">
+                  <div class="field-err" id="e-email">Please enter a valid email address.</div>
+                </div>
+              </div>
+
+              <div id="guardian-section" style="display:none; margin-top:2px;">
+                <div class="guardian-banner">
+                  <span style="font-size:22px; flex-shrink:0; margin-top:1px;">👨‍👩‍👦</span>
+                  <div>
+                    <div class="guardian-banner-title">Parent or Guardian Approval Required</div>
+                    <div class="guardian-banner-body">Under <strong>Section 9 of the DPDP Act 2023</strong>, LearnPath must obtain verifiable parental consent before processing data for anyone under 18. The account activates only after the guardian confirms.</div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="f-guardian">Parent / Guardian Email <span class="req">*</span></label>
+                  <input type="email" id="f-guardian" placeholder="e.g. parent@example.com">
+                  <div class="hint">A secure approval link will be sent to this address.</div>
+                  <div class="field-err" id="e-guardian">Please enter a valid guardian email address.</div>
+                </div>
+              </div>
+
+              <hr class="divider">
+
+              <div class="consent-block">
+                <div class="consent-block-title">
+                  Course Enrolment &amp; Certificate Issuance
+                  <span class="req-badge">Required</span>
+                </div>
+                <div class="consent-desc">Your name is printed on your certificate. Your date of birth is required to verify age under the DPDP Act. Your email is used for account access and course updates.</div>
+                <div class="data-tags">
+                  <span class="data-tag">Name</span>
+                  <span class="data-tag">Age</span>
+                  <span class="data-tag">Email</span>
+                </div>
+              </div>
+
+              <hr class="divider">
+              <div class="sec-title" style="margin-bottom:10px;">🛡️ Data Protection Officer</div>
+              <div class="dpo-box">
+                <div style="display:flex; align-items:flex-start; gap:10px;">
+                  <span style="font-size:18px; flex-shrink:0;">👤</span>
+                  <div>
+                    <div class="dpo-name">Jordan Reyes</div>
+                    <div class="dpo-role">Data Protection Officer · LearnPath</div>
+                    <a class="dpo-email" href="mailto:dpo@learnpath.in">dpo@learnpath.in</a>
+                  </div>
+                </div>
+                <div class="dpo-notice">
+                  Review or withdraw consent at any time via the
+                  <a id="portal-link" href="http://localhost:5173" target="_blank" style="color:var(--primary); font-weight:600;">One-Stop Consent Portal →</a>
+                </div>
+              </div>
+
+              <div class="submit-err" id="submit-err"></div>
+            </div>
+
+            <div class="form-footer">
+              <div class="footer-note">A consent record will be created under the DPDP Act 2023. Accounts for under-18 learners activate only after guardian approval.</div>
+              <button class="btn-submit" id="btn-submit" onclick="submitForm()">
+                <span id="btn-label">Confirm Enrolment →</span>
+              </button>
+            </div>
+          </div>
+
+        </div><!-- /#enrol-form-view -->
+
+        <div id="success-view">
+          <div class="success-banner" id="s-banner">
+            <span class="s-icon" id="s-icon">✅</span>
+            <div class="s-title" id="s-title">You're enrolled!</div>
+            <div class="s-body"  id="s-body">Your LearnPath account is ready. Check your inbox for the login link.</div>
+          </div>
+          <div class="ref-card">
+            <div class="ref-title">Enrolment Summary</div>
+            <div class="ref-row"><span class="ref-key">Name</span>             <span class="ref-val" id="s-name">—</span></div>
+            <div class="ref-row"><span class="ref-key">Email</span>            <span class="ref-val" id="s-email">—</span></div>
+            <div class="ref-row" id="s-guardian-row" style="display:none;"><span class="ref-key">Guardian notified</span><span class="ref-val" id="s-guardian">—</span></div>
+            <div class="ref-row"><span class="ref-key">Consent Record ID</span><span class="ref-val mono" id="s-cid">—</span></div>
+            <div class="ref-row"><span class="ref-key">Account Status</span>   <span class="ref-val" id="s-status">—</span></div>
+          </div>
+          <div class="next-card" id="steps-adult">
+            <div class="next-title">What happens next?</div>
+            <div class="step"><div class="step-num">1</div><div><h4>Check your inbox</h4><p>A welcome email with your login link has been sent.</p></div></div>
+            <div class="step"><div class="step-num">2</div><div><h4>Start your first lesson</h4><p>Your course is ready — progress is saved automatically.</p></div></div>
+            <div class="step"><div class="step-num">3</div><div><h4>Earn your certificate</h4><p>Complete all 24 lessons to receive your LearnPath certificate.</p></div></div>
+          </div>
+          <div class="next-card" id="steps-minor" style="display:none;">
+            <div class="next-title">What happens next?</div>
+            <div class="step"><div class="step-num">1</div><div><h4>Guardian receives an approval email</h4><p>The guardian reviews and approves via a secure link.</p></div></div>
+            <div class="step"><div class="step-num">2</div><div><h4>Account activates on approval</h4><p>Once confirmed, the learner's account is activated and a welcome email is sent.</p></div></div>
+            <div class="step"><div class="step-num">3</div><div><h4>Guardian stays in control</h4><p>Consent can be reviewed or revoked at any time through the One-Stop Consent Portal.</p></div></div>
+          </div>
+          <div style="text-align:center;">
+            <button class="btn-again" onclick="goLanding()">← Enrol Another Learner</button>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <div class="split-handle" id="split-handle"></div>
+
+    <div class="api-pane">
+      <div class="api-pane-head">
+        <div class="api-pane-title">📡 REST API Calls <span class="api-badge" id="api-count">0</span></div>
+        <button class="api-clear" onclick="doClearLogs()">Clear</button>
+      </div>
+      <div class="api-pane-body" id="api-body">
+        <div class="api-empty">Submit the form to see the delegated consent API calls here.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── Navigation ────────────────────────────────────────────────────────────
+
+  function startEnrol() {
+    document.body.classList.add('form-mode');
+    clearLogs();
+    resetForm();
+    window.scrollTo(0, 0);
+  }
+
+  function goLanding() {
+    document.body.classList.remove('form-mode', 'login-mode');
+    document.getElementById('enrol-form-view').style.display       = 'block';
+    document.getElementById('success-view').style.display          = 'none';
+    document.getElementById('create-account-inner').style.display  = 'none';
+    document.getElementById('login-form-inner').style.display      = 'block';
+    document.getElementById('login-result').style.display          = 'none';
+    var card = document.querySelector('.login-card');
+    if (card) card.classList.remove('wide');
+    resetForm();
+  }
+
+  function goLogin() {
+    document.body.classList.remove('form-mode');
+    document.body.classList.add('login-mode');
+    document.getElementById('l-email').value    = '';
+    document.getElementById('l-password').value = '';
+    document.getElementById('l-email').classList.remove('err');
+    document.getElementById('l-email-err').classList.remove('show');
+    document.getElementById('login-form-inner').style.display    = 'block';
+    document.getElementById('create-account-inner').style.display = 'none';
+    document.getElementById('login-result').style.display        = 'none';
+    var card = document.querySelector('.login-card');
+    if (card) card.classList.remove('wide');
+    var btn = document.getElementById('btn-login');
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Sign In'; }
+  }
+
+  function showCreateAccount() {
+    document.body.classList.remove('form-mode');
+    document.body.classList.add('login-mode');
+    document.getElementById('ca-email').value    = '';
+    document.getElementById('ca-password').value = '';
+    document.getElementById('ca-email').classList.remove('err');
+    document.getElementById('ca-email-err').classList.remove('show');
+    document.getElementById('ca-password').classList.remove('err');
+    document.getElementById('ca-password-err').classList.remove('show');
+    document.getElementById('login-form-inner').style.display    = 'none';
+    document.getElementById('create-account-inner').style.display = 'block';
+    document.getElementById('login-result').style.display        = 'none';
+    var card = document.querySelector('.login-card');
+    if (card) card.classList.remove('wide');
+    var btn = document.getElementById('btn-create-account');
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Create Account'; }
+  }
+
+  function doCreateAccount() {
+    var email = document.getElementById('ca-email').value.trim();
+    var pass  = document.getElementById('ca-password').value;
+    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    var passOk  = pass.length > 0;
+    document.getElementById('ca-email').classList[emailOk ? 'remove' : 'add']('err');
+    document.getElementById('ca-email-err').classList[emailOk ? 'remove' : 'add']('show');
+    document.getElementById('ca-password').classList[passOk ? 'remove' : 'add']('err');
+    document.getElementById('ca-password-err').classList[passOk ? 'remove' : 'add']('show');
+    if (!emailOk || !passOk) return;
+
+    var btn = document.getElementById('btn-create-account');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div>';
+    checkAndShowConsent(email);
+  }
+
+  async function doLogin() {
+    var email = document.getElementById('l-email').value.trim();
+    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    document.getElementById('l-email').classList[emailOk ? 'remove' : 'add']('err');
+    document.getElementById('l-email-err').classList[emailOk ? 'remove' : 'add']('show');
+    if (!emailOk) return;
+
+    var btn = document.getElementById('btn-login');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div>';
+    checkAndShowConsent(email);
+  }
+
+  async function checkAndShowConsent(email) {
+    document.getElementById('login-form-inner').style.display      = 'none';
+    document.getElementById('create-account-inner').style.display  = 'none';
+    document.getElementById('login-result').style.display          = 'block';
+    document.getElementById('login-result').innerHTML =
+      '<div class="login-spinner-wrap"><div class="login-spinner"></div><div class="login-spinner-text">Checking your account…</div></div>';
+
+    await clearLogs();
+
+    try {
+      var r    = await fetch('/api/lookup-consents?userId=' + encodeURIComponent(email) + '&purposeName=course_enrollment_and_certification');
+      var data = await r.json();
+      var list = Array.isArray(data) ? data : (data.data || []);
+
+      var active  = list.find(function(c) { return (c.status||'').toUpperCase() === 'ACTIVE'; });
+      var pending = list.find(function(c) { return (c.status||'').toUpperCase() === 'CREATED'; });
+
+      if (active)       showLoginResult('active',  email, active);
+      else if (pending) showLoginResult('pending', email, pending);
+      else              showLoginResult('none',    email, null);
+    } catch(e) {
+      showLoginResult('error', email, null);
+    }
+  }
+
+  function showLoginResult(state, email, consent) {
+    var expiry = consent && consent.expirationTime
+      ? new Date(consent.expirationTime).toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' })
+      : null;
+    var card = document.querySelector('.login-card');
+
+    var html = '';
+    if (state === 'active') {
+      card.classList.add('wide');
+      html =
+        '<div class="course-hero-thumb">🚀<span class="course-hero-badge">✅ Access Granted</span></div>' +
+        '<div class="course-hero-body">' +
+          '<div class="course-hero-cat">Space &amp; Astronomy</div>' +
+          '<div class="course-hero-title">Space Science: Exploring Our Solar System</div>' +
+          '<button class="btn-start" onclick="alert(\'Launching course for ' + esc(email) + '!\')">▶ Start Learning</button>' +
+          (expiry ? '<div class="consent-meta" style="margin-top:12px; display:flex; align-items:center; justify-content:center; gap:6px;"><span style="background:#dcfce7; color:#15803d; font-weight:700; font-size:12px; padding:3px 10px; border-radius:20px;">✅ Parent / Guardian Approved</span><span style="font-size:11px; color:var(--muted);">· Valid until ' + expiry + '</span></div>' : '') +
+        '</div>';
+    } else if (state === 'pending') {
+      html =
+        '<div class="result-banner amber">' +
+          '<span class="result-icon">⏳</span>' +
+          '<div class="result-title">Awaiting Approval</div>' +
+          '<div class="result-body">Your parent or guardian hasn\'t approved your enrolment yet. The course will unlock once they confirm.</div>' +
+        '</div>' +
+        '<div class="timeline">' +
+          '<div class="tl-step"><div class="tl-dot done">✓</div><div class="tl-label">Enrolled</div></div>' +
+          '<div class="tl-line done"></div>' +
+          '<div class="tl-step"><div class="tl-dot waiting">⏳</div><div class="tl-label">Guardian Approval</div></div>' +
+          '<div class="tl-line"></div>' +
+          '<div class="tl-step"><div class="tl-dot locked">🔒</div><div class="tl-label">Course Access</div></div>' +
+        '</div>' +
+        '<button class="btn-try-again" onclick="goLogin()">← Try Again</button>';
+    } else if (state === 'none') {
+      html =
+        '<div class="result-banner amber">' +
+          '<span class="result-icon">📚</span>' +
+          '<div class="result-title">No Active Courses</div>' +
+          '<div class="result-body">You\'re logged in as <strong>' + esc(email) + '</strong> but haven\'t enrolled in any courses yet.</div>' +
+        '</div>' +
+        '<button class="btn-login" style="margin-bottom:10px;" onclick="startEnrol()">Enrol for a Course →</button>' +
+        '<button class="btn-try-again" onclick="goLogin()">← Back to Sign In</button>';
+    } else {
+      html =
+        '<div class="result-banner red">' +
+          '<span class="result-icon">⚠️</span>' +
+          '<div class="result-title">Something went wrong</div>' +
+          '<div class="result-body">Could not connect to the server. Please try again.</div>' +
+        '</div>' +
+        '<button class="btn-try-again" onclick="goLogin()">← Try Again</button>';
+    }
+    document.getElementById('login-result').innerHTML = html;
+  }
+
+  function resetForm() {
+    ['f-name','f-email','f-guardian'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.value = ''; el.classList.remove('err'); }
+    });
+    ['e-name','e-dob','e-email','e-guardian'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.classList.remove('show');
+    });
+    // Default DOB to 16 years old for demo
+    var d = new Date();
+    d.setFullYear(d.getFullYear() - 16);
+    var iso = d.toISOString().split('T')[0];
+    document.getElementById('f-dob').value = iso;
+    document.getElementById('f-dob').classList.remove('err');
+    onDobChange();
+    document.getElementById('submit-err').classList.remove('show');
+    var btn = document.getElementById('btn-submit');
+    if (btn) btn.disabled = false;
+  }
+
+  // ── Age detection ─────────────────────────────────────────────────────────
+
+  function computeAge(dob) {
+    if (!dob) return null;
+    var today = new Date(), b = new Date(dob);
+    if (isNaN(b.getTime())) return null;
+    var age = today.getFullYear() - b.getFullYear();
+    var m = today.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+    return age < 0 ? 0 : age;
+  }
+
+  function onDobChange() {
+    var dob = document.getElementById('f-dob').value;
+    var age = computeAge(dob);
+    var display  = document.getElementById('age-display');
+    var guardian = document.getElementById('guardian-section');
+    var lbl      = document.getElementById('btn-label');
+    if (age === null) { display.innerHTML = ''; guardian.style.display = 'none'; lbl.textContent = 'Confirm Enrolment →'; return; }
+    var minor = age < 18;
+    display.innerHTML = '<span class="age-pill ' + (minor ? 'minor' : 'adult') + '">' +
+      (minor ? '⚠ Age ' + age + ' — guardian approval required' : '✓ Age ' + age) + '</span>';
+    guardian.style.display = minor ? 'block' : 'none';
+    lbl.textContent = minor ? 'Request Guardian Approval →' : 'Confirm Enrolment →';
+  }
+
+  // ── Validation ────────────────────────────────────────────────────────────
+
+  function setErr(fId, eId, show) {
+    document.getElementById(fId).classList[show ? 'add' : 'remove']('err');
+    document.getElementById(eId).classList[show ? 'add' : 'remove']('show');
+  }
+
+  function validate() {
+    var name  = document.getElementById('f-name').value.trim();
+    var dob   = document.getElementById('f-dob').value;
+    var email = document.getElementById('f-email').value.trim();
+    var age   = computeAge(dob);
+    var ok    = true;
+    setErr('f-name',  'e-name',  !name);                                                    if (!name) ok = false;
+    var dobOk = dob && age !== null && age >= 4 && age <= 100;
+    setErr('f-dob',   'e-dob',   !dobOk);                                                   if (!dobOk) ok = false;
+    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    setErr('f-email', 'e-email', !emailOk);                                                 if (!emailOk) ok = false;
+    if (age !== null && age < 18) {
+      var g = document.getElementById('f-guardian').value.trim();
+      var gOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g);
+      setErr('f-guardian', 'e-guardian', !gOk);                                             if (!gOk) ok = false;
+    }
+    return ok;
+  }
+
+  // ── Submit ────────────────────────────────────────────────────────────────
+
+  async function submitForm() {
+    document.getElementById('submit-err').classList.remove('show');
+    if (!validate()) return;
+
+    var name          = document.getElementById('f-name').value.trim();
+    var dob           = document.getElementById('f-dob').value;
+    var email         = document.getElementById('f-email').value.trim();
+    var age           = computeAge(dob);
+    var isMinor       = age !== null && age < 18;
+    var guardianEmail = isMinor ? document.getElementById('f-guardian').value.trim() : null;
+    var expirationTime = Date.now() + 31536000000; // 1 year
+
+    var btn = document.getElementById('btn-submit');
+    btn.disabled = true;
+    document.getElementById('btn-label').innerHTML = '<div class="spinner"></div>';
+
+    await clearLogs();
+
+    try {
+      var auths = isMinor
+        ? [
+            { userId: guardianEmail, type: 'delegate',         status: 'CREATED', resources: {} },
+            { userId: email,         type: 'delegate_subject', status: 'CREATED', resources: { delegationType: 'parental_biological', revocationPolicy: 'ANY' } }
+          ]
+        : [{ userId: email, type: 'authorisation', status: 'APPROVED' }];
+
+      var resp = await fetch('/api/consents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: email,
+          type: 'edu',
+          expirationTime: expirationTime,
+          authorizations: auths,
+          purposes: [{
+            name: 'course_enrollment_and_certification',
+            elements: [
+              { name: 'name',  isUserApproved: true, value: {} },
+              { name: 'age',   isUserApproved: true, value: {} },
+              { name: 'email', isUserApproved: true, value: {} }
+            ]
+          }]
+        })
+      });
+      var data = await resp.json();
+
+      await fetch('/api/store-user-pii', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: email, pii: [
+          { key: 'name',  label: 'Name',  value: name },
+          { key: 'age',   label: 'Age',   value: String(age) },
+          { key: 'email', label: 'Email', value: email }
+        ]})
+      }).catch(function() {});
+
+      await refreshLogs();
+
+      if (resp.ok) {
+        showSuccess({ name: name, email: email, guardianEmail: guardianEmail, isMinor: isMinor, consentId: data.id || '' });
+      } else {
+        document.getElementById('submit-err').textContent = '⚠ ' + ((data && data.error) || 'Submission failed. Please try again.');
+        document.getElementById('submit-err').classList.add('show');
+        btn.disabled = false;
+        document.getElementById('btn-label').textContent = isMinor ? 'Request Guardian Approval →' : 'Confirm Enrolment →';
+      }
+    } catch (e) {
+      document.getElementById('submit-err').textContent = '⚠ Could not connect to server. Please try again.';
+      document.getElementById('submit-err').classList.add('show');
+      btn.disabled = false;
+      document.getElementById('btn-label').textContent = 'Confirm Enrolment →';
+    }
+  }
+
+  function showSuccess(ctx) {
+    document.getElementById('enrol-form-view').style.display = 'none';
+    document.getElementById('success-view').style.display    = 'block';
+    document.getElementById('s-name').textContent  = ctx.name;
+    document.getElementById('s-email').textContent = ctx.email;
+    document.getElementById('s-cid').textContent   = ctx.consentId || '—';
+    if (ctx.isMinor) {
+      document.getElementById('s-banner').className    = 'success-banner amber';
+      document.getElementById('s-icon').textContent    = '⏳';
+      document.getElementById('s-title').textContent   = 'Approval Request Sent!';
+      document.getElementById('s-body').textContent    = ctx.name.split(' ')[0] + '\'s account is pending guardian approval.';
+      document.getElementById('steps-adult').style.display    = 'none';
+      document.getElementById('steps-minor').style.display    = 'block';
+      document.getElementById('s-guardian-row').style.display = 'flex';
+      document.getElementById('s-guardian').textContent       = ctx.guardianEmail;
+      document.getElementById('s-status').textContent         = 'Pending Guardian Approval';
+    } else {
+      document.getElementById('s-banner').className    = 'success-banner green';
+      document.getElementById('s-status').textContent  = 'Active';
+    }
+  }
+
+  // ── API Drawer ────────────────────────────────────────────────────────────
+
+  async function clearLogs()  { try { await fetch('/api/logs', { method: 'DELETE' }); } catch(e) {} }
+  async function doClearLogs(){ await clearLogs(); renderLogs([]); document.getElementById('api-count').textContent = '0'; }
+  async function refreshLogs() {
+    try {
+      var r = await fetch('/api/logs');
+      var logs = await r.json();
+      var f = logs.filter(function(l) { return (l.url||'').indexOf('/api/v1/') >= 0; });
+      renderLogs(f); document.getElementById('api-count').textContent = f.length;
+    } catch(e) {}
+  }
+  function renderLogs(logs) {
+    var body = document.getElementById('api-body');
+    if (!logs || !logs.length) { body.innerHTML = '<div class="api-empty">Submit the form to see the delegated consent API calls here.</div>'; return; }
+    body.innerHTML = logs.map(function(log) {
+      var m = (log.method || 'POST').toUpperCase();
+      var mCls = { POST: 'm-post', GET: 'm-get' }[m] || 'm-post';
+      var sOk  = log.status >= 200 && log.status < 300;
+      var url  = (log.url || '').replace(/https?:\/\/[^/]+/, '');
+      var inner =
+        (log.reqBody ? '<div class="api-blk-label">Request Body</div><div class="api-code">' + hl(log.reqBody) + '</div>' : '') +
+        '<div class="api-blk-label">Response (' + log.status + ')</div><div class="api-code">' + hl(log.resBody) + '</div>';
+      return '<div class="api-entry"><div class="api-head" onclick="toggleEntry(this)">' +
+        '<span class="api-method ' + mCls + '">' + m + '</span>' +
+        '<span class="api-url" title="' + esc(log.url||'') + '">' + esc(url) + '</span>' +
+        '<span class="api-status ' + (sOk ? 's-ok' : 's-err') + '">' + log.status + '</span>' +
+        '<span class="api-chevron">▶</span></div>' +
+        '<div class="api-body-inner" style="display:none;">' + inner + '</div></div>';
+    }).join('');
+  }
+  function toggleEntry(head) {
+    var b = head.nextElementSibling, ch = head.querySelector('.api-chevron'), open = b.style.display !== 'none';
+    b.style.display = open ? 'none' : 'block'; if (ch) ch.textContent = open ? '▶' : '▼';
+  }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function hl(obj) {
+    if (obj === null || obj === undefined) return '<span>null</span>';
+    return JSON.stringify(obj, null, 2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(m) {
+        if (/^"/.test(m)) return '<span class="'+(/:$/.test(m)?'json-key':'json-str')+'">' + m + '</span>';
+        if (/true|false/.test(m)) return '<span class="json-bool">' + m + '</span>';
+        if (/null/.test(m)) return '<span class="json-null">' + m + '</span>';
+        return '<span class="json-num">' + m + '</span>';
+      });
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  document.getElementById('f-dob').max = new Date().toISOString().split('T')[0];
+  ['f-name','f-dob','f-email','f-guardian'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', function() { this.classList.remove('err'); });
+  });
+  clearLogs();
+
+  fetch('/api/config').then(function(r) { return r.json(); }).then(function(cfg) {
+    if (cfg.consentPortalUrl) document.getElementById('portal-link').href = cfg.consentPortalUrl;
+  }).catch(function() {});
+
+  // ── Split drag ────────────────────────────────────────────────────────────
+  (function() {
+    var handle = document.getElementById('split-handle');
+    var pane   = document.getElementById('main-pane');
+    var drag   = false, startX = 0, startW = 0;
+    handle.addEventListener('mousedown', function(e) {
+      drag=true; startX=e.clientX; startW=pane.getBoundingClientRect().width;
+      handle.classList.add('dragging'); document.body.style.cursor='col-resize'; document.body.style.userSelect='none'; e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!drag) return;
+      pane.style.width = Math.max(320, Math.min(pane.parentElement.getBoundingClientRect().width-265, startW+(e.clientX-startX)))+'px';
+    });
+    document.addEventListener('mouseup', function() {
+      if (!drag) return; drag=false; handle.classList.remove('dragging');
+      document.body.style.cursor=''; document.body.style.userSelect='';
+    });
+  })();
+</script>
+</body>
+</html>

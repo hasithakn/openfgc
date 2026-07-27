@@ -9,31 +9,13 @@ export interface EmailAttr {
   primary?: boolean
 }
 
-export interface PhoneAttr {
-  value: string
-  type?: string
-  primary?: boolean
-}
-
-export interface AddressAttr {
-  formatted?: string
-  streetAddress?: string
-  locality?: string
-  region?: string
-  postalCode?: string
-  country?: string
-  type?: string
-  primary?: boolean
-}
-
 export interface ProfileResponse {
   username: string
   givenName: string
   familyName: string
   formattedName: string
   emails: EmailAttr[]
-  phoneNumbers: PhoneAttr[]
-  addresses: AddressAttr[]
+  age?: number
 }
 
 export interface ProfileNameUpdate {
@@ -44,6 +26,5 @@ export interface ProfileNameUpdate {
 export interface ProfileUpdateRequest {
   name?: ProfileNameUpdate
   emails?: EmailAttr[]
-  phoneNumbers?: PhoneAttr[]
-  addresses?: AddressAttr[]
+  age?: number
 }

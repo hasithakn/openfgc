@@ -14,34 +14,15 @@ type EmailAttr struct {
 	Primary bool   `json:"primary,omitempty"`
 }
 
-// PhoneAttr is the BFF-facing shape of a SCIM phone number entry.
-type PhoneAttr struct {
-	Value   string `json:"value"`
-	Type    string `json:"type,omitempty"`
-	Primary bool   `json:"primary,omitempty"`
-}
-
-// AddressAttr is the BFF-facing shape of a SCIM address entry.
-type AddressAttr struct {
-	Formatted     string `json:"formatted,omitempty"`
-	StreetAddress string `json:"streetAddress,omitempty"`
-	Locality      string `json:"locality,omitempty"`
-	Region        string `json:"region,omitempty"`
-	PostalCode    string `json:"postalCode,omitempty"`
-	Country       string `json:"country,omitempty"`
-	Type          string `json:"type,omitempty"`
-	Primary       bool   `json:"primary,omitempty"`
-}
-
-// ProfileResponse is the flattened PII view returned to the frontend.
+// ProfileResponse is the flattened PII view returned to the frontend: identity, email,
+// and age — deliberately kept to just these three, nothing else.
 type ProfileResponse struct {
-	Username      string        `json:"username"`
-	GivenName     string        `json:"givenName"`
-	FamilyName    string        `json:"familyName"`
-	FormattedName string        `json:"formattedName"`
-	Emails        []EmailAttr   `json:"emails"`
-	PhoneNumbers  []PhoneAttr   `json:"phoneNumbers"`
-	Addresses     []AddressAttr `json:"addresses"`
+	Username      string      `json:"username"`
+	GivenName     string      `json:"givenName"`
+	FamilyName    string      `json:"familyName"`
+	FormattedName string      `json:"formattedName"`
+	Emails        []EmailAttr `json:"emails"`
+	Age           *int        `json:"age,omitempty"`
 }
 
 // NameUpdate is submitted as a single unit since SCIM's "name" is one complex attribute —
@@ -54,10 +35,9 @@ type NameUpdate struct {
 // ProfileUpdateRequest carries only the sections the client actually wants to change.
 // UserName is intentionally absent: it's read-only from this view.
 type ProfileUpdateRequest struct {
-	Name         *NameUpdate    `json:"name,omitempty"`
-	Emails       *[]EmailAttr   `json:"emails,omitempty"`
-	PhoneNumbers *[]PhoneAttr   `json:"phoneNumbers,omitempty"`
-	Addresses    *[]AddressAttr `json:"addresses,omitempty"`
+	Name   *NameUpdate  `json:"name,omitempty"`
+	Emails *[]EmailAttr `json:"emails,omitempty"`
+	Age    *int         `json:"age,omitempty"`
 }
 
 func toProfileResponse(u *ScimUser) ProfileResponse {
@@ -67,33 +47,19 @@ func toProfileResponse(u *ScimUser) ProfileResponse {
 		FamilyName:    u.Name.FamilyName,
 		FormattedName: u.Name.Formatted,
 		Emails:        make([]EmailAttr, 0, len(u.Emails)),
-		PhoneNumbers:  make([]PhoneAttr, 0, len(u.PhoneNumbers)),
-		Addresses:     make([]AddressAttr, 0, len(u.Addresses)),
+		Age:           u.Age,
 	}
 	for _, e := range u.Emails {
 		resp.Emails = append(resp.Emails, EmailAttr{Value: e.Value, Type: e.Type, Primary: e.Primary})
-	}
-	for _, p := range u.PhoneNumbers {
-		resp.PhoneNumbers = append(resp.PhoneNumbers, PhoneAttr{Value: p.Value, Type: p.Type, Primary: p.Primary})
-	}
-	for _, a := range u.Addresses {
-		resp.Addresses = append(resp.Addresses, AddressAttr{
-			Formatted:     a.Formatted,
-			StreetAddress: a.StreetAddress,
-			Locality:      a.Locality,
-			Region:        a.Region,
-			PostalCode:    a.PostalCode,
-			Country:       a.Country,
-			Type:          a.Type,
-			Primary:       a.Primary,
-		})
 	}
 	return resp
 }
 
 // buildPatchOperations turns the sections present in req into one "replace" PatchOperation
-// each, so a caller submitting e.g. only a changed phone number doesn't clobber email/address.
-func buildPatchOperations(req ProfileUpdateRequest) []PatchOperation {
+// each, so a caller submitting e.g. only a changed email doesn't clobber name/age.
+// ageAttributePath is the deployment-configured SCIM path for age (Service.AgeAttributePath());
+// an Age update is silently dropped if it's not configured, since there's nowhere to send it.
+func buildPatchOperations(req ProfileUpdateRequest, ageAttributePath string) []PatchOperation {
 	var ops []PatchOperation
 
 	if req.Name != nil {
@@ -115,28 +81,8 @@ func buildPatchOperations(req ProfileUpdateRequest) []PatchOperation {
 		}
 		ops = append(ops, PatchOperation{Op: "replace", Path: "emails", Value: emails})
 	}
-	if req.PhoneNumbers != nil {
-		phones := make([]ScimPhoneNumber, 0, len(*req.PhoneNumbers))
-		for _, p := range *req.PhoneNumbers {
-			phones = append(phones, ScimPhoneNumber{Value: p.Value, Type: p.Type, Primary: p.Primary})
-		}
-		ops = append(ops, PatchOperation{Op: "replace", Path: "phoneNumbers", Value: phones})
-	}
-	if req.Addresses != nil {
-		addresses := make([]ScimAddress, 0, len(*req.Addresses))
-		for _, a := range *req.Addresses {
-			addresses = append(addresses, ScimAddress{
-				Formatted:     a.Formatted,
-				StreetAddress: a.StreetAddress,
-				Locality:      a.Locality,
-				Region:        a.Region,
-				PostalCode:    a.PostalCode,
-				Country:       a.Country,
-				Type:          a.Type,
-				Primary:       a.Primary,
-			})
-		}
-		ops = append(ops, PatchOperation{Op: "replace", Path: "addresses", Value: addresses})
+	if req.Age != nil && ageAttributePath != "" {
+		ops = append(ops, PatchOperation{Op: "replace", Path: ageAttributePath, Value: *req.Age})
 	}
 
 	return ops

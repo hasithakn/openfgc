@@ -130,6 +130,11 @@ type EventFrameworkConfig struct {
 type IdentityServerConfig struct {
 	SCIMBaseURL string        `koanf:"scim_base_url"`
 	SCIMTimeout time.Duration `koanf:"scim_timeout"`
+	// SCIMAgeAttributePath is the full SCIM PATCH path for a custom "age" claim (e.g.
+	// "urn:scim:schemas:extension:custom:User:age"), set up via IS Console > Attributes
+	// > SCIM2 Custom Schema. Leave blank to disable age entirely (core SCIM2 has no
+	// standard age attribute).
+	SCIMAgeAttributePath string `koanf:"scim_age_attribute_path"`
 }
 
 // Load initializes configuration from defaults, optional file, and environment variables.
@@ -339,6 +344,9 @@ func setDefaults(k *koanf.Koanf) error {
 		return err
 	}
 	if err := k.Set("identity_server.scim_timeout", "10s"); err != nil {
+		return err
+	}
+	if err := k.Set("identity_server.scim_age_attribute_path", ""); err != nil {
 		return err
 	}
 

@@ -17,38 +17,18 @@ import {
   TextField,
   Typography,
 } from '@wso2/oxygen-ui'
-import { Mail, Phone } from '@wso2/oxygen-ui-icons-react'
+import { Mail } from '@wso2/oxygen-ui-icons-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import HeaderBreadcrumbs from '../../components/layout/main-layout/HeaderBreadcrumbs'
-import type { AddressAttr, EmailAttr, PhoneAttr } from '../../types/profile'
-import { AddressesCard, MultiValueCard } from './components/ProfileContactCards'
+import type { EmailAttr } from '../../types/profile'
+import { MultiValueCard } from './components/ProfileContactCards'
 import { useProfileQuery, useUpdateProfileMutation } from './hooks/useProfileQueries'
 
 type EditableEmail = Required<EmailAttr> & { id: string }
-type EditablePhone = Required<PhoneAttr> & { id: string }
-type EditableAddress = Required<AddressAttr> & { id: string }
 
 function emptyEmail(): EditableEmail {
   return { value: '', type: 'work', primary: false, id: crypto.randomUUID() }
-}
-
-function emptyPhone(): EditablePhone {
-  return { value: '', type: 'work', primary: false, id: crypto.randomUUID() }
-}
-
-function emptyAddress(): EditableAddress {
-  return {
-    formatted: '',
-    streetAddress: '',
-    locality: '',
-    region: '',
-    postalCode: '',
-    country: '',
-    type: 'home',
-    primary: false,
-    id: crypto.randomUUID(),
-  }
 }
 
 function normalizeEmails(emails: EmailAttr[]): EditableEmail[] {
@@ -62,55 +42,10 @@ function normalizeEmails(emails: EmailAttr[]): EditableEmail[] {
     : [emptyEmail()]
 }
 
-function normalizePhones(phones: PhoneAttr[]): EditablePhone[] {
-  return phones.length > 0
-    ? phones.map((phone) => ({
-        value: phone.value,
-        type: phone.type ?? 'work',
-        primary: Boolean(phone.primary),
-        id: crypto.randomUUID(),
-      }))
-    : [emptyPhone()]
-}
-
-function normalizeAddresses(addresses: AddressAttr[]): EditableAddress[] {
-  return addresses.length > 0
-    ? addresses.map((address) => ({
-        formatted: address.formatted ?? '',
-        streetAddress: address.streetAddress ?? '',
-        locality: address.locality ?? '',
-        region: address.region ?? '',
-        postalCode: address.postalCode ?? '',
-        country: address.country ?? '',
-        type: address.type ?? 'home',
-        primary: Boolean(address.primary),
-        id: crypto.randomUUID(),
-      }))
-    : [emptyAddress()]
-}
-
 // Read-only display keys don't need to survive edits/removals, so a content-derived id
 // (rather than a stored uuid) is enough here and avoids regenerating one on every render.
 function withEmailDisplayId(email: EmailAttr): EmailAttr & { id: string } {
   return { ...email, id: `${email.value}|${email.type ?? ''}` }
-}
-
-function withPhoneDisplayId(phone: PhoneAttr): PhoneAttr & { id: string } {
-  return { ...phone, id: `${phone.value}|${phone.type ?? ''}` }
-}
-
-function withAddressDisplayId(address: AddressAttr): AddressAttr & { id: string } {
-  return {
-    ...address,
-    id: [
-      address.streetAddress,
-      address.locality,
-      address.region,
-      address.postalCode,
-      address.country,
-      address.type,
-    ].join('|'),
-  }
 }
 
 function ProfilePage(): React.JSX.Element {
@@ -121,9 +56,8 @@ function ProfilePage(): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [givenName, setGivenName] = useState('')
   const [familyName, setFamilyName] = useState('')
+  const [age, setAge] = useState('')
   const [emails, setEmails] = useState<EditableEmail[]>([])
-  const [phones, setPhones] = useState<EditablePhone[]>([])
-  const [addresses, setAddresses] = useState<EditableAddress[]>([])
   const [saveError, setSaveError] = useState<string>()
   const [saveSuccess, setSaveSuccess] = useState(false)
 
@@ -133,9 +67,8 @@ function ProfilePage(): React.JSX.Element {
     if (!profile) return
     setGivenName(profile.givenName)
     setFamilyName(profile.familyName)
+    setAge(profile.age !== undefined ? String(profile.age) : '')
     setEmails(normalizeEmails(profile.emails))
-    setPhones(normalizePhones(profile.phoneNumbers))
-    setAddresses(normalizeAddresses(profile.addresses))
     setSaveError(undefined)
     setEditing(true)
   }
@@ -147,43 +80,14 @@ function ProfilePage(): React.JSX.Element {
 
   const handleSave = (): void => {
     setSaveError(undefined)
+    const ageNumber = age.trim() ? Number(age) : undefined
     updateMutation.mutate(
       {
         name: { givenName: givenName.trim(), familyName: familyName.trim() },
         emails: emails
           .filter((email) => email.value.trim())
           .map((email) => ({ value: email.value, type: email.type, primary: email.primary })),
-        phoneNumbers: phones
-          .filter((phone) => phone.value.trim())
-          .map((phone) => ({ value: phone.value, type: phone.type, primary: phone.primary })),
-        addresses: addresses
-          .filter((address) =>
-            [
-              address.streetAddress,
-              address.locality,
-              address.region,
-              address.postalCode,
-              address.country,
-            ].some((part) => part.trim()),
-          )
-          .map((address) => ({
-            streetAddress: address.streetAddress,
-            locality: address.locality,
-            region: address.region,
-            postalCode: address.postalCode,
-            country: address.country,
-            type: address.type,
-            primary: address.primary,
-            formatted: [
-              address.streetAddress,
-              address.locality,
-              address.region,
-              address.postalCode,
-              address.country,
-            ]
-              .filter(Boolean)
-              .join(', '),
-          })),
+        age: Number.isFinite(ageNumber) ? ageNumber : undefined,
       },
       {
         onSuccess: (): void => {
@@ -203,7 +107,6 @@ function ProfilePage(): React.JSX.Element {
         <Stack spacing={3}>
           <HeaderBreadcrumbs />
           <Skeleton width={300} height={48} />
-          <Skeleton variant="rounded" height={160} />
           <Skeleton variant="rounded" height={160} />
           <Skeleton variant="rounded" height={160} />
         </Stack>
@@ -268,7 +171,7 @@ function ProfilePage(): React.JSX.Element {
             <Box
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
+                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
                 gap: 3,
               }}
             >
@@ -292,6 +195,13 @@ function ProfilePage(): React.JSX.Element {
                     value={familyName}
                     onChange={(event) => setFamilyName(event.target.value)}
                   />
+                  <TextField
+                    size="small"
+                    type="number"
+                    label={t('profile.fields.age')}
+                    value={age}
+                    onChange={(event) => setAge(event.target.value)}
+                  />
                 </>
               ) : (
                 <>
@@ -306,6 +216,12 @@ function ProfilePage(): React.JSX.Element {
                       {t('profile.fields.familyName')}
                     </Typography>
                     <Typography variant="body2">{profile.familyName || '-'}</Typography>
+                  </Stack>
+                  <Stack spacing={0.5}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t('profile.fields.age')}
+                    </Typography>
+                    <Typography variant="body2">{profile.age ?? '-'}</Typography>
                   </Stack>
                 </>
               )}
@@ -324,34 +240,6 @@ function ProfilePage(): React.JSX.Element {
           onRemove={(index) => setEmails((current) => current.filter((_, i) => i !== index))}
           onChange={(index, field, value) =>
             setEmails((current) =>
-              current.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
-            )
-          }
-        />
-
-        <MultiValueCard
-          icon={<Phone size={14} />}
-          title={t('profile.fields.phoneNumbers')}
-          editing={editing}
-          values={editing ? phones : profile.phoneNumbers.map(withPhoneDisplayId)}
-          emptyLabel={t('profile.messages.noPhoneNumbers')}
-          addLabel={t('profile.actions.addPhoneNumber')}
-          onAdd={() => setPhones((current) => [...current, emptyPhone()])}
-          onRemove={(index) => setPhones((current) => current.filter((_, i) => i !== index))}
-          onChange={(index, field, value) =>
-            setPhones((current) =>
-              current.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
-            )
-          }
-        />
-
-        <AddressesCard
-          editing={editing}
-          values={editing ? addresses : profile.addresses.map(withAddressDisplayId)}
-          onAdd={() => setAddresses((current) => [...current, emptyAddress()])}
-          onRemove={(index) => setAddresses((current) => current.filter((_, i) => i !== index))}
-          onChange={(index, field, value) =>
-            setAddresses((current) =>
               current.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
             )
           }

@@ -58,4 +58,4 @@ consent:
     system_revoked_state: SYS_REVOKED
   history:
     # Enables full consent history snapshots.
-    enabled: false
+    enabled: true

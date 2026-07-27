@@ -1,0 +1,15 @@
+{
+  "name": "insurance-consent-demo",
+  "version": "1.0.0",
+  "description": "Life insurance internal data sharing consent demo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.9",
+    "openid-client": "^5.7.1"
+  }
+}
