@@ -127,6 +127,9 @@ func (a *ScimAddress) UnmarshalJSON(data []byte) error {
 // scim_age_attribute_path / scim_birthday_attribute_path), so they're populated separately
 // by Service, not by json.Unmarshal.
 type ScimUser struct {
+	// ID is the SCIM resource identifier (distinct from UserName) — the admin SCIM2 Users
+	// API used for account deletion is keyed by this, not by username/email.
+	ID           string            `json:"id,omitempty"`
 	UserName     string            `json:"userName,omitempty"`
 	Name         ScimName          `json:"name,omitempty"`
 	NickName     string            `json:"nickName,omitempty"`
@@ -230,6 +233,44 @@ func (s *Service) UpdateMe(ctx context.Context, accessToken string, ops []PatchO
 		return nil, err
 	}
 	return &user, nil
+}
+
+// DeleteUser permanently deletes a user via WSO2 IS's admin SCIM2 Users API
+// (DELETE /scim2/Users/{id}) — irreversible. Unlike GetMe/UpdateMe, this uses an app-level
+// admin access token (from Manager.AdminAccessToken), not the caller's own token, since the
+// self-service /scim2/Me endpoint has no DELETE.
+func (s *Service) DeleteUser(ctx context.Context, adminAccessToken, scimUserID string) error {
+	target := *s.baseURL
+	target.Path = strings.TrimRight(s.baseURL.Path, "/") + "/scim2/Users/" + url.PathEscape(scimUserID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, target.String(), nil)
+	if err != nil {
+		s.log.Error("failed to build SCIM2 admin delete request", "url", target.String(), "error", err)
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+adminAccessToken)
+	req.Header.Set("Accept", scimContentType)
+
+	resp, err := s.http.Do(req)
+	if err != nil {
+		s.log.Error("SCIM2 admin delete request failed", "url", target.String(), "error", err)
+		var netErr net.Error
+		if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
+			return ErrUpstreamTimeout
+		}
+		return ErrUpstreamUnavailable
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		s.log.Error("SCIM2 admin delete returned an error status",
+			"url", target.String(), "status", resp.StatusCode, "body", string(respBody))
+		return &UpstreamStatusError{StatusCode: resp.StatusCode}
+	}
+	return nil
 }
 
 func (s *Service) do(ctx context.Context, method, accessToken string, body []byte, out any) error {

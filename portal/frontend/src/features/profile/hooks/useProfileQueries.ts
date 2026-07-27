@@ -11,7 +11,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import type { ProfileResponse, ProfileUpdateRequest } from '../../../types/profile'
-import { getProfile, updateProfile } from '../api/profileApi'
+import { deleteAccount, getProfile, updateProfile } from '../api/profileApi'
 
 const PROFILE_QUERY_KEY = ['profile', 'mine']
 
@@ -34,5 +34,11 @@ export function useUpdateProfileMutation(): UseMutationResult<
     onSuccess: (data): void => {
       queryClient.setQueryData(PROFILE_QUERY_KEY, data)
     },
+  })
+}
+
+export function useDeleteAccountMutation(): UseMutationResult<void, Error, void> {
+  return useMutation({
+    mutationFn: (): Promise<void> => deleteAccount(),
   })
 }

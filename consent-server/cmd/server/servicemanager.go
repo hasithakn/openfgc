@@ -23,6 +23,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/wso2/openfgc/internal/anonymization"
 	"github.com/wso2/openfgc/internal/authresource"
 	"github.com/wso2/openfgc/internal/consent"
 	"github.com/wso2/openfgc/internal/consentelement"
@@ -67,6 +68,9 @@ func registerServices(mux *http.ServeMux) {
 
 	grievance.Initialize(mux, storeRegistry)
 	logger.Debug("Grievance module initialized")
+
+	anonymization.Initialize(mux, storeRegistry, svc)
+	logger.Debug("Anonymization module initialized")
 
 	startConsentExpirationScheduler(svc)
 

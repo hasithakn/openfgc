@@ -4,7 +4,7 @@
  */
 
 import type { ProfileResponse, ProfileUpdateRequest } from '../../../types/profile'
-import { apiRequest } from '../../../utils/apiClient'
+import { apiRequest, apiRequestNoContent } from '../../../utils/apiClient'
 
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
@@ -18,4 +18,8 @@ export function updateProfile(payload: ProfileUpdateRequest): Promise<ProfileRes
     headers: jsonHeaders,
     body: JSON.stringify(payload),
   })
+}
+
+export function deleteAccount(): Promise<void> {
+  return apiRequestNoContent('/profile', { method: 'DELETE' })
 }

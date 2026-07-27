@@ -59,6 +59,18 @@ var (
 		PostgresQuery: "UPDATE GRIEVANCE SET UPDATED_TIME = $1 WHERE GRIEVANCE_ID = $2 AND ORG_ID = $3",
 	}
 
+	queryUpdateGrievanceUserIDByUserID = dbmodel.DBQuery{
+		ID:            "UPDATE_GRIEVANCE_USER_ID_BY_USER_ID",
+		Query:         "UPDATE GRIEVANCE SET USER_ID = ? WHERE USER_ID = ? AND ORG_ID = ?",
+		PostgresQuery: "UPDATE GRIEVANCE SET USER_ID = $1 WHERE USER_ID = $2 AND ORG_ID = $3",
+	}
+
+	queryUpdateGrievanceTimelineActorByUserID = dbmodel.DBQuery{
+		ID:            "UPDATE_GRIEVANCE_TIMELINE_ACTOR_BY_USER_ID",
+		Query:         "UPDATE GRIEVANCE_TIMELINE_ENTRY SET ACTOR_USER_ID = ? WHERE ACTOR_USER_ID = ? AND ORG_ID = ?",
+		PostgresQuery: "UPDATE GRIEVANCE_TIMELINE_ENTRY SET ACTOR_USER_ID = $1 WHERE ACTOR_USER_ID = $2 AND ORG_ID = $3",
+	}
+
 	queryCreateTimelineEntry = dbmodel.DBQuery{
 		ID:            "CREATE_GRIEVANCE_TIMELINE_ENTRY",
 		Query:         "INSERT INTO GRIEVANCE_TIMELINE_ENTRY (" + timelineColumns + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -167,6 +179,20 @@ func (s *store) UpdateStatus(tx dbmodel.TxInterface, grievanceID, orgID, status 
 
 func (s *store) TouchUpdatedTime(tx dbmodel.TxInterface, grievanceID, orgID string, updatedTime int64) error {
 	_, err := tx.Exec(queryTouchGrievanceUpdatedTime, updatedTime, grievanceID, orgID)
+	return err
+}
+
+// UpdateUserIDByUserID reassigns every GRIEVANCE row owned by oldUserID to newUserID
+// within a transaction.
+func (s *store) UpdateUserIDByUserID(tx dbmodel.TxInterface, orgID, oldUserID, newUserID string) error {
+	_, err := tx.Exec(queryUpdateGrievanceUserIDByUserID, newUserID, oldUserID, orgID)
+	return err
+}
+
+// UpdateTimelineActorByUserID reassigns every GRIEVANCE_TIMELINE_ENTRY row whose
+// ACTOR_USER_ID is oldUserID to newUserID within a transaction.
+func (s *store) UpdateTimelineActorByUserID(tx dbmodel.TxInterface, orgID, oldUserID, newUserID string) error {
+	_, err := tx.Exec(queryUpdateGrievanceTimelineActorByUserID, newUserID, oldUserID, orgID)
 	return err
 }
 

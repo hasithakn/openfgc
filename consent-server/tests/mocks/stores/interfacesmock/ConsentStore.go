@@ -1705,6 +1705,105 @@ func (_c *ConsentStore_Update_Call) RunAndReturn(run func(model.TxInterface, *co
 	return _c
 }
 
+// UpdateAttributeValue provides a mock function with given fields: tx, key, oldValue, newValue, orgID
+func (_m *ConsentStore) UpdateAttributeValue(tx model.TxInterface, key string, oldValue string, newValue string, orgID string) error {
+	ret := _m.Called(tx, key, oldValue, newValue, orgID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAttributeValue")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(model.TxInterface, string, string, string, string) error); ok {
+		r0 = rf(tx, key, oldValue, newValue, orgID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ConsentStore_UpdateAttributeValue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateAttributeValue'
+type ConsentStore_UpdateAttributeValue_Call struct {
+	*mock.Call
+}
+
+// UpdateAttributeValue is a helper method to define mock.On call
+//   - tx model.TxInterface
+//   - key string
+//   - oldValue string
+//   - newValue string
+//   - orgID string
+func (_e *ConsentStore_Expecter) UpdateAttributeValue(tx interface{}, key interface{}, oldValue interface{}, newValue interface{}, orgID interface{}) *ConsentStore_UpdateAttributeValue_Call {
+	return &ConsentStore_UpdateAttributeValue_Call{Call: _e.mock.On("UpdateAttributeValue", tx, key, oldValue, newValue, orgID)}
+}
+
+func (_c *ConsentStore_UpdateAttributeValue_Call) Run(run func(tx model.TxInterface, key string, oldValue string, newValue string, orgID string)) *ConsentStore_UpdateAttributeValue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.TxInterface), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *ConsentStore_UpdateAttributeValue_Call) Return(_a0 error) *ConsentStore_UpdateAttributeValue_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ConsentStore_UpdateAttributeValue_Call) RunAndReturn(run func(model.TxInterface, string, string, string, string) error) *ConsentStore_UpdateAttributeValue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateHistoryActionByValue provides a mock function with given fields: tx, oldValue, newValue, orgID
+func (_m *ConsentStore) UpdateHistoryActionByValue(tx model.TxInterface, oldValue string, newValue string, orgID string) error {
+	ret := _m.Called(tx, oldValue, newValue, orgID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateHistoryActionByValue")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(model.TxInterface, string, string, string) error); ok {
+		r0 = rf(tx, oldValue, newValue, orgID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ConsentStore_UpdateHistoryActionByValue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateHistoryActionByValue'
+type ConsentStore_UpdateHistoryActionByValue_Call struct {
+	*mock.Call
+}
+
+// UpdateHistoryActionByValue is a helper method to define mock.On call
+//   - tx model.TxInterface
+//   - oldValue string
+//   - newValue string
+//   - orgID string
+func (_e *ConsentStore_Expecter) UpdateHistoryActionByValue(tx interface{}, oldValue interface{}, newValue interface{}, orgID interface{}) *ConsentStore_UpdateHistoryActionByValue_Call {
+	return &ConsentStore_UpdateHistoryActionByValue_Call{Call: _e.mock.On("UpdateHistoryActionByValue", tx, oldValue, newValue, orgID)}
+}
+
+func (_c *ConsentStore_UpdateHistoryActionByValue_Call) Run(run func(tx model.TxInterface, oldValue string, newValue string, orgID string)) *ConsentStore_UpdateHistoryActionByValue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.TxInterface), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *ConsentStore_UpdateHistoryActionByValue_Call) Return(_a0 error) *ConsentStore_UpdateHistoryActionByValue_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ConsentStore_UpdateHistoryActionByValue_Call) RunAndReturn(run func(model.TxInterface, string, string, string) error) *ConsentStore_UpdateHistoryActionByValue_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateStatus provides a mock function with given fields: tx, consentID, orgID, status, updatedTime
 func (_m *ConsentStore) UpdateStatus(tx model.TxInterface, consentID string, orgID string, status string, updatedTime int64) error {
 	ret := _m.Called(tx, consentID, orgID, status, updatedTime)
@@ -1751,6 +1850,55 @@ func (_c *ConsentStore_UpdateStatus_Call) Return(_a0 error) *ConsentStore_Update
 }
 
 func (_c *ConsentStore_UpdateStatus_Call) RunAndReturn(run func(model.TxInterface, string, string, string, int64) error) *ConsentStore_UpdateStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateStatusAuditActionByValue provides a mock function with given fields: tx, oldValue, newValue, orgID
+func (_m *ConsentStore) UpdateStatusAuditActionByValue(tx model.TxInterface, oldValue string, newValue string, orgID string) error {
+	ret := _m.Called(tx, oldValue, newValue, orgID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateStatusAuditActionByValue")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(model.TxInterface, string, string, string) error); ok {
+		r0 = rf(tx, oldValue, newValue, orgID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ConsentStore_UpdateStatusAuditActionByValue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateStatusAuditActionByValue'
+type ConsentStore_UpdateStatusAuditActionByValue_Call struct {
+	*mock.Call
+}
+
+// UpdateStatusAuditActionByValue is a helper method to define mock.On call
+//   - tx model.TxInterface
+//   - oldValue string
+//   - newValue string
+//   - orgID string
+func (_e *ConsentStore_Expecter) UpdateStatusAuditActionByValue(tx interface{}, oldValue interface{}, newValue interface{}, orgID interface{}) *ConsentStore_UpdateStatusAuditActionByValue_Call {
+	return &ConsentStore_UpdateStatusAuditActionByValue_Call{Call: _e.mock.On("UpdateStatusAuditActionByValue", tx, oldValue, newValue, orgID)}
+}
+
+func (_c *ConsentStore_UpdateStatusAuditActionByValue_Call) Run(run func(tx model.TxInterface, oldValue string, newValue string, orgID string)) *ConsentStore_UpdateStatusAuditActionByValue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.TxInterface), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *ConsentStore_UpdateStatusAuditActionByValue_Call) Return(_a0 error) *ConsentStore_UpdateStatusAuditActionByValue_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ConsentStore_UpdateStatusAuditActionByValue_Call) RunAndReturn(run func(model.TxInterface, string, string, string) error) *ConsentStore_UpdateStatusAuditActionByValue_Call {
 	_c.Call.Return(run)
 	return _c
 }

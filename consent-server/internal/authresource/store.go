@@ -72,6 +72,18 @@ var (
 		PostgresQuery: "UPDATE CONSENT_AUTH_RESOURCE SET AUTH_STATUS = $1, UPDATED_TIME = $2 WHERE CONSENT_ID = $3 AND ORG_ID = $4",
 	}
 
+	QueryGetAuthResourcesByUserID = dbmodel.DBQuery{
+		ID:            "GET_AUTH_RESOURCES_BY_USER_ID",
+		Query:         "SELECT " + authResourceColumns + " FROM CONSENT_AUTH_RESOURCE WHERE USER_ID = ? AND ORG_ID = ?",
+		PostgresQuery: "SELECT " + authResourceColumns + " FROM CONSENT_AUTH_RESOURCE WHERE USER_ID = $1 AND ORG_ID = $2",
+	}
+
+	QueryUpdateAuthResourceUserIDByUserID = dbmodel.DBQuery{
+		ID:            "UPDATE_AUTH_RESOURCE_USER_ID_BY_USER_ID",
+		Query:         "UPDATE CONSENT_AUTH_RESOURCE SET USER_ID = ?, UPDATED_TIME = ? WHERE USER_ID = ? AND ORG_ID = ?",
+		PostgresQuery: "UPDATE CONSENT_AUTH_RESOURCE SET USER_ID = $1, UPDATED_TIME = $2 WHERE USER_ID = $3 AND ORG_ID = $4",
+	}
+
 	// Dynamic query stub — built at runtime based on the number of consent IDs.
 	QueryGetAuthResourcesByConsentIDs = dbmodel.DBQuery{ID: "GET_AUTH_RESOURCES_BY_CONSENT_IDS", Query: ""}
 )
@@ -131,6 +143,13 @@ func (s *store) DeleteByConsentID(tx dbmodel.TxInterface, consentID, orgID strin
 // belonging to a consent within a transaction.
 func (s *store) UpdateAllStatusByConsentID(tx dbmodel.TxInterface, consentID, orgID, status string, updatedTime int64) error {
 	_, err := tx.Exec(QueryUpdateAllStatusByConsentID, status, updatedTime, consentID, orgID)
+	return err
+}
+
+// UpdateUserIDByUserID reassigns every CONSENT_AUTH_RESOURCE row owned by oldUserID to
+// newUserID within a transaction.
+func (s *store) UpdateUserIDByUserID(tx dbmodel.TxInterface, orgID, oldUserID, newUserID string, updatedTime int64) error {
+	_, err := tx.Exec(QueryUpdateAuthResourceUserIDByUserID, newUserID, updatedTime, oldUserID, orgID)
 	return err
 }
 
@@ -208,6 +227,25 @@ func (s *store) GetByConsentID(ctx context.Context, consentID, orgID string) ([]
 	}
 
 	results, err := dbClient.Query(QueryGetAuthResourcesByConsentID, consentID, orgID)
+	if err != nil {
+		return nil, err
+	}
+
+	authResources := make([]model.AuthResource, 0, len(results))
+	for _, row := range results {
+		authResources = append(authResources, *mapToAuthResource(row))
+	}
+	return authResources, nil
+}
+
+// GetByUserID returns all auth resource rows currently assigned to a user across every consent.
+func (s *store) GetByUserID(ctx context.Context, orgID, userID string) ([]model.AuthResource, error) {
+	dbClient, err := s.getDBClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database client: %w", err)
+	}
+
+	results, err := dbClient.Query(QueryGetAuthResourcesByUserID, userID, orgID)
 	if err != nil {
 		return nil, err
 	}

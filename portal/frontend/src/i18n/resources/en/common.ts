@@ -687,6 +687,16 @@ const commonEn = {
       loadFailed: 'Unable to load your profile right now.',
       updateSuccess: 'Your profile has been updated.',
     },
+    deleteAccount: {
+      description: 'Permanently delete your account and anonymize your data.',
+      button: 'Delete Account',
+      title: 'Delete your account?',
+      message: 'This action is permanent and cannot be undone.',
+      note: 'Your consent records and complaints will be anonymized and your account will be permanently deleted. You will be signed out immediately.',
+      confirm: 'Delete My Account',
+      cancel: 'Cancel',
+      processing: 'Deleting...',
+    },
   },
 } as const
 

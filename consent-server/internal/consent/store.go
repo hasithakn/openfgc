@@ -99,6 +99,24 @@ var (
 		PostgresQuery: "SELECT DISTINCT CONSENT_ID FROM CONSENT_ATTRIBUTE WHERE ATT_KEY = $1 AND ATT_VALUE = $2 AND ORG_ID = $3 ORDER BY CONSENT_ID",
 	}
 
+	QueryUpdateAttributeValue = dbmodel.DBQuery{
+		ID:            "UPDATE_CONSENT_ATTRIBUTE_VALUE",
+		Query:         "UPDATE CONSENT_ATTRIBUTE SET ATT_VALUE = ? WHERE ATT_KEY = ? AND ATT_VALUE = ? AND ORG_ID = ?",
+		PostgresQuery: "UPDATE CONSENT_ATTRIBUTE SET ATT_VALUE = $1 WHERE ATT_KEY = $2 AND ATT_VALUE = $3 AND ORG_ID = $4",
+	}
+
+	QueryUpdateStatusAuditActionByValue = dbmodel.DBQuery{
+		ID:            "UPDATE_STATUS_AUDIT_ACTION_BY_VALUE",
+		Query:         "UPDATE CONSENT_STATUS_AUDIT SET ACTION_BY = ? WHERE ACTION_BY = ? AND ORG_ID = ?",
+		PostgresQuery: "UPDATE CONSENT_STATUS_AUDIT SET ACTION_BY = $1 WHERE ACTION_BY = $2 AND ORG_ID = $3",
+	}
+
+	QueryUpdateHistoryActionByValue = dbmodel.DBQuery{
+		ID:            "UPDATE_CONSENT_HISTORY_ACTION_BY_VALUE",
+		Query:         "UPDATE CONSENT_HISTORY SET ACTION_BY = ? WHERE ACTION_BY = ? AND ORG_ID = ?",
+		PostgresQuery: "UPDATE CONSENT_HISTORY SET ACTION_BY = $1 WHERE ACTION_BY = $2 AND ORG_ID = $3",
+	}
+
 	// Status audit queries
 	QueryCreateStatusAudit = dbmodel.DBQuery{
 		ID:            "CREATE_STATUS_AUDIT",
@@ -319,6 +337,29 @@ func (s *store) CreateAttributes(tx dbmodel.TxInterface, attributes []model.Cons
 // DeleteAttributesByConsentID deletes all attributes for a consent within a transaction.
 func (s *store) DeleteAttributesByConsentID(tx dbmodel.TxInterface, consentID, orgID string) error {
 	_, err := tx.Exec(QueryDeleteAttributesByConsentID, consentID, orgID)
+	return err
+}
+
+// UpdateAttributeValue rewrites every CONSENT_ATTRIBUTE row matching (key, oldValue, orgID)
+// to newValue within a transaction.
+func (s *store) UpdateAttributeValue(tx dbmodel.TxInterface, key, oldValue, newValue, orgID string) error {
+	_, err := tx.Exec(QueryUpdateAttributeValue, newValue, key, oldValue, orgID)
+	return err
+}
+
+// UpdateStatusAuditActionByValue rewrites ACTION_BY on every CONSENT_STATUS_AUDIT row
+// matching (oldValue, orgID) to newValue within a transaction. The audit trail's status
+// history itself (what changed, when) is untouched — only who is recorded as having done it.
+func (s *store) UpdateStatusAuditActionByValue(tx dbmodel.TxInterface, oldValue, newValue, orgID string) error {
+	_, err := tx.Exec(QueryUpdateStatusAuditActionByValue, newValue, oldValue, orgID)
+	return err
+}
+
+// UpdateHistoryActionByValue rewrites ACTION_BY on every CONSENT_HISTORY row matching
+// (oldValue, orgID) to newValue within a transaction. The snapshot JSON body itself is left
+// as recorded; only the ACTION_BY actor column is anonymized.
+func (s *store) UpdateHistoryActionByValue(tx dbmodel.TxInterface, oldValue, newValue, orgID string) error {
+	_, err := tx.Exec(QueryUpdateHistoryActionByValue, newValue, oldValue, orgID)
 	return err
 }
 

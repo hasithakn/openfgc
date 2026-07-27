@@ -49,14 +49,20 @@ type Config struct {
 
 // AuthConfig contains OIDC confidential-client, JWT validation, and split-cookie settings.
 type AuthConfig struct {
-	Enabled                       bool          `koanf:"enabled"`
-	IssuerURL                     string        `koanf:"issuer_url"`
-	ClientID                      string        `koanf:"client_id"`
-	ClientSecret                  string        `koanf:"-"`
-	PortalURL                     string        `koanf:"portal_url"`
-	RedirectURI                   string        `koanf:"redirect_uri"`
-	PostLogoutRedirectURI         string        `koanf:"post_logout_redirect_uri"`
-	Scopes                        []string      `koanf:"scopes"`
+	Enabled               bool     `koanf:"enabled"`
+	IssuerURL             string   `koanf:"issuer_url"`
+	ClientID              string   `koanf:"client_id"`
+	ClientSecret          string   `koanf:"-"`
+	PortalURL             string   `koanf:"portal_url"`
+	RedirectURI           string   `koanf:"redirect_uri"`
+	PostLogoutRedirectURI string   `koanf:"post_logout_redirect_uri"`
+	Scopes                []string `koanf:"scopes"`
+	// AdminScope is requested via the client_credentials grant (same client id/secret as
+	// the login flow, but a separate app-level token, not tied to any end user) to call
+	// WSO2 IS's admin SCIM2 Users API for account deletion. Requires the client to have
+	// Client Credentials enabled as a grant type in IS Console, and be authorized for this
+	// scope. Leave blank to disable account deletion entirely.
+	AdminScope                    string        `koanf:"admin_scope"`
 	ResourceAudience              string        `koanf:"resource_audience"`
 	AllowedSigningAlgorithms      []string      `koanf:"allowed_signing_algorithms"`
 	HTTPTimeout                   time.Duration `koanf:"http_timeout"`
@@ -239,6 +245,9 @@ func setDefaults(k *koanf.Koanf) error {
 		return err
 	}
 	if err := k.Set("auth.enabled", false); err != nil {
+		return err
+	}
+	if err := k.Set("auth.admin_scope", "internal_user_mgt_delete"); err != nil {
 		return err
 	}
 	if err := k.Set("auth.scopes", []string{"openid", "profile"}); err != nil {

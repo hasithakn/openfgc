@@ -359,6 +359,66 @@ func (_c *AuthResourceStore_GetByID_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// GetByUserID provides a mock function with given fields: ctx, orgID, userID
+func (_m *AuthResourceStore) GetByUserID(ctx context.Context, orgID string, userID string) ([]authresourcemodel.AuthResource, error) {
+	ret := _m.Called(ctx, orgID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByUserID")
+	}
+
+	var r0 []authresourcemodel.AuthResource
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]authresourcemodel.AuthResource, error)); ok {
+		return rf(ctx, orgID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []authresourcemodel.AuthResource); ok {
+		r0 = rf(ctx, orgID, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]authresourcemodel.AuthResource)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, orgID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AuthResourceStore_GetByUserID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByUserID'
+type AuthResourceStore_GetByUserID_Call struct {
+	*mock.Call
+}
+
+// GetByUserID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - orgID string
+//   - userID string
+func (_e *AuthResourceStore_Expecter) GetByUserID(ctx interface{}, orgID interface{}, userID interface{}) *AuthResourceStore_GetByUserID_Call {
+	return &AuthResourceStore_GetByUserID_Call{Call: _e.mock.On("GetByUserID", ctx, orgID, userID)}
+}
+
+func (_c *AuthResourceStore_GetByUserID_Call) Run(run func(ctx context.Context, orgID string, userID string)) *AuthResourceStore_GetByUserID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *AuthResourceStore_GetByUserID_Call) Return(_a0 []authresourcemodel.AuthResource, _a1 error) *AuthResourceStore_GetByUserID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AuthResourceStore_GetByUserID_Call) RunAndReturn(run func(context.Context, string, string) ([]authresourcemodel.AuthResource, error)) *AuthResourceStore_GetByUserID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: tx, authResource
 func (_m *AuthResourceStore) Update(tx model.TxInterface, authResource *authresourcemodel.AuthResource) error {
 	ret := _m.Called(tx, authResource)
@@ -452,6 +512,56 @@ func (_c *AuthResourceStore_UpdateAllStatusByConsentID_Call) Return(_a0 error) *
 }
 
 func (_c *AuthResourceStore_UpdateAllStatusByConsentID_Call) RunAndReturn(run func(model.TxInterface, string, string, string, int64) error) *AuthResourceStore_UpdateAllStatusByConsentID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateUserIDByUserID provides a mock function with given fields: tx, orgID, oldUserID, newUserID, updatedTime
+func (_m *AuthResourceStore) UpdateUserIDByUserID(tx model.TxInterface, orgID string, oldUserID string, newUserID string, updatedTime int64) error {
+	ret := _m.Called(tx, orgID, oldUserID, newUserID, updatedTime)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserIDByUserID")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(model.TxInterface, string, string, string, int64) error); ok {
+		r0 = rf(tx, orgID, oldUserID, newUserID, updatedTime)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// AuthResourceStore_UpdateUserIDByUserID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateUserIDByUserID'
+type AuthResourceStore_UpdateUserIDByUserID_Call struct {
+	*mock.Call
+}
+
+// UpdateUserIDByUserID is a helper method to define mock.On call
+//   - tx model.TxInterface
+//   - orgID string
+//   - oldUserID string
+//   - newUserID string
+//   - updatedTime int64
+func (_e *AuthResourceStore_Expecter) UpdateUserIDByUserID(tx interface{}, orgID interface{}, oldUserID interface{}, newUserID interface{}, updatedTime interface{}) *AuthResourceStore_UpdateUserIDByUserID_Call {
+	return &AuthResourceStore_UpdateUserIDByUserID_Call{Call: _e.mock.On("UpdateUserIDByUserID", tx, orgID, oldUserID, newUserID, updatedTime)}
+}
+
+func (_c *AuthResourceStore_UpdateUserIDByUserID_Call) Run(run func(tx model.TxInterface, orgID string, oldUserID string, newUserID string, updatedTime int64)) *AuthResourceStore_UpdateUserIDByUserID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.TxInterface), args[1].(string), args[2].(string), args[3].(string), args[4].(int64))
+	})
+	return _c
+}
+
+func (_c *AuthResourceStore_UpdateUserIDByUserID_Call) Return(_a0 error) *AuthResourceStore_UpdateUserIDByUserID_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *AuthResourceStore_UpdateUserIDByUserID_Call) RunAndReturn(run func(model.TxInterface, string, string, string, int64) error) *AuthResourceStore_UpdateUserIDByUserID_Call {
 	_c.Call.Return(run)
 	return _c
 }

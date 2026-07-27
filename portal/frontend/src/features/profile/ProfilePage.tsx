@@ -7,6 +7,7 @@ import {
   Alert,
   Box,
   Button,
+  Divider,
   Skeleton,
   Snackbar,
   Stack,
@@ -16,7 +17,13 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import HeaderBreadcrumbs from '../../components/layout/main-layout/HeaderBreadcrumbs'
-import { useProfileQuery, useUpdateProfileMutation } from './hooks/useProfileQueries'
+import { logout } from '../../utils/authClient'
+import DeleteAccountDialog from './components/DeleteAccountDialog'
+import {
+  useDeleteAccountMutation,
+  useProfileQuery,
+  useUpdateProfileMutation,
+} from './hooks/useProfileQueries'
 
 function pickPrimary<T extends { primary?: boolean }>(
   items: T[],
@@ -54,6 +61,7 @@ function ProfilePage(): React.JSX.Element {
   const { t } = useTranslation('common')
   const profileQuery = useProfileQuery()
   const updateMutation = useUpdateProfileMutation()
+  const deleteAccountMutation = useDeleteAccountMutation()
 
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState('')
@@ -63,6 +71,8 @@ function ProfilePage(): React.JSX.Element {
   const [address, setAddress] = useState('')
   const [saveError, setSaveError] = useState<string>()
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string>()
 
   const profile = profileQuery.data
 
@@ -104,6 +114,18 @@ function ProfilePage(): React.JSX.Element {
         },
       },
     )
+  }
+
+  const handleDeleteAccount = (): void => {
+    setDeleteError(undefined)
+    deleteAccountMutation.mutate(undefined, {
+      onSuccess: (): void => {
+        logout().catch(() => undefined)
+      },
+      onError: (error): void => {
+        setDeleteError(error.message)
+      },
+    })
   }
 
   if (profileQuery.isLoading) {
@@ -239,7 +261,29 @@ function ProfilePage(): React.JSX.Element {
             </Typography>
           </FieldRow>
         </Stack>
+
+        <Divider />
+
+        <Stack spacing={1} alignItems="flex-start">
+          <Typography variant="body2" color="text.secondary">
+            {t(
+              'profile.deleteAccount.description',
+              'Permanently delete your account and anonymize your data.',
+            )}
+          </Typography>
+          <Button color="error" variant="outlined" onClick={() => setDeleteDialogOpen(true)}>
+            {t('profile.deleteAccount.button', 'Delete Account')}
+          </Button>
+        </Stack>
       </Stack>
+
+      <DeleteAccountDialog
+        open={deleteDialogOpen}
+        loading={deleteAccountMutation.isPending}
+        error={deleteError}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDeleteAccount}
+      />
 
       <Snackbar
         open={saveSuccess}

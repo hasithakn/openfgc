@@ -856,6 +856,70 @@ paths:
                 $ref: "#/components/schemas/ConsentErrorCommon"
       security:
         - basicAuth: []
+  /anonymize:
+    post:
+      summary: Anonymize a user's data
+      description: |
+        Disconnects all of a user's OpenFGC data from their real identity, by reassigning it
+        to a single freshly generated UUID. Intended to back an end-user "delete my account"
+        action, where the identity itself is deleted elsewhere (e.g. the identity provider)
+        and this call severs OpenFGC's link to it.
+
+        This is a bulk, cross-resource operation, not scoped to one consent:
+        - Any of the user's currently-active consents are first revoked (via the same
+          mechanism as `POST /consents/{consentId}/revoke`), producing a normal
+          status-audit trail entry per consent.
+        - Every `CONSENT_AUTH_RESOURCE` row and the `userId` consent attribute are then
+          reassigned from the original user ID to the generated UUID.
+        - `ACTION_BY` on every `CONSENT_STATUS_AUDIT` and `CONSENT_HISTORY` row is likewise
+          reassigned — the audit trail's timeline and snapshots are left exactly as recorded,
+          only the actor identity is anonymized.
+        - Every grievance the user filed, and every grievance timeline entry they authored,
+          are reassigned to the same UUID.
+
+        The reassignment uses one UUID across all of the above so that anonymized records
+        remain internally consistent with one another without being traceable back to the
+        original identity. No mapping from the original ID to the generated UUID is
+        retained — this is irreversible.
+      operationId: anonymize-POST
+      tags:
+        - Consents
+      parameters:
+        - in: header
+          name: org-id
+          required: true
+          description: "The unique identifier for the organization the user belongs to."
+          schema:
+            type: string
+            example: "ORG-001"
+        - name: userId
+          in: query
+          required: true
+          description: The identifier of the user whose data should be anonymized.
+          schema:
+            type: string
+          example: "user@example.com"
+      responses:
+        "200":
+          description: Successfully anonymized the user's data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnonymizeResponse"
+        "400":
+          description: Bad Request. The request was malformed. This could be due to a missing required header or query parameter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentErrorCommon"
+        "500":
+          description: Internal Server Error. An unexpected error occurred on the server while anonymizing the user's data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentErrorCommon"
+      security:
+        - basicAuth: []
   /consents/{consentId}/authorizations:
     post:
       summary: Add an authorization resource to a consent
@@ -3568,6 +3632,18 @@ components:
           description: The reason provided for revoking the consent.
           type: string
           example: "Admin revoke"
+    AnonymizeResponse:
+      type: object
+      description: The response body returned after successfully anonymizing a user's data.
+      properties:
+        anonymizedUserId:
+          description: The freshly generated UUID the user's records were reassigned to.
+          type: string
+          example: "b3f1c2a4-5e6d-4f7a-8b9c-0d1e2f3a4b5c"
+        consentsRevoked:
+          description: The number of distinct consents that were revoked as part of anonymizing.
+          type: integer
+          example: 2
     ConsentCreatedResponse:
       type: object
       description: The response body returned after successfully initiating a new consent.

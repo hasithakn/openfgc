@@ -63,6 +63,17 @@ type ConsentStore interface {
 	GetConsentIDsByAttributeKey(ctx context.Context, key, orgID string) ([]string, error)
 	// GetConsentIDsByAttribute returns all consent IDs that carry the given key-value attribute pair.
 	GetConsentIDsByAttribute(ctx context.Context, key, value, orgID string) ([]string, error)
+	// UpdateAttributeValue rewrites every CONSENT_ATTRIBUTE row matching (key, oldValue, orgID)
+	// to newValue within a transaction. Used by account anonymization to disconnect the
+	// "userId" attribute from the original identity.
+	UpdateAttributeValue(tx dbmodel.TxInterface, key, oldValue, newValue, orgID string) error
+	// UpdateStatusAuditActionByValue rewrites ACTION_BY on every CONSENT_STATUS_AUDIT row
+	// matching (oldValue, orgID) to newValue within a transaction. Used by account
+	// anonymization.
+	UpdateStatusAuditActionByValue(tx dbmodel.TxInterface, oldValue, newValue, orgID string) error
+	// UpdateHistoryActionByValue rewrites ACTION_BY on every CONSENT_HISTORY row matching
+	// (oldValue, orgID) to newValue within a transaction. Used by account anonymization.
+	UpdateHistoryActionByValue(tx dbmodel.TxInterface, oldValue, newValue, orgID string) error
 
 	// CreateStatusAudit inserts a CONSENT_STATUS_AUDIT row within a transaction.
 	CreateStatusAudit(tx dbmodel.TxInterface, audit *consentModel.ConsentStatusAudit) error
@@ -140,6 +151,16 @@ type AuthResourceStore interface {
 	// Used for batch-loading auth resources during consent list/search responses.
 	// Returns an empty slice (not an error) when consentIDs is empty.
 	GetByConsentIDs(ctx context.Context, consentIDs []string, orgID string) ([]authResourceModel.AuthResource, error)
+
+	// GetByUserID returns all auth resource rows currently assigned to a user across every
+	// consent. Used to discover which consents an account-anonymization request must touch.
+	GetByUserID(ctx context.Context, orgID, userID string) ([]authResourceModel.AuthResource, error)
+
+	// UpdateUserIDByUserID reassigns every auth resource row currently owned by oldUserID to
+	// newUserID within a transaction, bumping UPDATED_TIME. AUTH_STATUS is left untouched —
+	// callers that also need a status transition (e.g. revoking on account deletion) must do
+	// so separately. Used by account anonymization.
+	UpdateUserIDByUserID(tx dbmodel.TxInterface, orgID, oldUserID, newUserID string, updatedTime int64) error
 }
 
 // ConsentElementStore defines the interface for consent element data operations.
@@ -277,4 +298,11 @@ type GrievanceStore interface {
 	// NextReferenceSequence returns the next per-org-per-year sequence number for REFERENCE_ID
 	// generation, creating the counter row on first use. Must run within the caller's transaction.
 	NextReferenceSequence(tx dbmodel.TxInterface, orgID, yearValue string) (int64, error)
+
+	// UpdateUserIDByUserID reassigns every GRIEVANCE row owned by oldUserID to newUserID
+	// within a transaction. Used by account anonymization.
+	UpdateUserIDByUserID(tx dbmodel.TxInterface, orgID, oldUserID, newUserID string) error
+	// UpdateTimelineActorByUserID reassigns every GRIEVANCE_TIMELINE_ENTRY row whose
+	// ACTOR_USER_ID is oldUserID to newUserID within a transaction. Used by account anonymization.
+	UpdateTimelineActorByUserID(tx dbmodel.TxInterface, orgID, oldUserID, newUserID string) error
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/wso2/openfgc/portal/backend/internal/system/config"
 	systemcontext "github.com/wso2/openfgc/portal/backend/internal/system/context"
@@ -34,6 +35,10 @@ type Manager struct {
 	accessVerifier     *oidc.IDTokenVerifier
 	idVerifier         *oidc.IDTokenVerifier
 	endSessionEndpoint string
+	// adminTokenSource mints app-level (not tied to any end user) access tokens via the
+	// client_credentials grant, for admin-scoped calls like SCIM2 user deletion. Nil when
+	// cfg.AdminScope is blank — AdminAccessToken reports that case as an error.
+	adminTokenSource oauth2.TokenSource
 }
 
 // NewManager initializes OIDC discovery when auth is enabled.
@@ -72,7 +77,30 @@ func NewManager(ctx context.Context, cfg config.AuthConfig, proxyCfg config.Prox
 	if err := provider.Claims(&metadata); err == nil {
 		m.endSessionEndpoint = strings.TrimSpace(metadata.EndSessionEndpoint)
 	}
+	if adminScope := strings.TrimSpace(cfg.AdminScope); adminScope != "" {
+		adminConfig := &clientcredentials.Config{
+			ClientID:     cfg.ClientID,
+			ClientSecret: cfg.ClientSecret,
+			TokenURL:     provider.Endpoint().TokenURL,
+			Scopes:       []string{adminScope},
+		}
+		m.adminTokenSource = adminConfig.TokenSource(discoveryContext)
+	}
 	return m, nil
+}
+
+// AdminAccessToken returns an app-level access token (not tied to any end user) suitable for
+// admin-scoped upstream calls, minted via the client_credentials grant. The returned
+// oauth2.TokenSource caches and auto-refreshes the token, so this is cheap to call per request.
+func (m *Manager) AdminAccessToken(ctx context.Context) (string, error) {
+	if m.adminTokenSource == nil {
+		return "", errors.New("admin client credentials are not configured (auth.admin_scope is blank)")
+	}
+	token, err := m.adminTokenSource.Token()
+	if err != nil {
+		return "", err
+	}
+	return token.AccessToken, nil
 }
 
 func validateConfiguredScopes(configured []string) error {
