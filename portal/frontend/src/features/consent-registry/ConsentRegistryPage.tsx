@@ -139,6 +139,8 @@ function ConsentRegistryPage(): React.JSX.Element {
   const [selectedRevocationConsentID, setSelectedRevocationConsentID] = useState<string | null>(
     null,
   )
+  const [approvalError, setApprovalError] = useState<string>()
+  const [revocationError, setRevocationError] = useState<string>()
   const filters = useMemo(() => getFiltersFromSearchParams(searchParams), [searchParams])
   const page = useMemo(() => getPageFromSearchParams(searchParams), [searchParams])
   const rowsPerPage = useMemo(() => getRowsPerPageFromSearchParams(searchParams), [searchParams])
@@ -193,10 +195,12 @@ function ConsentRegistryPage(): React.JSX.Element {
               })
             }}
             onApprove={(consentID) => {
+              setApprovalError(undefined)
               setSelectedApprovalConsentID(consentID)
               setApprovalDialogOpen(true)
             }}
             onRevoke={(consentID) => {
+              setRevocationError(undefined)
               setSelectedRevocationConsentID(consentID)
               setRevocationDialogOpen(true)
             }}
@@ -214,16 +218,19 @@ function ConsentRegistryPage(): React.JSX.Element {
             open={approvalDialogOpen}
             consentId={selectedApprovalConsentID}
             purposes={selectedApprovalConsentQuery.data?.purposes ?? []}
+            authorizations={selectedApprovalConsentQuery.data?.authorizations}
             loading={
               approveMutation.isPending ||
               selectedApprovalConsentQuery.isLoading ||
               !selectedApprovalConsentQuery.data
             }
+            error={approvalError}
             onClose={() => {
               setApprovalDialogOpen(false)
               setSelectedApprovalConsentID(null)
             }}
             onConfirm={(selectedOptionalElements) => {
+              setApprovalError(undefined)
               approveMutation.mutate(
                 {
                   consentID: selectedApprovalConsentID,
@@ -233,6 +240,9 @@ function ConsentRegistryPage(): React.JSX.Element {
                   onSuccess: () => {
                     setApprovalDialogOpen(false)
                     setSelectedApprovalConsentID(null)
+                  },
+                  onError: (mutationError) => {
+                    setApprovalError(mutationError.message)
                   },
                 },
               )
@@ -246,15 +256,20 @@ function ConsentRegistryPage(): React.JSX.Element {
             open={revocationDialogOpen}
             consentId={selectedRevocationConsentID}
             loading={revokeMutation.isPending}
+            error={revocationError}
             onClose={() => {
               setRevocationDialogOpen(false)
               setSelectedRevocationConsentID(null)
             }}
             onConfirm={() => {
+              setRevocationError(undefined)
               revokeMutation.mutate(selectedRevocationConsentID, {
                 onSuccess: () => {
                   setRevocationDialogOpen(false)
                   setSelectedRevocationConsentID(null)
+                },
+                onError: (mutationError) => {
+                  setRevocationError(mutationError.message)
                 },
               })
             }}

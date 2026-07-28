@@ -671,8 +671,8 @@
     // Build authorizations; minor flow creates delegated consent awaiting guardian approval
     var authorizations = isMinor
       ? [
-          { userId: guardianEmail, type: 'delegate',         status: 'CREATED', resources: {} },
-          { userId: email,         type: 'delegate_subject', status: 'CREATED', resources: { delegationType: 'parental_biological', revocationPolicy: 'ANY' } }
+          { userId: guardianEmail, type: 'delegate',         status: 'CREATED',  resources: {} },
+          { userId: email,         type: 'delegate_subject', status: 'APPROVED', resources: { delegationType: 'parental_biological', revocationPolicy: 'ANY' } }
         ]
       : [{ userId: email, type: 'authorisation', status: 'APPROVED' }];
 

@@ -52,80 +52,11 @@
   .header-back { display: none; align-items: center; gap: 6px; background: var(--primary-light); border: 1px solid var(--primary-border); color: var(--primary-dark); font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: background .15s; }
   .header-back:hover { background: var(--primary-mid); }
   .header-right { display: flex; align-items: center; gap: 10px; }
-  .header-create { background: transparent; color: var(--primary); border: 1.5px solid var(--primary-border); font-size: 13px; font-weight: 600; padding: 6px 16px; border-radius: 8px; cursor: pointer; transition: background .15s; }
-  .header-create:hover { background: var(--primary-light); }
-  .header-signin { background: var(--primary); color: #fff; border: none; font-size: 13px; font-weight: 600; padding: 7px 18px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .header-signin { background: var(--primary); color: #fff; border: none; font-size: 13px; font-weight: 600; padding: 7px 18px; border-radius: 8px; cursor: pointer; transition: background .15s; text-decoration: none; display: inline-flex; align-items: center; }
   .header-signin:hover { background: var(--primary-dark); }
   body.form-mode  .header-back   { display: flex; }
   body.form-mode  .header-pill   { display: none; }
   body.form-mode  .header-signin { display: none; }
-  body.form-mode  .header-create { display: none; }
-  body.login-mode .header-back   { display: flex; }
-  body.login-mode .header-pill   { display: none; }
-  body.login-mode .header-signin { display: none; }
-  body.login-mode .header-create { display: none; }
-  body.login-mode #landing-view        { display: none; }
-  body.login-mode #login-view          { display: flex; }
-  body.login-mode #form-view-container { display: none; }
-
-  /* ── LOGIN VIEW ── */
-  #login-view { display: none; flex: 1; align-items: center; justify-content: center; padding: 24px; }
-  .login-card { background: var(--card); border: 1px solid #e2e8f0; border-radius: 16px; padding: 36px; max-width: 420px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,.08); transition: max-width .2s; }
-  .login-card.wide { max-width: 560px; padding: 0; overflow: hidden; }
-  .login-logo { width: 48px; height: 48px; border-radius: 12px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 16px; }
-  .login-title { font-size: 20px; font-weight: 800; color: var(--text); text-align: center; margin-bottom: 4px; }
-  .login-sub   { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 26px; }
-  .login-group { display: flex; flex-direction: column; margin-bottom: 14px; }
-  .login-group label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
-  .login-group input { padding: 11px 13px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: var(--text); outline: none; transition: border-color .2s, box-shadow .2s; }
-  .login-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,148,136,.12); }
-  .login-group input.err { border-color: var(--danger); }
-  .login-err { font-size: 12px; color: var(--danger); margin-top: 4px; display: none; }
-  .login-err.show { display: block; }
-  .btn-login { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 9px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background .2s; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .btn-login:hover:not(:disabled) { background: var(--primary-dark); }
-  .btn-login:disabled { opacity: .5; cursor: not-allowed; }
-  .login-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 12px; }
-  .login-divider::before, .login-divider::after { content: ''; flex: 1; border-top: 1px solid #e2e8f0; }
-  .btn-create { width: 100%; padding: 11px; background: transparent; color: var(--primary); border: 2px solid var(--primary-border); border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .2s, border-color .2s; }
-  .btn-create:hover { background: var(--primary-light); border-color: var(--primary); }
-
-  /* login result states */
-  .login-spinner-wrap { text-align: center; padding: 24px 0; }
-  .login-spinner { width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--primary-mid); border-top-color: var(--primary); animation: spin .7s linear infinite; margin: 0 auto 12px; }
-  .login-spinner-text { font-size: 14px; color: var(--muted); }
-  .result-banner { border-radius: 12px; padding: 20px; margin-bottom: 18px; text-align: center; }
-  .result-banner.green { background: var(--success-light); border: 1px solid #86efac; }
-  .result-banner.amber { background: var(--warn-bg); border: 1px solid var(--warn-border); }
-  .result-banner.red   { background: #fef2f2; border: 1px solid #fca5a5; }
-  .result-icon  { font-size: 36px; display: block; margin-bottom: 8px; }
-  .result-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
-  .result-banner.green .result-title { color: #15803d; }
-  .result-banner.amber .result-title { color: #92400e; }
-  .result-banner.red   .result-title { color: #991b1b; }
-  .result-body  { font-size: 13px; line-height: 1.6; }
-  .result-banner.green .result-body { color: #166534; }
-  .result-banner.amber .result-body { color: #92400e; }
-  .result-banner.red   .result-body { color: #7f1d1d; }
-  .course-hero-thumb { height: 160px; background: linear-gradient(135deg, #0c4a6e, #0d9488); display: flex; align-items: center; justify-content: center; font-size: 72px; position: relative; }
-  .course-hero-badge { position: absolute; top: 12px; right: 12px; background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 20px; }
-  .course-hero-body  { padding: 22px 24px; }
-  .course-hero-cat   { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--primary); margin-bottom: 4px; }
-  .course-hero-title { font-size: 17px; font-weight: 900; color: var(--text); margin-bottom: 14px; }
-  .btn-start { width: 100%; padding: 14px; background: #15803d; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; transition: background .2s; letter-spacing: .3px; }
-  .btn-start:hover { background: #166534; }
-  .consent-meta { font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center; }
-  .timeline { display: flex; align-items: center; gap: 0; margin: 16px 0; }
-  .tl-step { display: flex; flex-direction: column; align-items: center; flex: 1; }
-  .tl-dot  { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; margin-bottom: 6px; }
-  .tl-dot.done    { background: #dcfce7; color: #15803d; border: 2px solid #86efac; }
-  .tl-dot.waiting { background: #fef9c3; color: #854d0e; border: 2px solid #fde68a; }
-  .tl-dot.locked  { background: #f1f5f9; color: #94a3b8; border: 2px solid #e2e8f0; }
-  .tl-label { font-size: 10px; font-weight: 600; color: var(--muted); text-align: center; }
-  .tl-line  { flex: 1; height: 2px; background: #e2e8f0; margin-bottom: 22px; }
-  .tl-line.done { background: #86efac; }
-  .btn-try-again { width: 100%; margin-top: 12px; padding: 10px; background: transparent; color: var(--primary); border: 1.5px solid var(--primary-border); border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
-  .btn-try-again:hover { background: var(--primary-light); }
 
   /* ── LANDING ── */
   #landing-view { flex: 1; display: flex; flex-direction: column; }
@@ -318,8 +249,7 @@
   </div>
   <div class="header-right">
     <button class="header-back"   onclick="goLanding()">← Back to Courses</button>
-    <button class="header-create" onclick="showCreateAccount()">Create Account</button>
-    <button class="header-signin" onclick="goLogin()">Sign In</button>
+    <a class="header-signin" href="/auth/login?returnTo=/learnpath-account.html">Sign In</a>
     <span class="header-pill">DPDP Act 2023 — Minor Consent Demo</span>
   </div>
 </header>
@@ -361,64 +291,6 @@
 
 </div>
 
-<!-- ── LOGIN VIEW ─────────────────────────────────────────────── -->
-<div id="login-view">
-  <div class="login-card">
-
-    <div id="login-form-inner">
-      <div class="login-logo">🚀</div>
-      <div class="login-title">Welcome back</div>
-      <div class="login-sub">Sign in to access your courses</div>
-
-      <div class="login-group">
-        <label for="l-email">Email Address</label>
-        <input type="email" id="l-email" placeholder="e.g. riya@example.com" autocomplete="email"
-               onkeydown="if(event.key==='Enter') doLogin()">
-        <div class="login-err" id="l-email-err">Please enter a valid email address.</div>
-      </div>
-      <div class="login-group">
-        <label for="l-password">Password</label>
-        <input type="password" id="l-password" placeholder="••••••••" autocomplete="current-password"
-               onkeydown="if(event.key==='Enter') doLogin()">
-      </div>
-
-      <button class="btn-login" id="btn-login" onclick="doLogin()">Sign In</button>
-
-      <div class="login-divider">or</div>
-
-      <button class="btn-create" onclick="showCreateAccount()">Create Account →</button>
-    </div>
-
-    <!-- Create Account panel -->
-    <div id="create-account-inner" style="display:none;">
-      <div class="login-logo">🚀</div>
-      <div class="login-title">Create Account</div>
-      <div class="login-sub">Join LearnPath and start learning</div>
-
-      <div class="login-group">
-        <label for="ca-email">Email Address</label>
-        <input type="email" id="ca-email" placeholder="e.g. riya@example.com" autocomplete="email"
-               onkeydown="if(event.key==='Enter') doCreateAccount()">
-        <div class="login-err" id="ca-email-err">Please enter a valid email address.</div>
-      </div>
-      <div class="login-group">
-        <label for="ca-password">New Password</label>
-        <input type="password" id="ca-password" placeholder="••••••••" autocomplete="new-password"
-               onkeydown="if(event.key==='Enter') doCreateAccount()">
-        <div class="login-err" id="ca-password-err">Please enter a password.</div>
-      </div>
-
-      <button class="btn-login" id="btn-create-account" onclick="doCreateAccount()">Create Account</button>
-
-      <div class="login-divider">or</div>
-
-      <button class="btn-create" onclick="goLogin()">Already have an account? Sign In →</button>
-    </div>
-
-    <div id="login-result" style="display:none;"></div>
-
-  </div>
-</div>
 
 <!-- ── FORM VIEW ──────────────────────────────────────────────── -->
 <div id="form-view-container">
@@ -589,157 +461,10 @@
   }
 
   function goLanding() {
-    document.body.classList.remove('form-mode', 'login-mode');
-    document.getElementById('enrol-form-view').style.display       = 'block';
-    document.getElementById('success-view').style.display          = 'none';
-    document.getElementById('create-account-inner').style.display  = 'none';
-    document.getElementById('login-form-inner').style.display      = 'block';
-    document.getElementById('login-result').style.display          = 'none';
-    var card = document.querySelector('.login-card');
-    if (card) card.classList.remove('wide');
+    document.body.classList.remove('form-mode');
+    document.getElementById('enrol-form-view').style.display = 'block';
+    document.getElementById('success-view').style.display    = 'none';
     resetForm();
-  }
-
-  function goLogin() {
-    document.body.classList.remove('form-mode');
-    document.body.classList.add('login-mode');
-    document.getElementById('l-email').value    = '';
-    document.getElementById('l-password').value = '';
-    document.getElementById('l-email').classList.remove('err');
-    document.getElementById('l-email-err').classList.remove('show');
-    document.getElementById('login-form-inner').style.display    = 'block';
-    document.getElementById('create-account-inner').style.display = 'none';
-    document.getElementById('login-result').style.display        = 'none';
-    var card = document.querySelector('.login-card');
-    if (card) card.classList.remove('wide');
-    var btn = document.getElementById('btn-login');
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Sign In'; }
-  }
-
-  function showCreateAccount() {
-    document.body.classList.remove('form-mode');
-    document.body.classList.add('login-mode');
-    document.getElementById('ca-email').value    = '';
-    document.getElementById('ca-password').value = '';
-    document.getElementById('ca-email').classList.remove('err');
-    document.getElementById('ca-email-err').classList.remove('show');
-    document.getElementById('ca-password').classList.remove('err');
-    document.getElementById('ca-password-err').classList.remove('show');
-    document.getElementById('login-form-inner').style.display    = 'none';
-    document.getElementById('create-account-inner').style.display = 'block';
-    document.getElementById('login-result').style.display        = 'none';
-    var card = document.querySelector('.login-card');
-    if (card) card.classList.remove('wide');
-    var btn = document.getElementById('btn-create-account');
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Create Account'; }
-  }
-
-  function doCreateAccount() {
-    var email = document.getElementById('ca-email').value.trim();
-    var pass  = document.getElementById('ca-password').value;
-    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    var passOk  = pass.length > 0;
-    document.getElementById('ca-email').classList[emailOk ? 'remove' : 'add']('err');
-    document.getElementById('ca-email-err').classList[emailOk ? 'remove' : 'add']('show');
-    document.getElementById('ca-password').classList[passOk ? 'remove' : 'add']('err');
-    document.getElementById('ca-password-err').classList[passOk ? 'remove' : 'add']('show');
-    if (!emailOk || !passOk) return;
-
-    var btn = document.getElementById('btn-create-account');
-    btn.disabled = true;
-    btn.innerHTML = '<div class="spinner"></div>';
-    checkAndShowConsent(email);
-  }
-
-  async function doLogin() {
-    var email = document.getElementById('l-email').value.trim();
-    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    document.getElementById('l-email').classList[emailOk ? 'remove' : 'add']('err');
-    document.getElementById('l-email-err').classList[emailOk ? 'remove' : 'add']('show');
-    if (!emailOk) return;
-
-    var btn = document.getElementById('btn-login');
-    btn.disabled = true;
-    btn.innerHTML = '<div class="spinner"></div>';
-    checkAndShowConsent(email);
-  }
-
-  async function checkAndShowConsent(email) {
-    document.getElementById('login-form-inner').style.display      = 'none';
-    document.getElementById('create-account-inner').style.display  = 'none';
-    document.getElementById('login-result').style.display          = 'block';
-    document.getElementById('login-result').innerHTML =
-      '<div class="login-spinner-wrap"><div class="login-spinner"></div><div class="login-spinner-text">Checking your account…</div></div>';
-
-    await clearLogs();
-
-    try {
-      var r    = await fetch('/api/lookup-consents?userId=' + encodeURIComponent(email) + '&purposeName=course_enrollment_and_certification');
-      var data = await r.json();
-      var list = Array.isArray(data) ? data : (data.data || []);
-
-      var active  = list.find(function(c) { return (c.status||'').toUpperCase() === 'ACTIVE'; });
-      var pending = list.find(function(c) { return (c.status||'').toUpperCase() === 'CREATED'; });
-
-      if (active)       showLoginResult('active',  email, active);
-      else if (pending) showLoginResult('pending', email, pending);
-      else              showLoginResult('none',    email, null);
-    } catch(e) {
-      showLoginResult('error', email, null);
-    }
-  }
-
-  function showLoginResult(state, email, consent) {
-    var expiry = consent && consent.expirationTime
-      ? new Date(consent.expirationTime).toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' })
-      : null;
-    var card = document.querySelector('.login-card');
-
-    var html = '';
-    if (state === 'active') {
-      card.classList.add('wide');
-      html =
-        '<div class="course-hero-thumb">🚀<span class="course-hero-badge">✅ Access Granted</span></div>' +
-        '<div class="course-hero-body">' +
-          '<div class="course-hero-cat">Space &amp; Astronomy</div>' +
-          '<div class="course-hero-title">Space Science: Exploring Our Solar System</div>' +
-          '<button class="btn-start" onclick="alert(\'Launching course for ' + esc(email) + '!\')">▶ Start Learning</button>' +
-          (expiry ? '<div class="consent-meta" style="margin-top:12px; display:flex; align-items:center; justify-content:center; gap:6px;"><span style="background:#dcfce7; color:#15803d; font-weight:700; font-size:12px; padding:3px 10px; border-radius:20px;">✅ Parent / Guardian Approved</span><span style="font-size:11px; color:var(--muted);">· Valid until ' + expiry + '</span></div>' : '') +
-        '</div>';
-    } else if (state === 'pending') {
-      html =
-        '<div class="result-banner amber">' +
-          '<span class="result-icon">⏳</span>' +
-          '<div class="result-title">Awaiting Approval</div>' +
-          '<div class="result-body">Your parent or guardian hasn\'t approved your enrolment yet. The course will unlock once they confirm.</div>' +
-        '</div>' +
-        '<div class="timeline">' +
-          '<div class="tl-step"><div class="tl-dot done">✓</div><div class="tl-label">Enrolled</div></div>' +
-          '<div class="tl-line done"></div>' +
-          '<div class="tl-step"><div class="tl-dot waiting">⏳</div><div class="tl-label">Guardian Approval</div></div>' +
-          '<div class="tl-line"></div>' +
-          '<div class="tl-step"><div class="tl-dot locked">🔒</div><div class="tl-label">Course Access</div></div>' +
-        '</div>' +
-        '<button class="btn-try-again" onclick="goLogin()">← Try Again</button>';
-    } else if (state === 'none') {
-      html =
-        '<div class="result-banner amber">' +
-          '<span class="result-icon">📚</span>' +
-          '<div class="result-title">No Active Courses</div>' +
-          '<div class="result-body">You\'re logged in as <strong>' + esc(email) + '</strong> but haven\'t enrolled in any courses yet.</div>' +
-        '</div>' +
-        '<button class="btn-login" style="margin-bottom:10px;" onclick="startEnrol()">Enrol for a Course →</button>' +
-        '<button class="btn-try-again" onclick="goLogin()">← Back to Sign In</button>';
-    } else {
-      html =
-        '<div class="result-banner red">' +
-          '<span class="result-icon">⚠️</span>' +
-          '<div class="result-title">Something went wrong</div>' +
-          '<div class="result-body">Could not connect to the server. Please try again.</div>' +
-        '</div>' +
-        '<button class="btn-try-again" onclick="goLogin()">← Try Again</button>';
-    }
-    document.getElementById('login-result').innerHTML = html;
   }
 
   function resetForm() {
@@ -837,8 +562,8 @@
     try {
       var auths = isMinor
         ? [
-            { userId: guardianEmail, type: 'delegate',         status: 'CREATED', resources: {} },
-            { userId: email,         type: 'delegate_subject', status: 'CREATED', resources: { delegationType: 'parental_biological', revocationPolicy: 'ANY' } }
+            { userId: guardianEmail, type: 'delegate',         status: 'CREATED',  resources: {} },
+            { userId: email,         type: 'delegate_subject', status: 'APPROVED', resources: { delegationType: 'parental_biological', revocationPolicy: 'ANY' } }
           ]
         : [{ userId: email, type: 'authorisation', status: 'APPROVED' }];
 

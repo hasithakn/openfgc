@@ -17,6 +17,7 @@
  */
 
 import {
+  Alert,
   Box,
   Button,
   Dialog,
@@ -33,6 +34,7 @@ interface ConsentRevocationDialogProps {
   open: boolean
   consentId: string
   loading: boolean
+  error?: string
   onClose: () => void
   onConfirm: () => void
 }
@@ -41,6 +43,7 @@ function ConsentRevocationDialog({
   open,
   consentId,
   loading,
+  error,
   onClose,
   onConfirm,
 }: ConsentRevocationDialogProps): React.JSX.Element {
@@ -120,6 +123,8 @@ function ConsentRevocationDialog({
               )}
             </Typography>
           </Box>
+
+          {error ? <Alert severity="error">{error}</Alert> : null}
         </Stack>
       </DialogContent>
 

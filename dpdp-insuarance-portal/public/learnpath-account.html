@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My LearnPath Account</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --primary:        #0d9488;
+    --primary-dark:   #0f766e;
+    --primary-light:  #f0fdfa;
+    --primary-mid:    #ccfbf1;
+    --primary-border: #5eead4;
+    --bg:             #f0fdfa;
+    --card:           #ffffff;
+    --text:           #0f172a;
+    --muted:          #64748b;
+    --danger:         #b91c1c;
+    --warn-bg:        #fefce8;
+    --warn-border:    #fde68a;
+    --warn-text:      #854d0e;
+    --success-light:  #f0fdf4;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+  header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-logo { width: 36px; height: 36px; border-radius: 9px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .brand-name { font-size: 17px; font-weight: 800; color: var(--primary); letter-spacing: -.3px; }
+  .brand-tag  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .user-pill { display: flex; align-items: center; gap: 8px; background: var(--primary-light); border: 1px solid var(--primary-border); border-radius: 20px; padding: 4px 12px 4px 4px; }
+  .user-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .user-email { font-size: 13px; color: var(--text); font-weight: 500; }
+  .btn-portal { font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none; padding: 7px 14px; border: 1.5px solid var(--primary-border); border-radius: 8px; transition: background .15s; }
+  .btn-portal:hover { background: var(--primary-light); }
+  .btn-header { background: transparent; border: 1.5px solid #e2e8f0; color: var(--text); font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .btn-header:hover { background: #f1f5f9; }
+
+  .split-container { display: flex; flex: 1; min-height: 0; }
+  .main-pane { flex: 1; overflow-y: auto; }
+  main { max-width: 640px; width: 100%; margin: 0 auto; padding: 32px 24px 56px; }
+
+  .section-card { background: var(--card); border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+  .section-card-header { padding: 18px 24px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+  .section-card-header h2 { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .section-card-header p  { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .btn-refresh { background: var(--primary-light); border: 1px solid var(--primary-border); color: var(--primary-dark); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+  .btn-refresh:hover { background: var(--primary-mid); }
+  .section-card-body { padding: 24px; }
+
+  .loading-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); padding: 20px 0; justify-content: center; }
+  .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--primary-mid); border-top-color: var(--primary); animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result-banner { border-radius: 12px; padding: 20px; margin-bottom: 18px; text-align: center; }
+  .result-banner.green { background: var(--success-light); border: 1px solid #86efac; }
+  .result-banner.amber { background: var(--warn-bg); border: 1px solid var(--warn-border); }
+  .result-banner.red   { background: #fef2f2; border: 1px solid #fca5a5; }
+  .result-icon  { font-size: 36px; display: block; margin-bottom: 8px; }
+  .result-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+  .result-banner.green .result-title { color: #15803d; }
+  .result-banner.amber .result-title { color: #92400e; }
+  .result-banner.red   .result-title { color: #991b1b; }
+  .result-body  { font-size: 13px; line-height: 1.6; }
+  .result-banner.green .result-body { color: #166534; }
+  .result-banner.amber .result-body { color: #92400e; }
+  .result-banner.red   .result-body { color: #7f1d1d; }
+
+  .course-hero-thumb { height: 160px; border-radius: 12px 12px 0 0; background: linear-gradient(135deg, #0c4a6e, #0d9488); display: flex; align-items: center; justify-content: center; font-size: 72px; position: relative; }
+  .course-hero-badge { position: absolute; top: 12px; right: 12px; background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 20px; }
+  .course-hero-body  { padding: 22px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; }
+  .course-hero-cat   { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--primary); margin-bottom: 4px; }
+  .course-hero-title { font-size: 17px; font-weight: 900; color: var(--text); margin-bottom: 14px; }
+  .btn-start { width: 100%; padding: 14px; background: #15803d; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; transition: background .2s; letter-spacing: .3px; }
+  .btn-start:hover { background: #166534; }
+  .consent-meta { font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center; }
+
+  .timeline { display: flex; align-items: center; gap: 0; margin: 16px 0; }
+  .tl-step { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .tl-dot  { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; margin-bottom: 6px; }
+  .tl-dot.done    { background: #dcfce7; color: #15803d; border: 2px solid #86efac; }
+  .tl-dot.waiting { background: #fef9c3; color: #854d0e; border: 2px solid #fde68a; }
+  .tl-dot.locked  { background: #f1f5f9; color: #94a3b8; border: 2px solid #e2e8f0; }
+  .tl-label { font-size: 10px; font-weight: 600; color: var(--muted); text-align: center; }
+  .tl-line  { flex: 1; height: 2px; background: #e2e8f0; margin-bottom: 22px; }
+  .tl-line.done { background: #86efac; }
+
+  .btn-again { display: inline-flex; align-items: center; gap: 8px; background: var(--primary); color: #fff; padding: 10px 22px; border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: background .2s; }
+  .btn-again:hover { background: var(--primary-dark); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">🚀</div>
+    <div>
+      <div class="brand-name">LearnPath</div>
+      <div class="brand-tag">My Account</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="user-pill">
+      <div class="user-avatar" id="user-avatar">U</div>
+      <span class="user-email" id="user-email">user@example.com</span>
+    </div>
+    <a id="portal-btn" href="http://localhost:5173/consents" target="_blank" class="btn-portal">One-Stop Portal ↗</a>
+    <button class="btn-header" onclick="doLogout()">Sign out</button>
+  </div>
+</header>
+
+<div class="split-container">
+  <div class="main-pane">
+    <main>
+      <div class="section-card">
+        <div class="section-card-header">
+          <div>
+            <h2>📚 My Enrolment</h2>
+            <p>Checking Consent Manager for course enrolment consent</p>
+          </div>
+          <button class="btn-refresh" onclick="loadEnrolment(true)">↻ Refresh</button>
+        </div>
+        <div class="section-card-body" id="enrolment-body">
+          <div class="loading-row"><div class="spinner"></div> Checking your enrolment…</div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  var userEmail = '';
+  var userName  = '';
+
+  async function init() {
+    var me;
+    try {
+      var meResp = await fetch('/api/me');
+      if (meResp.status === 401) { window.location.href = '/auth/login?returnTo=/learnpath-account.html'; return; }
+      me = await meResp.json();
+    } catch (e) {
+      window.location.href = '/auth/login?returnTo=/learnpath-account.html';
+      return;
+    }
+    userEmail = me.email || '';
+    userName  = me.name  || '';
+
+    document.getElementById('user-email').textContent = userEmail;
+    document.getElementById('user-avatar').textContent = (userName || userEmail || 'U')[0].toUpperCase();
+
+    loadEnrolment(false);
+  }
+
+  function doLogout() {
+    window.location.href = '/auth/logout';
+  }
+
+  async function loadEnrolment() {
+    var body = document.getElementById('enrolment-body');
+    body.innerHTML = '<div class="loading-row"><div class="spinner"></div> Checking your enrolment…</div>';
+
+    try {
+      var r = await fetch('/api/user-consents?purposeName=course_enrollment_and_certification');
+      var data = await r.json();
+      if (!r.ok) { renderError(data.error || 'Failed to load.'); return; }
+
+      var list = data.data || data || [];
+
+      // Exclude consents where the logged-in user is only a delegate (guardian) —
+      // guardians manage those from the One-Stop Portal, not here.
+      var myConsents = list.filter(function(c) {
+        var auths = c.authorizations || [];
+        if (!auths.length) return true;
+        var myAuth = auths.find(function(a) {
+          return (a.userId || '').toLowerCase() === userEmail.toLowerCase();
+        });
+        if (!myAuth) return false;
+        return myAuth.type !== 'delegate';
+      });
+
+      var active  = myConsents.find(function(c) { return (c.currentStatus || c.status || '').toUpperCase() === 'ACTIVE'; });
+      var created = myConsents.find(function(c) { return (c.currentStatus || c.status || '').toUpperCase() === 'CREATED'; });
+
+      if (!myConsents.length && list.length > 0) {
+        renderNone();
+      } else if (active) {
+        renderActive(active);
+      } else if (created) {
+        var auths = created.authorizations || [];
+        var isDelegateSubject = auths.some(function(a) {
+          return a.type === 'delegate_subject' && (a.userId || '').toLowerCase() === userEmail.toLowerCase();
+        });
+        if (isDelegateSubject) {
+          var guardianAuth = auths.find(function(a) { return a.type === 'delegate'; });
+          renderPending(guardianAuth ? guardianAuth.userId : null);
+        } else {
+          renderActive(created);
+        }
+      } else {
+        renderNone();
+      }
+    } catch (e) {
+      renderError('Could not connect: ' + e.message);
+    }
+  }
+
+  function renderActive(c) {
+    document.getElementById('enrolment-body').innerHTML =
+      '<div class="course-hero-thumb">🚀<span class="course-hero-badge">✅ Access Granted</span></div>' +
+      '<div class="course-hero-body">' +
+        '<div class="course-hero-cat">Space &amp; Astronomy</div>' +
+        '<div class="course-hero-title">Space Science: Exploring Our Solar System</div>' +
+        '<button class="btn-start" onclick="alert(\'Launching course!\')">▶ Start Learning</button>' +
+      '</div>';
+  }
+
+  function renderPending(guardianEmail) {
+    document.getElementById('enrolment-body').innerHTML =
+      '<div class="result-banner amber">' +
+        '<span class="result-icon">⏳</span>' +
+        '<div class="result-title">Awaiting Approval</div>' +
+        '<div class="result-body">Your parent or guardian hasn\'t approved your enrolment yet' +
+        (guardianEmail ? ' (<strong>' + escHtml(guardianEmail) + '</strong>)' : '') +
+        '. The course will unlock once they confirm.</div>' +
+      '</div>' +
+      '<div class="timeline">' +
+        '<div class="tl-step"><div class="tl-dot done">✓</div><div class="tl-label">Enrolled</div></div>' +
+        '<div class="tl-line done"></div>' +
+        '<div class="tl-step"><div class="tl-dot waiting">⏳</div><div class="tl-label">Guardian Approval</div></div>' +
+        '<div class="tl-line"></div>' +
+        '<div class="tl-step"><div class="tl-dot locked">🔒</div><div class="tl-label">Course Access</div></div>' +
+      '</div>';
+  }
+
+  function renderNone() {
+    document.getElementById('enrolment-body').innerHTML =
+      '<div class="result-banner amber">' +
+        '<span class="result-icon">📭</span>' +
+        '<div class="result-title">No Active Enrolment</div>' +
+        '<div class="result-body">You\'re signed in as <strong>' + escHtml(userEmail) + '</strong> but haven\'t enrolled in any courses yet.</div>' +
+      '</div>' +
+      '<a class="btn-again" href="/delegate.html">Enrol for a Course →</a>';
+  }
+
+  function renderError(msg) {
+    document.getElementById('enrolment-body').innerHTML =
+      '<div class="result-banner red">' +
+        '<span class="result-icon">⚠️</span>' +
+        '<div class="result-title">Something went wrong</div>' +
+        '<div class="result-body">' + escHtml(msg) + '</div>' +
+      '</div>';
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -116,6 +116,7 @@ function consentListQueryOptions(
   page: number,
   rowsPerPage: number,
   isAdmin: boolean,
+  enabled: boolean,
 ) {
   const params = toListParams(filters, page, rowsPerPage)
   const fetchFn = isAdmin ? fetchAllConsents : fetchMyConsents
@@ -130,6 +131,7 @@ function consentListQueryOptions(
       }
     },
     placeholderData: keepPreviousData,
+    enabled,
   })
 }
 
@@ -138,20 +140,34 @@ export function useConsentListQuery(
   page: number,
   rowsPerPage: number,
 ): UseQueryResult<ConsentListResult> {
-  const { isAdmin } = useScopes()
+  const { isAdmin, isLoading: scopesLoading } = useScopes()
   const queryClient = useQueryClient()
-  const query = useQuery(consentListQueryOptions(filters, page, rowsPerPage, isAdmin))
+  // Deferred until scopes finish loading — otherwise this would fetch (and compute canApprove)
+  // against the default isAdmin=false before the real scope set is known, which could briefly
+  // show an admin/case-worker a self-service Approve action they aren't entitled to.
+  const query = useQuery(
+    consentListQueryOptions(filters, page, rowsPerPage, isAdmin, !scopesLoading),
+  )
 
   useEffect(() => {
     const nextPage = page + 1
     const hasNextPage = nextPage * rowsPerPage < (query.data?.total ?? 0)
 
-    if (!query.isPlaceholderData && hasNextPage) {
+    if (!scopesLoading && !query.isPlaceholderData && hasNextPage) {
       queryClient
-        .prefetchQuery(consentListQueryOptions(filters, nextPage, rowsPerPage, isAdmin))
+        .prefetchQuery(consentListQueryOptions(filters, nextPage, rowsPerPage, isAdmin, true))
         .catch(() => undefined)
     }
-  }, [filters, isAdmin, page, query.data?.total, query.isPlaceholderData, queryClient, rowsPerPage])
+  }, [
+    filters,
+    isAdmin,
+    page,
+    query.data?.total,
+    query.isPlaceholderData,
+    queryClient,
+    rowsPerPage,
+    scopesLoading,
+  ])
 
   return query
 }

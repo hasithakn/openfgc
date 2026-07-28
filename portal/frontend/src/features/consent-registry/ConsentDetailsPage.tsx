@@ -147,7 +147,7 @@ function ConsentDetailsPage(): React.JSX.Element {
   const { t } = useTranslation('common')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isAdmin } = useScopes()
+  const { isAdmin, isLoading: scopesLoading } = useScopes()
   const consentDetailQuery = useConsentDetailQuery(id)
   const approveMutation = useApproveConsentMutation()
   const revokeMutation = useRevokeConsentMutation()
@@ -156,6 +156,8 @@ function ConsentDetailsPage(): React.JSX.Element {
   const [resourcesModalOpen, setResourcesModalOpen] = useState<boolean>(false)
   const [selectedResourcesJson, setSelectedResourcesJson] = useState<string>('')
   const [historyModalOpen, setHistoryModalOpen] = useState<boolean>(false)
+  const [approvalError, setApprovalError] = useState<string>()
+  const [revocationError, setRevocationError] = useState<string>()
 
   if (!id) {
     return (
@@ -174,7 +176,8 @@ function ConsentDetailsPage(): React.JSX.Element {
   }
 
   const detail = consentDetailQuery.data
-  const canApprove = detail ? !isAdmin && isConsentApprovableStatus(detail.status) : false
+  const canApprove =
+    detail && !scopesLoading ? !isAdmin && isConsentApprovableStatus(detail.status) : false
   const canRevoke = detail ? isConsentRevokableStatus(detail.status) : false
 
   if (consentDetailQuery.isLoading) {
@@ -235,6 +238,7 @@ function ConsentDetailsPage(): React.JSX.Element {
               size="small"
               disabled={approveMutation.isPending}
               onClick={() => {
+                setApprovalError(undefined)
                 setApprovalDialogOpen(true)
               }}
             >
@@ -247,6 +251,7 @@ function ConsentDetailsPage(): React.JSX.Element {
             size="small"
             disabled={revokeMutation.isPending || !canRevoke}
             onClick={() => {
+              setRevocationError(undefined)
               setRevocationDialogOpen(true)
             }}
           >
@@ -287,16 +292,22 @@ function ConsentDetailsPage(): React.JSX.Element {
         open={approvalDialogOpen}
         consentId={id}
         purposes={detail.purposes}
+        authorizations={detail.authorizations}
         loading={approveMutation.isPending}
+        error={approvalError}
         onClose={() => {
           setApprovalDialogOpen(false)
         }}
         onConfirm={(selectedOptionalElements) => {
+          setApprovalError(undefined)
           approveMutation.mutate(
             { consentID: id, selectedOptionalElements },
             {
               onSuccess: () => {
                 setApprovalDialogOpen(false)
+              },
+              onError: (mutationError) => {
+                setApprovalError(mutationError.message)
               },
             },
           )
@@ -308,13 +319,18 @@ function ConsentDetailsPage(): React.JSX.Element {
         open={revocationDialogOpen}
         consentId={id}
         loading={revokeMutation.isPending}
+        error={revocationError}
         onClose={() => {
           setRevocationDialogOpen(false)
         }}
         onConfirm={() => {
+          setRevocationError(undefined)
           revokeMutation.mutate(id, {
             onSuccess: () => {
               setRevocationDialogOpen(false)
+            },
+            onError: (mutationError) => {
+              setRevocationError(mutationError.message)
             },
           })
         }}

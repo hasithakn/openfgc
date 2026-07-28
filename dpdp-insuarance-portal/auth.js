@@ -80,6 +80,9 @@ function getSession(sessionId) {
 const SESSION_COOKIE = 'insurance_session';
 const TXN_COOKIE = 'insurance_auth_txn';
 const PENDING_PII_COOKIE = 'insurance_pending_pii';
+// Explicit allowlist of local pages /auth/login may redirect back to post-login — prevents
+// an open redirect via a client-supplied returnTo query param.
+const ALLOWED_RETURN_PATHS = new Set(['/account.html', '/learnpath-account.html']);
 const COOKIE_OPTS = { httpOnly: true, sameSite: 'lax', signed: true, secure: false }; // secure:false — this demo runs over plain http locally
 
 // Best-effort: if this login's email matches PII stashed by the quotation form before
@@ -168,7 +171,10 @@ function requireAuth(req, res, next) {
     if (req.path.startsWith('/api/')) {
       return res.status(401).json({ error: 'not authenticated' });
     }
-    return res.redirect('/auth/login');
+    // Send the user back to whichever protected page they actually asked for (e.g. a
+    // bookmark or direct link to /learnpath-account.html), not always /account.html.
+    const returnTo = ALLOWED_RETURN_PATHS.has(req.path) ? req.path : '/account.html';
+    return res.redirect('/auth/login?returnTo=' + encodeURIComponent(returnTo));
   }
   req.user = session;
   next();
@@ -189,8 +195,9 @@ function register(app) {
       const codeVerifier = generators.codeVerifier();
       const codeChallenge = generators.codeChallenge(codeVerifier);
       const state = generators.state();
+      const returnTo = ALLOWED_RETURN_PATHS.has(req.query.returnTo) ? req.query.returnTo : '/account.html';
 
-      res.cookie(TXN_COOKIE, JSON.stringify({ codeVerifier, state }), { ...COOKIE_OPTS, maxAge: 5 * 60 * 1000 });
+      res.cookie(TXN_COOKIE, JSON.stringify({ codeVerifier, state, returnTo }), { ...COOKIE_OPTS, maxAge: 5 * 60 * 1000 });
 
       const url = client.authorizationUrl({
         // internal_login is required for the SCIM2 /scim2/Me call in applyPendingPii
@@ -212,7 +219,7 @@ function register(app) {
     try {
       const txnRaw = req.signedCookies[TXN_COOKIE];
       if (!txnRaw) return res.status(400).send('Login session expired — please try again from /home.html.');
-      const { codeVerifier, state } = JSON.parse(txnRaw);
+      const { codeVerifier, state, returnTo } = JSON.parse(txnRaw);
       res.clearCookie(TXN_COOKIE);
 
       const client = await getClient();
@@ -229,7 +236,7 @@ function register(app) {
       // is always present and equals the username, which is the email for this org.
       await applyPendingPii(req, res, session.email, tokenSet.access_token);
 
-      res.redirect('/account.html');
+      res.redirect(ALLOWED_RETURN_PATHS.has(returnTo) ? returnTo : '/account.html');
     } catch (e) {
       console.error('[Auth] callback error:', e.message);
       res.status(500).send('Login failed: ' + e.message);

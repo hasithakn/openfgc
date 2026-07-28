@@ -18,6 +18,7 @@
 
 import { useMemo, useState } from 'react'
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -31,13 +32,19 @@ import {
   Typography,
 } from '@wso2/oxygen-ui'
 import { useTranslation } from 'react-i18next'
-import type { ConsentApprovalSelection, ConsentPurposeItem } from '../../../types/consent'
+import type {
+  ConsentApprovalSelection,
+  ConsentAuthorizationResource,
+  ConsentPurposeItem,
+} from '../../../types/consent'
 
 interface ConsentApprovalDialogProps {
   open: boolean
   consentId: string
   purposes: ConsentPurposeItem[]
+  authorizations?: ConsentAuthorizationResource[]
   loading: boolean
+  error?: string
   onClose: () => void
   onConfirm: (selectedOptionalElements: ConsentApprovalSelection[]) => void
 }
@@ -55,11 +62,18 @@ function ConsentApprovalDialog({
   open,
   consentId,
   purposes,
+  authorizations,
   loading,
+  error,
   onClose,
   onConfirm,
 }: ConsentApprovalDialogProps): React.JSX.Element {
   const { t } = useTranslation('common')
+
+  const delegateSubject = useMemo(
+    () => authorizations?.find((authorization) => authorization.type === 'delegate_subject'),
+    [authorizations],
+  )
 
   const mandatoryElements = useMemo(
     () =>
@@ -158,6 +172,18 @@ function ConsentApprovalDialog({
           </Typography>
         ) : (
           <Stack spacing={3} sx={{ mt: 0.5 }}>
+            {delegateSubject ? (
+              <Alert severity="info">
+                {t(
+                  'consentRegistry.modals.approval.delegateSubjectNotice',
+                  'You are approving this consent on behalf of {{userId}}.',
+                  { userId: delegateSubject.userId },
+                )}
+              </Alert>
+            ) : null}
+
+            {error ? <Alert severity="error">{error}</Alert> : null}
+
             <Box>
               <Typography
                 variant="caption"

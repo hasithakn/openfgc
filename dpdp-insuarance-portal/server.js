@@ -8,10 +8,14 @@ const app = express();
 app.use(express.json());
 auth.register(app);
 
-// Gate account.html itself (not just its API calls) — this must come before the
-// static middleware below so an unauthenticated request never even gets the file.
+// Gate account.html / learnpath-account.html themselves (not just their API calls) — this
+// must come before the static middleware below so an unauthenticated request never even
+// gets the file.
 app.get('/account.html', auth.requireAuth, (_, res) => {
   res.sendFile(path.join(__dirname, 'public', 'account.html'));
+});
+app.get('/learnpath-account.html', auth.requireAuth, (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'learnpath-account.html'));
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -189,23 +193,6 @@ app.get('/api/user-consents', auth.requireAuth, async (req, res) => {
   }
 });
 
-// Same lookup, but by an explicitly client-supplied email — kept separate (and
-// separately named) from /api/user-consents so the LearnPath "type your email to
-// check enrolment" demo (delegate.html) keeps working without weakening the
-// insurance portal's own authenticated endpoint above.
-app.get('/api/lookup-consents', async (req, res) => {
-  try {
-    const userId = req.query.userId;
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
-    let qs = `?userIds=${encodeURIComponent(userId)}&limit=50`;
-    if (req.query.purposeName) qs += `&purposeName=${encodeURIComponent(req.query.purposeName)}`;
-    const { status, data } = await fgcFetch('GET', `/api/v1/consents${qs}`);
-    res.status(status).json(data);
-  } catch (e) {
-    console.error('[LookupConsents] GET error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // Get a single consent by ID
 app.get('/api/consents/:id', async (req, res) => {
