@@ -8,6 +8,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -41,8 +42,16 @@ type Manager struct {
 	adminTokenSource oauth2.TokenSource
 }
 
-// NewManager initializes OIDC discovery when auth is enabled.
-func NewManager(ctx context.Context, cfg config.AuthConfig, proxyCfg config.ProxyConfig, log *slog.Logger) (*Manager, error) {
+// NewManager initializes OIDC discovery when auth is enabled. insecureSkipTLSVerify disables
+// certificate verification for every call to the IS (discovery, token exchange, admin
+// client_credentials) — only ever needed against a self-signed demo/dev IS instance.
+func NewManager(
+	ctx context.Context,
+	cfg config.AuthConfig,
+	proxyCfg config.ProxyConfig,
+	insecureSkipTLSVerify bool,
+	log *slog.Logger,
+) (*Manager, error) {
 	m := &Manager{cfg: cfg, proxyCfg: proxyCfg, log: log}
 	if !cfg.Enabled {
 		return m, nil
@@ -51,6 +60,11 @@ func NewManager(ctx context.Context, cfg config.AuthConfig, proxyCfg config.Prox
 		return nil, err
 	}
 	m.httpClient = &http.Client{Timeout: cfg.HTTPTimeout}
+	if insecureSkipTLSVerify {
+		m.httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in demo-only flag
+		}
+	}
 	discoveryContext := oidc.ClientContext(ctx, m.httpClient)
 	provider, err := oidc.NewProvider(discoveryContext, cfg.IssuerURL)
 	if err != nil {

@@ -45,6 +45,9 @@ go.work
 /target/
 /dist/
 
+# Demo stack build artifacts (populated by demo.sh build) and generated secrets
+/demo-artifacts/
+
 # Logs
 *.log
 logs/
@@ -67,3 +70,4 @@ consent-mgt-v1.code-workspace
 /event-framework/event-notification-runner/target/
 /event-framework/event-notification-service/target/
 /event-framework/event-notification-endpoint/target/
+/event-framework/event-notification-runner/dependency-reduced-pom.xml

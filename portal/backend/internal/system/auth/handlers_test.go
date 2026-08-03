@@ -87,7 +87,7 @@ func TestOIDCLoginCallbackRefreshAndLogout(t *testing.T) {
 	defer issuer.Close()
 
 	cfg := testAuthConfig(issuer.URL)
-	manager, err := NewManager(context.Background(), cfg, config.ProxyConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	manager, err := NewManager(context.Background(), cfg, config.ProxyConfig{}, false, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new manager: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestCallbackFailureMappingAndRedaction(t *testing.T) {
 			if test.maxPart > 0 {
 				cfg.MaxTokenPartBytes = test.maxPart
 			}
-			manager, err := NewManager(context.Background(), cfg, config.ProxyConfig{}, slog.New(slog.NewTextHandler(&logs, nil)))
+			manager, err := NewManager(context.Background(), cfg, config.ProxyConfig{}, false, slog.New(slog.NewTextHandler(&logs, nil)))
 			if err != nil {
 				t.Fatal(err)
 			}

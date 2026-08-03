@@ -26,6 +26,7 @@ func TestPlaceholderModePopulatesPrincipalContext(t *testing.T) {
 			PlaceholderUserID:      " user-1 ",
 			PlaceholderOrgID:       " org-1 ",
 		},
+		false,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 	if err != nil {

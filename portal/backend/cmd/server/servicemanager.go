@@ -40,7 +40,13 @@ func registerServices(mux *http.ServeMux, log *slog.Logger, cfg config.Config) e
 	mux.HandleFunc("GET /health", healthHandler.Liveness)
 	log.Debug("registered health endpoints")
 
-	authManager, err := auth.NewManager(context.Background(), cfg.Auth, cfg.Proxy, log)
+	authManager, err := auth.NewManager(
+		context.Background(),
+		cfg.Auth,
+		cfg.Proxy,
+		cfg.IdentityServer.InsecureSkipTLSVerify,
+		log,
+	)
 	if err != nil {
 		return err
 	}

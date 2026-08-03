@@ -12,6 +12,7 @@ package profile
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -171,9 +172,15 @@ func NewService(cfg config.Config, log *slog.Logger) (*Service, error) {
 	}
 	ageSchema, ageAttr := splitAttributePath(strings.TrimSpace(cfg.IdentityServer.SCIMAgeAttributePath))
 	birthdaySchema, birthdayAttr := splitAttributePath(strings.TrimSpace(cfg.IdentityServer.SCIMBirthdayAttributePath))
+	httpClient := &http.Client{Timeout: cfg.IdentityServer.SCIMTimeout}
+	if cfg.IdentityServer.InsecureSkipTLSVerify {
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in demo-only flag
+		}
+	}
 	return &Service{
 		baseURL:        parsed,
-		http:           &http.Client{Timeout: cfg.IdentityServer.SCIMTimeout},
+		http:           httpClient,
 		log:            log,
 		ageSchema:      ageSchema,
 		ageAttr:        ageAttr,

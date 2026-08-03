@@ -22,7 +22,7 @@ func newIntegrationHandler(cfg config.Config) (http.Handler, error) {
 	mux.HandleFunc("GET /health", healthHandler.Liveness)
 
 	log := systemlog.New(cfg.Log.Level)
-	authManager, err := auth.NewManager(context.Background(), cfg.Auth, cfg.Proxy, log)
+	authManager, err := auth.NewManager(context.Background(), cfg.Auth, cfg.Proxy, false, log)
 	if err != nil {
 		return nil, err
 	}

@@ -93,7 +93,7 @@ func (p *oidcValidationProvider) manager(t *testing.T, mutate func(*config.AuthC
 	if mutate != nil {
 		mutate(&cfg)
 	}
-	manager, err := NewManager(context.Background(), cfg, config.ProxyConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	manager, err := NewManager(context.Background(), cfg, config.ProxyConfig{}, false, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new manager: %v", err)
 	}

@@ -24,11 +24,12 @@ const POST_LOGOUT_REDIRECT_URI = `http://localhost:${PORT}/home.html`;
 const SCIM_BIRTHDAY_ATTRIBUTE_PATH = process.env.SCIM_BIRTHDAY_ATTRIBUTE_PATH || config.scimBirthdayAttributePath || '';
 
 // Local WSO2 IS dev instances almost always run with a self-signed cert. Only relax
-// TLS verification for discovery/token calls when the issuer itself is localhost —
-// never do this against a real deployment.
-if (/^https:\/\/(localhost|127\.0\.0\.1)/i.test(IS_ISSUER_URL)) {
+// TLS verification for discovery/token calls when the issuer is a known dev/demo host —
+// localhost for local dev, or "wso2is" for the dockerized demo stack's compose network
+// hostname — never do this against a real deployment.
+if (/^https:\/\/(localhost|127\.0\.0\.1|wso2is)/i.test(IS_ISSUER_URL)) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  console.warn('[Auth] Relaxing TLS certificate verification for localhost IS discovery (dev only — do not do this against a real deployment).');
+  console.warn('[Auth] Relaxing TLS certificate verification for dev/demo IS discovery (dev only — do not do this against a real deployment).');
 }
 
 let clientPromise = null;

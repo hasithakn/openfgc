@@ -144,6 +144,11 @@ type IdentityServerConfig struct {
 	// SCIMBirthdayAttributePath is the full SCIM PATCH path for a custom "birthday" claim,
 	// same convention as SCIMAgeAttributePath. Leave blank to disable birthday entirely.
 	SCIMBirthdayAttributePath string `koanf:"scim_birthday_attribute_path"`
+	// InsecureSkipTLSVerify disables TLS certificate verification for every call to WSO2 IS
+	// (SCIM2, OIDC discovery/token exchange, admin client_credentials). Only ever needed
+	// against a self-signed demo/dev IS instance (e.g. the dockerized demo stack) — must stay
+	// false anywhere IS presents a certificate issued by a trusted CA.
+	InsecureSkipTLSVerify bool `koanf:"insecure_skip_tls_verify"`
 }
 
 // Load initializes configuration from defaults, optional file, and environment variables.
@@ -362,6 +367,9 @@ func setDefaults(k *koanf.Koanf) error {
 		return err
 	}
 	if err := k.Set("identity_server.scim_birthday_attribute_path", ""); err != nil {
+		return err
+	}
+	if err := k.Set("identity_server.insecure_skip_tls_verify", false); err != nil {
 		return err
 	}
 

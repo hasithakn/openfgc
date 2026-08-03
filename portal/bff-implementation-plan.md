@@ -235,6 +235,7 @@ Rules:
 | `/api/consents/{consentId}/revoke` | POST | `portal:consents:write:any` |
 | `/api/consents/{consentId}/authorizations` | GET, POST | `portal:consents:read:any` for GET; `portal:consents:write:any` for POST |
 | `/api/consents/{consentId}/authorizations/{authorizationId}` | GET, PUT | `portal:consents:read:any` for GET; `portal:consents:write:any` for PUT |
+
 | `/api/consent-elements` | GET, POST | `portal:elements:read` for GET; `portal:elements:write` for POST |
 | `/api/consent-elements/{elementId}` | GET | `portal:elements:read` |
 | `/api/consent-elements/{elementId}/versions` | GET, POST | `portal:elements:read` for GET; `portal:elements:write` for POST |

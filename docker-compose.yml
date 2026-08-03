@@ -1,0 +1,155 @@
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./demo-artifacts/dbscripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # See docker/wso2is.Dockerfile — patches the vendor image so IS's own self-referential URLs
+  # resolve to "wso2is" instead of "localhost". Needs one one-time host /etc/hosts entry
+  # (127.0.0.1 wso2is) so the browser can resolve it too; `demo.sh start` checks for this.
+  wso2is:
+    build:
+      context: ./docker
+      dockerfile: wso2is.Dockerfile
+    ports:
+      - "9443:9443"
+    volumes:
+      - wso2is-data:/home/wso2carbon/wso2is-7.3.0/repository/database
+    healthcheck:
+      # Best-effort endpoint — verify against the real image (see task: iterate
+      # prerequisites.sh / this healthcheck against a live wso2is:7.3.0 container).
+      test: ["CMD", "curl", "-kfsS", "https://localhost:9443/api/health-check/v1.0/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+
+  openfgc:
+    build:
+      context: ./demo-artifacts/openfgc
+      dockerfile: ../../docker/openfgc.Dockerfile
+    environment:
+      OPENFGC_DB_TYPE: mysql
+      OPENFGC_DB_HOSTNAME: mysql
+      OPENFGC_DB_PORT: "3306"
+      OPENFGC_DB_NAME: consent_mgt
+      OPENFGC_DB_USER: root
+      OPENFGC_DB_PASSWORD: password
+    ports:
+      - "8060:8060"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  event-framework:
+    build:
+      context: ./demo-artifacts/event-framework
+      dockerfile: ../../docker/event-framework.Dockerfile
+    environment:
+      ENF_PORT: "8082"
+      ENF_DB_TYPE: mysql
+      ENF_DB_URL: "jdbc:mysql://mysql:3306/enf_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      ENF_DB_USER: root
+      ENF_DB_PASS: password
+    ports:
+      - "8082:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  webhook-listener:
+    build:
+      context: ./demo-artifacts/webhook-listener
+      dockerfile: ../../docker/webhook-listener.Dockerfile
+    environment:
+      PORT: "9091"
+    ports:
+      - "9091:9091"
+
+  # Non-secret config lives here; everything WSO2 IS/tenant-related (issuer URL, SCIM base
+  # URL, client id/secret, resource audience — all dependent on the exact tenant-qualified
+  # path shape prerequisites.sh ends up using) is supplied by the generated env file, which
+  # only exists after prerequisites.sh has run.
+  portal-backend:
+    build:
+      context: ./demo-artifacts/portal-backend
+      dockerfile: ../../docker/portal-backend.Dockerfile
+    env_file:
+      - ./demo-artifacts/generated/portal-backend.env
+    environment:
+      BFF_SERVER__HOST: 0.0.0.0
+      BFF_SERVER__PORT: "8081"
+      BFF_ENV: development
+      BFF_LOG__LEVEL: info
+      BFF_CORS__ALLOWED_ORIGINS: http://localhost:5173
+      BFF_CORS__ALLOWED_METHODS: GET,POST,PUT,PATCH,DELETE,OPTIONS
+      BFF_CORS__ALLOWED_HEADERS: Content-Type,Authorization,X-Correlation-ID
+      BFF_CORS__ALLOW_CREDENTIALS: "true"
+      BFF_PROXY__OPENFGC_API_URL: http://openfgc:8060
+      BFF_PROXY__OPENFGC_API_TIMEOUT: 10s
+      BFF_EVENT_FRAMEWORK__API_URL: http://event-framework:8082
+      BFF_EVENT_FRAMEWORK__API_TIMEOUT: 10s
+      BFF_IDENTITY_SERVER__INSECURE_SKIP_TLS_VERIFY: "true"
+      BFF_AUTH__ENABLED: "true"
+      BFF_AUTH__PORTAL_URL: http://localhost:5173/consents
+      BFF_AUTH__REDIRECT_URI: http://localhost:8081/auth/callback
+      BFF_AUTH__POST_LOGOUT_REDIRECT_URI: http://localhost:5173/
+      BFF_AUTH__COOKIE_SECURE: "false"
+    ports:
+      - "8081:8081"
+    depends_on:
+      openfgc:
+        condition: service_healthy
+      event-framework:
+        condition: service_healthy
+      wso2is:
+        condition: service_healthy
+
+  portal-frontend:
+    build:
+      context: ./demo-artifacts/portal-frontend
+      dockerfile: ../../docker/portal-frontend.Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      portal-backend:
+        condition: service_started
+
+  # Same generated-env-file split as portal-backend: everything WSO2 IS/tenant-related comes
+  # from ./demo-artifacts/generated/insurance-portal.env.
+  insurance-portal:
+    build:
+      context: ./demo-artifacts/insurance-portal
+      dockerfile: ../../docker/insurance-portal.Dockerfile
+    env_file:
+      - ./demo-artifacts/generated/insurance-portal.env
+    environment:
+      PORT: "3020"
+      OPENFGC_BASE: http://openfgc:8060
+      PORTAL_BACKEND_URL: http://portal-backend:8081
+      CONSENT_PORTAL_URL: http://localhost:5173
+      ORG_ID: insurance.org
+    ports:
+      - "3020:3020"
+    depends_on:
+      openfgc:
+        condition: service_started
+      portal-backend:
+        condition: service_started
+      wso2is:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
+  wso2is-data:
