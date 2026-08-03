@@ -162,6 +162,22 @@ services:
       wso2is:
         condition: service_healthy
 
+  # One-shot: runs prerequisites.sh (provisions the insurance.org WSO2 IS tenant + apps)
+  # inside a container instead of on the host, so the host genuinely needs nothing but
+  # Docker — prerequisites.sh itself needs bash/curl/jq, which this installs on the fly
+  # rather than requiring them on the host. `profiles: [tools]` keeps it out of any plain
+  # `docker compose up`; demo.sh invokes it explicitly via `docker compose run --rm provisioner`.
+  provisioner:
+    image: alpine:3.20
+    profiles: ["tools"]
+    volumes:
+      - ./prerequisites.sh:/prerequisites.sh:ro
+      - ./demo-artifacts/generated:/generated
+    environment:
+      IS_BASE_URL: https://wso2is:9443
+      OUT_DIR: /generated
+    entrypoint: ["sh", "-c", "apk add --no-cache bash curl jq >/dev/null 2>&1 && exec bash /prerequisites.sh"]
+
 volumes:
   mysql-data:
   wso2is-data:

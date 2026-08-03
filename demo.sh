@@ -125,7 +125,10 @@ cmd_start() {
   wait_healthy event-framework 60
 
   log "Running prerequisites.sh (provisioning the insurance.org tenant + OAuth apps in IS) ..."
-  IS_BASE_URL="https://wso2is:9443" "$ROOT_DIR/prerequisites.sh"
+  # Run inside the "provisioner" container (docker-compose.yml), not directly on the host —
+  # prerequisites.sh needs bash/curl/jq, and the whole point of this stack is that the host
+  # needs nothing but Docker itself.
+  docker compose run --rm provisioner
 
   log "Starting wave 2: portal-backend, portal-frontend, insurance-portal ..."
   docker compose up -d portal-backend portal-frontend insurance-portal

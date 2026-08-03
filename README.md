@@ -9,15 +9,43 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-00ADD8?logo=go)](https://go.dev)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0%2B-4479A1?logo=mysql)](https://www.mysql.com)
 
+## Run the Demo
+
+The full demo stack (consent portal, insurance portal demo app, event notifications, and a
+provisioned WSO2 Identity Server tenant) runs entirely in Docker — **the only prerequisite is
+Docker itself**, no Go/Node/Maven/etc. required on your machine.
+
+```bash
+./demo.sh start   # builds everything from source on first run, then starts the stack
+```
+
+One-time setup: add `127.0.0.1  wso2is` to `/etc/hosts` (the script will tell you if it's
+missing and give you the exact command). Then open **http://localhost:3020**.
+
+```echo '127.0.0.1  wso2is' | sudo tee -a /etc/hosts```
+
+Other commands:
+
+```bash
+./demo.sh build   # (re)build all images from source — only needed after pulling code changes
+./demo.sh stop    # stop containers, keep built images (fast restart with `start` again)
+./demo.sh clean   # remove containers, volumes, images, and build output — start fresh
+```
+
+See [`docker-compose.yml`](./docker-compose.yml) for the service topology and
+[`prerequisites.sh`](./prerequisites.sh) for what gets provisioned in WSO2 IS.
+
 ## Quick Navigation
 
 | New to the project? | [Quick Start](#quick-start) |
 |---------------------|---------------------------|
+| Want to try the full demo? | [Run the Demo](#run-the-demo) |
 | Using the API? | [API Endpoints](#api-endpoints) |
 | Contributing? | [Development](#development) |
 
 ## Table of Contents
 
+- [Run the Demo](#run-the-demo)
 - [Features](#features)
 - [Core Concepts](#core-concepts)
 - [Technology Stack](#technology-stack)
