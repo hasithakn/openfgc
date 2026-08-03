@@ -9,10 +9,17 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ppassword"]
+      # -h 127.0.0.1 (not "localhost") to force a real TCP connection on port 3306, not the
+      # local Unix socket — MySQL's init-from-empty-datadir process runs a temporary
+      # --skip-networking server to apply docker-entrypoint-initdb.d scripts, which answers
+      # socket pings (making a "localhost" healthcheck report healthy) but refuses TCP, which
+      # is what every OTHER container actually connects over. Confirmed live: with -h
+      # localhost, openfgc/other services race a "connection refused" against this brief
+      # window; -h 127.0.0.1 only turns healthy once the real TCP-listening server is up.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-ppassword"]
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 30s
 
   # See docker/wso2is.Dockerfile — patches the vendor image so IS's own self-referential URLs

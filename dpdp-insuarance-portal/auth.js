@@ -16,7 +16,15 @@ const IS_CLIENT_SECRET = process.env.IS_CLIENT_SECRET || config.isClientSecret |
 const IS_REDIRECT_URI = process.env.IS_REDIRECT_URI || config.isRedirectUri || 'http://localhost:3020/auth/callback';
 const SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || config.sessionCookieSecret || 'dev-secret';
 const PORT = process.env.PORT || config.port || 3020;
-const POST_LOGOUT_REDIRECT_URI = `http://localhost:${PORT}/home.html`;
+// Each protected "account" page belongs to its own flow and has its own public landing page
+// to return to after logout — this app serves multiple independent demo flows (main
+// insurance portal, LearnPath/delegate) sharing one OAuth app, so logout must not always
+// land on the main portal's /home.html regardless of which flow the user was actually in.
+const POST_LOGOUT_LANDING_PAGES = {
+  '/account.html': '/home.html',
+  '/learnpath-account.html': '/delegate.html',
+};
+const DEFAULT_POST_LOGOUT_PATH = '/home.html';
 // Full SCIM PATCH path for the custom "birthday" claim, e.g.
 // "urn:scim:schemas:extension:custom:User:birthday" — only exists once a matching local
 // claim has been created and SCIM2-mapped in the IS Console (see README). Leave empty in
@@ -249,19 +257,27 @@ function register(app) {
     const session = getSession(sessionId);
     sessions.delete(sessionId);
     res.clearCookie(SESSION_COOKIE);
+
+    // Which flow's landing page to return to — passed by the page that linked here (e.g.
+    // learnpath-account.html links to /auth/logout?from=/learnpath-account.html), validated
+    // against the same allowlist login uses, so this can't be abused as an open redirect.
+    const fromPath = ALLOWED_RETURN_PATHS.has(req.query.from) ? req.query.from : null;
+    const landingPath = (fromPath && POST_LOGOUT_LANDING_PAGES[fromPath]) || DEFAULT_POST_LOGOUT_PATH;
+    const postLogoutRedirectUri = `http://localhost:${PORT}${landingPath}`;
+
     try {
       const client = await getClient();
       if (client.issuer.end_session_endpoint) {
         const url = client.endSessionUrl({
           id_token_hint: session ? session.idToken : undefined,
-          post_logout_redirect_uri: POST_LOGOUT_REDIRECT_URI,
+          post_logout_redirect_uri: postLogoutRedirectUri,
         });
         return res.redirect(url);
       }
     } catch (e) {
       // Fall through to a plain local redirect — the local session is already cleared.
     }
-    res.redirect('/home.html');
+    res.redirect(landingPath);
   });
 
   app.get('/api/me', requireAuth, (req, res) => {

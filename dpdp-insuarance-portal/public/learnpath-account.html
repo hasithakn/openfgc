@@ -154,7 +154,7 @@
   }
 
   function doLogout() {
-    window.location.href = '/auth/logout';
+    window.location.href = '/auth/logout?from=' + encodeURIComponent('/learnpath-account.html');
   }
 
   async function loadEnrolment() {

@@ -209,6 +209,32 @@
 
   </div>
 
+  <!-- Webhook -->
+  <div class="ref-section">
+    <div class="ref-section-title">Webhook Callback (Event Notification Framework)</div>
+
+    <div class="ref-card">
+      <div class="ref-card-header">
+        <div><div class="ref-name">callback URL</div><div class="ref-display" id="val-webhook-url">http://webhook-listener:9091/webhook</div></div>
+      </div>
+      <div class="ref-desc" style="-webkit-line-clamp: unset;">Use this as the callback URL when creating a subscription in the Consent Portal's Event Subscriptions page — it's the docker-compose service hostname, not localhost, since the Event Notification Framework calls it from inside the container network.</div>
+      <div class="ref-actions">
+        <button class="ref-btn" onclick="copyText('val-webhook-url',this)">⎘ Copy</button>
+      </div>
+    </div>
+
+    <div class="ref-card">
+      <div class="ref-card-header">
+        <div><div class="ref-name">tail logs</div><div class="ref-display" id="val-webhook-logs">docker compose logs -f webhook-listener</div></div>
+      </div>
+      <div class="ref-desc" style="-webkit-line-clamp: unset;">Run this in a terminal to watch delivered events live.</div>
+      <div class="ref-actions">
+        <button class="ref-btn" onclick="copyText('val-webhook-logs',this)">⎘ Copy</button>
+      </div>
+    </div>
+
+  </div>
+
 <script>
   fetch('/api/config').then(r => r.json()).then(cfg => {
     var base = cfg.consentPortalUrl || 'http://localhost:5173';

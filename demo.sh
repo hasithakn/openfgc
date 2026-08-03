@@ -69,8 +69,13 @@ cmd_build() {
   cp "$ROOT_DIR/portal/backend/bin/portal-backend" "$ARTIFACTS_DIR/portal-backend/bff"
 
   log "Building portal-frontend (VITE_API_BASE_URL=http://localhost:8081) ..."
+  # VITE_AUTH_LOGOUT_ALLOWED_ORIGINS must include the WSO2 IS origin — the frontend's own
+  # logout() only navigate()s to a logoutUrl whose origin is in this build-time allowlist,
+  # otherwise it throws "navigation URL origin is not allowed" and the UI shows a generic
+  # "Unable to sign out" toast even though the backend's own /auth/logout call succeeded.
   (cd "$ROOT_DIR/portal/frontend" && \
-    VITE_API_BASE_URL=http://localhost:8081 VITE_ORG_ID=insurance.org "$npm_client" run build)
+    VITE_API_BASE_URL=http://localhost:8081 VITE_ORG_ID=insurance.org \
+    VITE_AUTH_LOGOUT_ALLOWED_ORIGINS=https://wso2is:9443 "$npm_client" run build)
   cp -R "$ROOT_DIR/portal/frontend/dist" "$ARTIFACTS_DIR/portal-frontend/dist"
   cp "$ROOT_DIR/docker/portal-frontend.nginx.conf" "$ARTIFACTS_DIR/portal-frontend/nginx.conf"
 
@@ -169,16 +174,14 @@ cmd_start() {
   cat <<'EOF'
 
 ============================================================
-  Demo stack is up.
-============================================================
-  WSO2 IS console:    https://wso2is:9443/carbon (tenant: insurance.org)
-  Consent portal:     http://localhost:5173
-  Insurance portal:   http://localhost:3020
-  OpenFGC API:        http://localhost:8060
-  Webhook listener:   http://localhost:9091
+  Demo stack is up. Go here:
 
-  First run in a fresh tenant: seed consent elements/purposes via the insurance portal's
-  setup page (http://localhost:3020/setup/) before running through the demo flow.
+    http://localhost:3020
+
+============================================================
+  Other endpoints (admin/debugging): consent portal http://localhost:5173, WSO2 IS console
+  https://wso2is:9443/carbon (tenant: insurance.org), OpenFGC API http://localhost:8060,
+  webhook listener http://localhost:9091.
 ============================================================
 EOF
 }

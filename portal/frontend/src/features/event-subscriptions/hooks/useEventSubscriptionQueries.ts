@@ -107,6 +107,13 @@ export function useOrgEventListQuery(
     queryKey: ['org-events', status, subscriptionId, search, page, rowsPerPage],
     queryFn: () => fetchOrgEvents(status, subscriptionId, search, rowsPerPage, page * rowsPerPage),
     placeholderData: keepPreviousData,
+    // New deliveries can land at any time — unlike mostly-static list pages elsewhere in the
+    // app, this feed needs a fresh fetch on every visit rather than reusing whatever was
+    // cached from up to staleTime (30s) ago. Without this, revisiting /events within that
+    // window via client-side navigation silently reused a stale (possibly empty) cached
+    // result and fired no request at all; only a full page reload (which discards the whole
+    // QueryClient) forced a real fetch.
+    refetchOnMount: 'always',
   })
 }
 
