@@ -5,7 +5,9 @@ services:
       MYSQL_ROOT_PASSWORD: password
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./demo-artifacts/dbscripts:/docker-entrypoint-initdb.d:ro
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+      - ./consent-server/dbscripts/db_schema_mysql.sql:/schemas/consent-mgt-schema.sql:ro
+      - ./event-framework/event-notification-dao/src/main/resources/dbscripts/mysql.sql:/schemas/enf-schema.sql:ro
     ports:
       - "3306:3306"
     healthcheck:
@@ -42,10 +44,13 @@ services:
       retries: 30
       start_period: 90s
 
+  # Every application service below builds straight from its own source directory (scoped
+  # build context = just that module, so `docker compose build` never uploads the whole
+  # monorepo) — no host Go/Node/Maven toolchain is needed, only Docker itself.
   openfgc:
     build:
-      context: ./demo-artifacts/openfgc
-      dockerfile: ../../docker/openfgc.Dockerfile
+      context: ./consent-server
+      dockerfile: ../docker/openfgc.Dockerfile
     environment:
       OPENFGC_DB_TYPE: mysql
       OPENFGC_DB_HOSTNAME: mysql
@@ -61,8 +66,8 @@ services:
 
   event-framework:
     build:
-      context: ./demo-artifacts/event-framework
-      dockerfile: ../../docker/event-framework.Dockerfile
+      context: ./event-framework
+      dockerfile: ../docker/event-framework.Dockerfile
     environment:
       ENF_PORT: "8082"
       ENF_DB_TYPE: mysql
@@ -77,8 +82,8 @@ services:
 
   webhook-listener:
     build:
-      context: ./demo-artifacts/webhook-listener
-      dockerfile: ../../docker/webhook-listener.Dockerfile
+      context: ./event-framework
+      dockerfile: ../docker/webhook-listener.Dockerfile
     environment:
       PORT: "9091"
     ports:
@@ -90,7 +95,7 @@ services:
   # only exists after prerequisites.sh has run.
   portal-backend:
     build:
-      context: ./demo-artifacts/portal-backend
+      context: ./portal/backend
       dockerfile: ../../docker/portal-backend.Dockerfile
     env_file:
       - ./demo-artifacts/generated/portal-backend.env
@@ -125,7 +130,7 @@ services:
 
   portal-frontend:
     build:
-      context: ./demo-artifacts/portal-frontend
+      context: ./portal/frontend
       dockerfile: ../../docker/portal-frontend.Dockerfile
     ports:
       - "5173:80"
@@ -137,8 +142,8 @@ services:
   # from ./demo-artifacts/generated/insurance-portal.env.
   insurance-portal:
     build:
-      context: ./demo-artifacts/insurance-portal
-      dockerfile: ../../docker/insurance-portal.Dockerfile
+      context: ./dpdp-insuarance-portal
+      dockerfile: ../docker/insurance-portal.Dockerfile
     env_file:
       - ./demo-artifacts/generated/insurance-portal.env
     environment:

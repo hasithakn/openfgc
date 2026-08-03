@@ -4,9 +4,11 @@
 # Licensed under the Apache License, Version 2.0.
 # ----------------------------------------------------------------------------
 #
-# Orchestrates the dockerized demo stack: build (native per-module builds -> demo-artifacts/
-# -> docker compose build), start (bring the stack up, provision WSO2 IS, start the rest),
-# stop (tear everything down, including volumes, for a clean next start).
+# Orchestrates the dockerized demo stack: build (docker compose build — every image builds
+# from source inside its own Dockerfile, so this needs nothing but Docker on the host), start
+# (bring the stack up, provision WSO2 IS, start the rest, auto-building first if needed),
+# stop (stop containers, keep images), clean (remove everything — containers, images,
+# volumes, generated files — for a truly from-scratch rebuild).
 #
 # See docker-compose.yml for the service topology and prerequisites.sh for what gets
 # provisioned in WSO2 IS.
@@ -16,6 +18,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 ROOT_DIR="$(pwd)"
 ARTIFACTS_DIR="$ROOT_DIR/demo-artifacts"
+BUILT_SERVICES="wso2is openfgc event-framework webhook-listener portal-backend portal-frontend insurance-portal"
 
 log() { echo "[demo] $*"; }
 die() { echo "[demo] ERROR: $*" >&2; exit 1; }
@@ -23,15 +26,19 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required but not
 
 usage() {
   cat <<'EOF'
-Usage: ./demo.sh <build|start|stop>
+Usage: ./demo.sh <build|start|stop|clean>
 
-  build   Build all 6 modules with their own native toolchain, assemble demo-artifacts/,
-          then `docker compose build` every image from that staged output.
-  start   Bring up mysql/wso2is/openfgc/event-framework/webhook-listener, wait for them to
-          report healthy, run prerequisites.sh to provision the WSO2 IS tenant + apps, then
-          start portal-backend/portal-frontend/insurance-portal.
+  build   `docker compose build` — every image builds from source inside its own
+          Dockerfile (Go/Node/Maven toolchains only exist inside the build containers).
+          Requires nothing but Docker on the host.
+  start   Builds first if any image is missing, then brings up mysql/wso2is/openfgc/
+          event-framework/webhook-listener, waits for them to report healthy, runs
+          prerequisites.sh to provision the WSO2 IS tenant + apps, then starts
+          portal-backend/portal-frontend/insurance-portal.
   stop    `docker compose down -v` — removes every container AND volume (MySQL + WSO2 IS
-          data), so the next `start` provisions a genuinely fresh tenant.
+          data), so the next `start` provisions a genuinely fresh tenant. Keeps built images.
+  clean   Removes everything: containers, volumes, built images, and demo-artifacts/ — the
+          next `build`/`start` compiles completely from scratch.
 EOF
 }
 
@@ -39,84 +46,27 @@ EOF
 # build
 # ---------------------------------------------------------------------------------------
 cmd_build() {
-  require_cmd go
-  require_cmd task
-  require_cmd mvn
   require_cmd docker
-  require_cmd npm
-
-  local npm_client=npm
-  command -v pnpm >/dev/null 2>&1 && npm_client=pnpm
-
-  log "Resetting $ARTIFACTS_DIR ..."
-  rm -rf "$ARTIFACTS_DIR"
-  mkdir -p "$ARTIFACTS_DIR"/{openfgc,portal-backend,portal-frontend,event-framework,webhook-listener,insurance-portal,dbscripts,generated}
-
-  # Docker images run linux regardless of the host OS this script runs on — both native Go
-  # builds below must cross-compile for linux (keeping the host's native GOARCH, so this
-  # works unmodified on both amd64 and arm64 dev machines building for a same-arch daemon).
-  local go_arch
-  go_arch="$(go env GOARCH)"
-
-  log "Building openfgc (consent-server) for linux/$go_arch ..."
-  (cd "$ROOT_DIR" && ./build.sh build linux "$go_arch")
-  cp -R "$ROOT_DIR/target/server/." "$ARTIFACTS_DIR/openfgc/"
-  cp "$ROOT_DIR/consent-server/cmd/server/repository/conf/deployment.docker.yaml" \
-    "$ARTIFACTS_DIR/openfgc/repository/conf/deployment.yaml"
-
-  log "Building portal-backend for linux/$go_arch ..."
-  (cd "$ROOT_DIR/portal/backend" && GOOS=linux GOARCH="$go_arch" task build)
-  cp "$ROOT_DIR/portal/backend/bin/portal-backend" "$ARTIFACTS_DIR/portal-backend/bff"
-
-  log "Building portal-frontend (VITE_API_BASE_URL=http://localhost:8081) ..."
-  # VITE_AUTH_LOGOUT_ALLOWED_ORIGINS must include the WSO2 IS origin — the frontend's own
-  # logout() only navigate()s to a logoutUrl whose origin is in this build-time allowlist,
-  # otherwise it throws "navigation URL origin is not allowed" and the UI shows a generic
-  # "Unable to sign out" toast even though the backend's own /auth/logout call succeeded.
-  (cd "$ROOT_DIR/portal/frontend" && \
-    VITE_API_BASE_URL=http://localhost:8081 VITE_ORG_ID=insurance.org \
-    VITE_AUTH_LOGOUT_ALLOWED_ORIGINS=https://wso2is:9443 "$npm_client" run build)
-  cp -R "$ROOT_DIR/portal/frontend/dist" "$ARTIFACTS_DIR/portal-frontend/dist"
-  cp "$ROOT_DIR/docker/portal-frontend.nginx.conf" "$ARTIFACTS_DIR/portal-frontend/nginx.conf"
-
-  log "Building event-framework ..."
-  (cd "$ROOT_DIR/event-framework" && mvn -q clean package -DskipTests)
-  cp "$ROOT_DIR/event-framework/event-notification-runner/target/event-notification-runner-1.0.0-SNAPSHOT.jar" \
-    "$ARTIFACTS_DIR/event-framework/event-notification-runner.jar"
-
-  log "Staging webhook-listener ..."
-  cp "$ROOT_DIR/event-framework/webhook-listener.js" "$ARTIFACTS_DIR/webhook-listener/webhook-listener.js"
-
-  log "Building insurance-portal (npm ci --omit=dev) ..."
-  (cd "$ROOT_DIR/dpdp-insuarance-portal" && npm ci --omit=dev)
-  for f in server.js auth.js config.json package.json package-lock.json; do
-    cp "$ROOT_DIR/dpdp-insuarance-portal/$f" "$ARTIFACTS_DIR/insurance-portal/$f"
-  done
-  cp -R "$ROOT_DIR/dpdp-insuarance-portal/public" "$ARTIFACTS_DIR/insurance-portal/public"
-  cp -R "$ROOT_DIR/dpdp-insuarance-portal/node_modules" "$ARTIFACTS_DIR/insurance-portal/node_modules"
-
-  log "Assembling dbscripts (consent_mgt, enf_db) ..."
-  {
-    echo "CREATE DATABASE IF NOT EXISTS consent_mgt;"
-    echo "USE consent_mgt;"
-    echo
-    cat "$ROOT_DIR/consent-server/dbscripts/db_schema_mysql.sql"
-  } > "$ARTIFACTS_DIR/dbscripts/01-consent-mgt.sql"
-  {
-    echo "CREATE DATABASE IF NOT EXISTS enf_db;"
-    echo "USE enf_db;"
-    echo
-    cat "$ROOT_DIR/event-framework/event-notification-dao/src/main/resources/dbscripts/mysql.sql"
-  } > "$ARTIFACTS_DIR/dbscripts/02-enf.sql"
 
   # docker compose parses env_file references for every subcommand, including `build` — these
   # are placeholders until prerequisites.sh overwrites them with real content during `start`.
+  mkdir -p "$ARTIFACTS_DIR/generated"
   touch "$ARTIFACTS_DIR/generated/portal-backend.env" "$ARTIFACTS_DIR/generated/insurance-portal.env"
 
-  log "docker compose build ..."
-  (cd "$ROOT_DIR" && docker compose build)
+  log "docker compose build (this compiles every module from source — Go/Node/Maven only run inside the build containers, not on this host) ..."
+  docker compose build
 
-  log "Build complete. Artifacts staged in $ARTIFACTS_DIR/"
+  log "Build complete."
+}
+
+# Returns success (0) if every build-based service already has an image; failure otherwise —
+# used by `start` to decide whether to build automatically first.
+all_images_built() {
+  local service
+  for service in $BUILT_SERVICES; do
+    [ -n "$(docker compose images -q "$service" 2>/dev/null)" ] || return 1
+  done
+  return 0
 }
 
 # ---------------------------------------------------------------------------------------
@@ -153,8 +103,18 @@ check_hosts_entry() {
 
 cmd_start() {
   require_cmd docker
-  [ -d "$ARTIFACTS_DIR" ] || die "demo-artifacts/ not found — run './demo.sh build' first."
   check_hosts_entry
+
+  # Belt-and-suspenders: docker compose parses env_file references for every subcommand, and
+  # these placeholders might be missing even when images are already built (e.g. after a
+  # manual `docker compose down -v` outside demo.sh, or a partially-cleaned state).
+  mkdir -p "$ARTIFACTS_DIR/generated"
+  touch "$ARTIFACTS_DIR/generated/portal-backend.env" "$ARTIFACTS_DIR/generated/insurance-portal.env"
+
+  if ! all_images_built; then
+    log "One or more images aren't built yet — building first ..."
+    cmd_build
+  fi
 
   log "Starting wave 1: mysql, wso2is, openfgc, event-framework, webhook-listener ..."
   docker compose up -d mysql wso2is openfgc event-framework webhook-listener
@@ -193,12 +153,48 @@ cmd_stop() {
   require_cmd docker
   log "Stopping and removing all containers + volumes (mysql, wso2is data) ..."
   docker compose down -v
-  log "Stopped. The next './demo.sh start' will provision a fresh tenant from scratch."
+  log "Stopped. Built images are kept — './demo.sh start' will reuse them. Use './demo.sh clean' to also remove images and force a from-scratch rebuild."
+}
+
+# ---------------------------------------------------------------------------------------
+# clean
+# ---------------------------------------------------------------------------------------
+cmd_clean() {
+  require_cmd docker
+  log "Removing all containers, volumes, and built images ..."
+  docker compose down -v --rmi local --remove-orphans
+
+  log "Removing $ARTIFACTS_DIR/ ..."
+  rm -rf "$ARTIFACTS_DIR"
+
+  # Leftover host-side build output from the old (pre-docker-only) workflow, when demo.sh
+  # build ran go/task/npm/mvn directly on the host — harmless to leave, but cleaning them up
+  # is exactly what "clean" implies, and none of them are needed anymore.
+  local leftover_dirs=(
+    "$ROOT_DIR/target"
+    "$ROOT_DIR/portal/backend/bin"
+    "$ROOT_DIR/portal/frontend/dist"
+    "$ROOT_DIR/event-framework/event-notification-runner/target"
+    "$ROOT_DIR/event-framework/event-notification-dao/target"
+    "$ROOT_DIR/event-framework/event-notification-service/target"
+    "$ROOT_DIR/event-framework/event-notification-endpoint/target"
+    "$ROOT_DIR/dpdp-insuarance-portal/node_modules"
+  )
+  local dir
+  for dir in "${leftover_dirs[@]}"; do
+    if [ -e "$dir" ]; then
+      log "Removing leftover $dir ..."
+      rm -rf "$dir"
+    fi
+  done
+
+  log "Clean. The next './demo.sh build' (or './demo.sh start') compiles everything from scratch."
 }
 
 case "${1:-}" in
   build) cmd_build ;;
   start) cmd_start ;;
   stop) cmd_stop ;;
+  clean) cmd_clean ;;
   *) usage; exit 1 ;;
 esac
